@@ -332,13 +332,96 @@
 
 
   <!-- INDEX REBUILD -->
+  <!-- INDEX MANAGEMENT -->
   <div id="indexrebuild" class="section">
-    <h2>🔄 Index Management</h2>
-    <div class="card">
-      <p style="color:#666;margin-bottom:16px;">Rebuild all category indexes and master cross-reference from wiki files.</p>
-      <button class="btn btn-green" onclick="rebuildIndex()">🔄 Rebuild All Indexes</button>
+    <h2>🗂️ Index Management</h2>
+
+    <!-- Summary Cards -->
+    <div id="index-summary-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px;"></div>
+
+    <!-- Tabs inside Index section -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+      <button class="btn btn-grey" id="idx-tab-search-btn"   onclick="idxTab('search')"   style="border-bottom:2px solid #1a73e8;">🔍 Search</button>
+      <button class="btn btn-grey" id="idx-tab-cats-btn"     onclick="idxTab('cats')">📁 By Category</button>
+      <button class="btn btn-grey" id="idx-tab-keywords-btn" onclick="idxTab('keywords')">🔑 Keywords</button>
+      <button class="btn btn-grey" id="idx-tab-facts-btn"    onclick="idxTab('facts')">✅ Facts</button>
+      <button class="btn btn-grey" id="idx-tab-questions-btn"onclick="idxTab('questions')">❓ Questions</button>
+      <button class="btn btn-grey" id="idx-tab-export-btn"   onclick="idxTab('export')">⬇️ Export</button>
+      <button class="btn btn-grey" id="idx-tab-rebuild-btn"  onclick="idxTab('rebuild')">🔄 Rebuild Wiki</button>
     </div>
-    <div id="index-status" class="status-box" style="display:none"></div>
+
+    <!-- SEARCH SUB-TAB -->
+    <div id="idx-search" class="idx-sub">
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <input type="text" id="idx-search-input" placeholder="Search across URLs, facts, keywords, questions..." style="flex:1;">
+        <button class="btn btn-green" onclick="runIndexSearch()">Search</button>
+      </div>
+      <div id="idx-search-results"></div>
+    </div>
+
+    <!-- BY CATEGORY SUB-TAB -->
+    <div id="idx-cats" class="idx-sub" style="display:none;">
+      <button class="btn btn-blue" onclick="loadIdxCategories()" style="margin-bottom:16px;">🔄 Load</button>
+      <div id="idx-cats-results"></div>
+    </div>
+
+    <!-- KEYWORDS SUB-TAB -->
+    <div id="idx-keywords" class="idx-sub" style="display:none;">
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <input type="text" id="idx-kw-filter" placeholder="Filter by topic..." style="flex:1;">
+        <button class="btn btn-green" onclick="loadIdxKeywords()">Load</button>
+      </div>
+      <div id="idx-keywords-results"></div>
+    </div>
+
+    <!-- FACTS SUB-TAB -->
+    <div id="idx-facts" class="idx-sub" style="display:none;">
+      <button class="btn btn-blue" onclick="loadIdxFacts()" style="margin-bottom:16px;">🔄 Load Facts</button>
+      <div id="idx-facts-results"></div>
+    </div>
+
+    <!-- QUESTIONS SUB-TAB -->
+    <div id="idx-questions" class="idx-sub" style="display:none;">
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <input type="text" id="idx-q-filter" placeholder="Filter by category..." style="flex:1;">
+        <button class="btn btn-green" onclick="loadIdxQuestions()">Load</button>
+      </div>
+      <div id="idx-questions-results"></div>
+    </div>
+
+    <!-- EXPORT SUB-TAB -->
+    <div id="idx-export" class="idx-sub" style="display:none;">
+      <div class="card">
+        <h3>Export Table Data</h3>
+        <label>Table</label>
+        <select id="export-table">
+          <option value="url_registry">url_registry</option>
+          <option value="facts">facts</option>
+          <option value="keyword_intelligence">keyword_intelligence</option>
+          <option value="questions_research">questions_research</option>
+          <option value="url_paths">url_paths</option>
+        </select>
+        <label>Format</label>
+        <select id="export-fmt">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+        </select>
+        <div style="margin-top:16px;display:flex;gap:10px;">
+          <button class="btn btn-green" onclick="exportTable()">⬇️ Download</button>
+          <button class="btn btn-grey" onclick="previewTable()">👁 Preview</button>
+        </div>
+        <div id="export-preview" style="margin-top:16px;max-height:400px;overflow:auto;font-family:monospace;font-size:0.82em;background:#f8f9fa;padding:12px;border-radius:8px;display:none;"></div>
+      </div>
+    </div>
+
+    <!-- REBUILD SUB-TAB -->
+    <div id="idx-rebuild" class="idx-sub" style="display:none;">
+      <div class="card">
+        <p style="color:#666;margin-bottom:16px;">Rebuild all category indexes and master cross-reference from wiki files.</p>
+        <button class="btn btn-green" onclick="rebuildIndex()">🔄 Rebuild All Indexes</button>
+      </div>
+      <div id="index-status" class="status-box" style="display:none"></div>
+    </div>
   </div>
 
   <!-- CATEGORIES -->
@@ -468,6 +551,7 @@ function showTab(name, el) {
   if (name === 'urlmanager') { loadCatTree(); loadURLs(); }
   if (name === 'facts') loadFacts();
   if (name === 'questions') loadQuestions();
+  if (name === 'indexrebuild') loadIndexSummary();
 }
 
 
@@ -924,6 +1008,180 @@ async function rebuildIndex() {
   const data = await res.json();
   box.textContent = `✅ ${data.message}`;
 }
+
+// ── Index Management ──
+function idxTab(name) {
+  document.querySelectorAll('.idx-sub').forEach(d => d.style.display = 'none');
+  document.querySelectorAll('[id^="idx-tab-"]').forEach(b => b.style.borderBottom = 'none');
+  document.getElementById('idx-' + name).style.display = 'block';
+  document.getElementById('idx-tab-' + name + '-btn').style.borderBottom = '2px solid #1a73e8';
+  if (name === 'search') { /* do nothing, wait for input */ }
+  if (name === 'cats') loadIdxCategories();
+  if (name === 'keywords') loadIdxKeywords();
+  if (name === 'facts') loadIdxFacts();
+  if (name === 'questions') loadIdxQuestions();
+}
+
+async function loadIndexSummary() {
+  const res = await fetch('/index/summary');
+  const d = await res.json();
+  const cards = [
+    {label:'Total URLs',    val: d.urls_total,              color:'#1a73e8'},
+    {label:'Enriched',      val: d.urls_enriched,           color:'#34a853'},
+    {label:'Scraped',       val: d.urls_scraped,            color:'#fbbc04'},
+    {label:'Failed',        val: d.urls_failed,             color:'#d93025'},
+    {label:'Facts',         val: d.facts_total,             color:'#1a73e8'},
+    {label:'Verified Facts',val: d.facts_verified,          color:'#34a853'},
+    {label:'Keywords',      val: d.keywords_total,          color:'#9334e6'},
+    {label:'KW Topics',     val: d.keywords_topics,         color:'#9334e6'},
+    {label:'Questions',     val: d.questions_total,         color:'#e37400'},
+    {label:'Q Categories',  val: d.questions_categories,    color:'#e37400'},
+    {label:'Categories',    val: d.categories_total,        color:'#1a73e8'},
+  ];
+  document.getElementById('index-summary-cards').innerHTML = cards.map(c => `
+    <div style="background:#fff;border:1px solid #e0e0e0;border-top:4px solid ${c.color};
+      border-radius:10px;padding:16px;text-align:center;">
+      <div style="font-size:2em;font-weight:700;color:${c.color}">${c.val}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">${c.label}</div>
+    </div>`).join('');
+}
+
+async function runIndexSearch() {
+  const q = document.getElementById('idx-search-input').value.trim();
+  if (!q) return;
+  const res = await fetch('/index/search?q=' + encodeURIComponent(q));
+  const d = await res.json();
+  let html = '';
+  if (d.urls.length) {
+    html += `<h3>🔗 URLs (${d.urls.length})</h3>`;
+    d.urls.forEach(r => html += `<div class="url-card">
+      <div class="title">${r.title || '(no title)'}</div>
+      <div class="url-text"><a href="${r.url}" target="_blank">${r.url}</a></div>
+      <div class="meta"><span>Domain: ${r.domain}</span><span>Quality: ${r.quality_score}</span></div>
+    </div>`);
+  }
+  if (d.facts.length) {
+    html += `<h3>✅ Facts (${d.facts.length})</h3>`;
+    d.facts.forEach(r => html += `<div class="card">
+      <div>${r.verified ? '✅' : '❓'} ${r.fact}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">Source: ${r.source}</div>
+    </div>`);
+  }
+  if (d.keywords.length) {
+    html += `<h3>🔑 Keywords (${d.keywords.length})</h3>`;
+    d.keywords.forEach(r => html += `<div class="card">
+      <span class="tag">${r.source}</span> <strong>${r.keyword}</strong>
+      <span style="color:#666;font-size:0.85em;margin-left:8px">Topic: ${r.topic} | Score: ${r.score ?? '-'}</span>
+    </div>`);
+  }
+  if (d.questions.length) {
+    html += `<h3>❓ Questions (${d.questions.length})</h3>`;
+    d.questions.forEach(r => html += `<div class="card">
+      <div>${r.question}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">${r.category} » ${r.keyphrase} | ${r.source}</div>
+    </div>`);
+  }
+  if (!html) html = '<div class="status-box">No results found.</div>';
+  document.getElementById('idx-search-results').innerHTML = html;
+}
+
+async function loadIdxCategories() {
+  const res = await fetch('/index/categories');
+  const d = await res.json();
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr style="background:#f1f3f4;"><th style="padding:8px;text-align:left">Category</th><th style="padding:8px;text-align:right">URLs</th><th style="padding:8px;text-align:right">Avg Quality</th></tr>';
+  d.categories.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #e0e0e0;">
+      <td style="padding:8px">${r.path}</td>
+      <td style="padding:8px;text-align:right">${r.url_count}</td>
+      <td style="padding:8px;text-align:right">${r.avg_quality}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (!d.categories.length) html = '<div class="status-box">No categories found.</div>';
+  document.getElementById('idx-cats-results').innerHTML = html;
+}
+
+async function loadIdxKeywords() {
+  const topic = document.getElementById('idx-kw-filter').value;
+  const res = await fetch('/index/keywords?topic=' + encodeURIComponent(topic));
+  const d = await res.json();
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr style="background:#f1f3f4;"><th style="padding:8px;text-align:left">Topic</th><th style="padding:8px;text-align:left">Source</th><th style="padding:8px;text-align:right">Count</th><th style="padding:8px;text-align:left">Last Run</th></tr>';
+  d.keywords.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #e0e0e0;">
+      <td style="padding:8px">${r.topic}</td>
+      <td style="padding:8px"><span class="tag">${r.source}</span></td>
+      <td style="padding:8px;text-align:right">${r.count}</td>
+      <td style="padding:8px;font-size:0.82em;color:#666">${r.last_run?.slice(0,16)}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (!d.keywords.length) html = '<div class="status-box">No keywords found.</div>';
+  document.getElementById('idx-keywords-results').innerHTML = html;
+}
+
+async function loadIdxFacts() {
+  const res = await fetch('/index/facts');
+  const d = await res.json();
+  let html = '';
+  d.facts.forEach(r => {
+    html += `<div class="card">
+      <div>${r.verified ? '✅' : '❓'} ${r.fact}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">
+        Source: <a href="${r.source_url}" target="_blank">${r.source_title}</a>
+      </div>
+    </div>`;
+  });
+  if (!d.facts.length) html = '<div class="status-box">No facts found.</div>';
+  document.getElementById('idx-facts-results').innerHTML = html;
+}
+
+async function loadIdxQuestions() {
+  const cat = document.getElementById('idx-q-filter').value;
+  const res = await fetch('/index/questions?category=' + encodeURIComponent(cat));
+  const d = await res.json();
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr style="background:#f1f3f4;"><th style="padding:8px;text-align:left">Category</th><th style="padding:8px;text-align:left">Keyphrase</th><th style="padding:8px;text-align:right">Questions</th><th style="padding:8px;text-align:left">Last Run</th></tr>';
+  d.questions.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #e0e0e0;">
+      <td style="padding:8px">${r.category}</td>
+      <td style="padding:8px">${r.keyphrase}</td>
+      <td style="padding:8px;text-align:right">${r.count}</td>
+      <td style="padding:8px;font-size:0.82em;color:#666">${r.last_run?.slice(0,16)}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (!d.questions.length) html = '<div class="status-box">No questions found.</div>';
+  document.getElementById('idx-questions-results').innerHTML = html;
+}
+
+async function exportTable() {
+  const table = document.getElementById('export-table').value;
+  const fmt = document.getElementById('export-fmt').value;
+  const url = `/index/export?table=${table}&fmt=${fmt}`;
+  if (fmt === 'csv') {
+    window.location.href = url;
+  } else {
+    const res = await fetch(url);
+    const d = await res.json();
+    const blob = new Blob([JSON.stringify(d.data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = table + '.json'; a.click();
+  }
+}
+
+async function previewTable() {
+  const table = document.getElementById('export-table').value;
+  const res = await fetch(`/index/export?table=${table}&fmt=json`);
+  const d = await res.json();
+  const box = document.getElementById('export-preview');
+  box.style.display = 'block';
+  box.textContent = `${d.count} records\n\n` + JSON.stringify(d.data.slice(0,5), null, 2) + '\n...(first 5 shown)';
+}
+
+// Auto-load summary when Index tab opens (hooked into showTab above)
+
 
 // ── Categories ──
 async function addCategory() {

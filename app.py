@@ -347,3 +347,51 @@ async def get_questions(category: str = "", keyphrase: str = "", source: str = "
     df = con.execute(sql, params).fetchdf()
     con.close()
     return {"questions": df.to_dict('records')}
+
+
+# ── Index Management Routes ────────────────────────────────────
+from db import (get_index_summary, get_index_by_category, get_keywords_index,
+                get_facts_index, get_questions_index, search_index, export_index_data)
+import csv, io
+
+@app.get("/index/summary")
+async def index_summary():
+    return JSONResponse(get_index_summary())
+
+@app.get("/index/categories")
+async def index_categories():
+    return JSONResponse({"categories": get_index_by_category()})
+
+@app.get("/index/keywords")
+async def index_keywords(topic: str = ""):
+    return JSONResponse({"keywords": get_keywords_index(topic)})
+
+@app.get("/index/facts")
+async def index_facts(url_id: int = None):
+    return JSONResponse({"facts": get_facts_index(url_id)})
+
+@app.get("/index/questions")
+async def index_questions(category: str = ""):
+    return JSONResponse({"questions": get_questions_index(category)})
+
+@app.get("/index/search")
+async def index_search(q: str = ""):
+    if not q:
+        return JSONResponse({"urls": [], "facts": [], "keywords": [], "questions": []})
+    return JSONResponse(search_index(q))
+
+@app.get("/index/export")
+async def index_export(table: str = "url_registry", fmt: str = "json"):
+    data = export_index_data(table)
+    if fmt == "csv" and data:
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=data[0].keys())
+        writer.writeheader()
+        writer.writerows(data)
+        from fastapi.responses import Response
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={table}.csv"}
+        )
+    return JSONResponse({"table": table, "count": len(data), "data": data})
