@@ -872,7 +872,7 @@ function renderFacts(facts) {
     <div class="url-card" style="padding:10px 14px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px">
       <input type="checkbox" class="fact-chk" data-id="${f.id}" style="margin-top:4px;flex-shrink:0">
       <div style="flex:1">
-        <div style="font-size:0.9em;margin-bottom:4px">${f.verified ? '✅' : '❓'} ${f.fact}</div>
+        <div style="font-size:0.9em;margin-bottom:4px">${f.verified ? '✅' : '❓'} ${f.fact || '(no fact text)'}</div>
         <div style="font-size:0.78em;color:#888">
           <a href="${f.source_url}" target="_blank">${f.source_title||f.domain||''}</a>
         </div>
@@ -1115,7 +1115,7 @@ async function runIndexSearch() {
   if (d.facts.length) {
     html += `<h3>✅ Facts (${d.facts.length})</h3>`;
     d.facts.forEach(r => html += `<div class="card">
-      <div>${r.verified ? '✅' : '❓'} ${r.fact}</div>
+      <div>${r.verified ? '✅' : '❓'} ${r.fact || '(no fact text)'}</div>
       <div style="font-size:0.8em;color:#666;margin-top:4px">Source: ${r.source}</div>
     </div>`);
   }
@@ -1179,7 +1179,7 @@ async function loadIdxFacts() {
   let html = '';
   d.facts.forEach(r => {
     html += `<div class="card">
-      <div>${r.verified ? '✅' : '❓'} ${r.fact}</div>
+      <div>${r.verified ? '✅' : '❓'} ${r.fact || '(no fact text)'}</div>
       <div style="font-size:0.8em;color:#666;margin-top:4px">
         Source: <a href="${r.source_url}" target="_blank">${r.source_title}</a>
       </div>
