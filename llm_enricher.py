@@ -294,15 +294,30 @@ def process_scrape_result(scrape_result: dict, user_category: str = None):
         raw_file=scrape_result.get("raw_file", ""),
         status="ok"
     )
-    # Save facts to DuckDB (LLM-extracted + Wikipedia-verified entities)
+    # Fetch DDG web facts
+    ddg_facts = fetch_ddg_facts(enriched.get("title", ""))
+    # Save facts to DuckDB (LLM-extracted + DDG web facts + Wikipedia-verified entities)
     from db import save_facts_to_db
     save_facts_to_db(
         url_id=url_id,
         facts=enriched.get("facts", []),
-        verified_entities=enriched.get("verified_entities", {})
+        verified_entities=enriched.get("verified_entities", {}),
+        ddg_facts=ddg_facts
     )
     update_indexes(enriched)
     return {**enriched, "wiki_file": wiki_path, "url_id": url_id}
+
+
+def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
+    """Fetch web snippets from DuckDuckGo as verified facts."""
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results))
+        return [{"snippet": r["body"], "url": r["href"]} for r in results if r.get("body")]
+    except Exception as e:
+        print(f"[DDG] Error: {e}")
+        return []
 
 
 

@@ -76,10 +76,11 @@ def move_url_path(url_id: int, old_path: str, new_path: str):
                 shutil.move(str(f), str(new_dir / f.name))
 
 
-def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None):
-    """Save LLM-extracted facts and Wikipedia-verified entities to DuckDB."""
+def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None):
+    """Save LLM-extracted facts, DDG web facts, and Wikipedia-verified entities to DuckDB."""
     con = get_con()
     next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
+    # LLM-extracted facts — unverified
     for fact in facts:
         if fact and fact.strip():
             con.execute(
@@ -87,7 +88,19 @@ def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = No
                 [next_id, url_id, fact.strip(), False]
             )
             next_id += 1
-    # Save Wikipedia-verified entities as verified facts
+    # DDG web-sourced facts — marked verified (sourced from live web)
+    if ddg_facts:
+        for item in ddg_facts:
+            snippet = item.get("snippet", "").strip()
+            source_url = item.get("url", "")
+            if snippet:
+                fact_text = f"{snippet} [src: {source_url}]" if source_url else snippet
+                con.execute(
+                    "INSERT INTO facts (id, url_id, fact, verified) VALUES (?, ?, ?, ?)",
+                    [next_id, url_id, fact_text[:500], True]
+                )
+                next_id += 1
+    # Wikipedia-verified entities — marked verified
     if verified_entities:
         for entity, info in verified_entities.items():
             if info.get("verified") and info.get("wiki_summary"):
