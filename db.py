@@ -237,3 +237,107 @@ def export_index_data(table: str):
     cols = [d[0] for d in con.execute(f"DESCRIBE {table}").fetchall()]
     con.close()
     return [dict(zip(cols, r)) for r in rows]
+
+# ── Delete / Cleanup Functions ─────────────────────────────────
+
+def delete_fact(fact_id: int):
+    con = get_con()
+    con.execute("DELETE FROM facts WHERE id = ?", [fact_id])
+    con.close()
+
+def delete_facts_bulk(fact_ids: list[int]):
+    con = get_con()
+    con.execute(f"DELETE FROM facts WHERE id IN ({','.join(['?']*len(fact_ids))})", fact_ids)
+    con.close()
+
+def delete_facts_by_url(url_id: int):
+    con = get_con()
+    con.execute("DELETE FROM facts WHERE url_id = ?", [url_id])
+    con.close()
+
+def delete_keyword(keyword_id: int):
+    con = get_con()
+    con.execute("DELETE FROM keyword_intelligence WHERE id = ?", [keyword_id])
+    con.close()
+
+def delete_keywords_by_topic(topic: str):
+    con = get_con()
+    con.execute("DELETE FROM keyword_intelligence WHERE topic = ?", [topic])
+    con.close()
+
+def delete_keywords_bulk(keyword_ids: list[int]):
+    con = get_con()
+    con.execute(f"DELETE FROM keyword_intelligence WHERE id IN ({','.join(['?']*len(keyword_ids))})", keyword_ids)
+    con.close()
+
+def delete_question(question_id: int):
+    con = get_con()
+    con.execute("DELETE FROM questions_research WHERE id = ?", [question_id])
+    con.close()
+
+def delete_questions_by_category(category: str):
+    con = get_con()
+    con.execute("DELETE FROM questions_research WHERE category = ?", [category])
+    con.close()
+
+def delete_questions_bulk(question_ids: list[int]):
+    con = get_con()
+    con.execute(f"DELETE FROM questions_research WHERE id IN ({','.join(['?']*len(question_ids))})", question_ids)
+    con.close()
+
+def delete_url(url_id: int):
+    """Delete URL and all associated facts, paths from DB."""
+    con = get_con()
+    con.execute("DELETE FROM facts WHERE url_id = ?", [url_id])
+    con.execute("DELETE FROM url_paths WHERE url_id = ?", [url_id])
+    con.execute("DELETE FROM url_registry WHERE id = ?", [url_id])
+    con.close()
+
+def delete_urls_below_quality(min_score: int):
+    """Delete all URLs (and their facts/paths) with quality_score below threshold."""
+    con = get_con()
+    ids = [r[0] for r in con.execute(
+        "SELECT id FROM url_registry WHERE quality_score < ?", [min_score]).fetchall()]
+    if ids:
+        ph = ','.join(['?']*len(ids))
+        con.execute(f"DELETE FROM facts WHERE url_id IN ({ph})", ids)
+        con.execute(f"DELETE FROM url_paths WHERE url_id IN ({ph})", ids)
+        con.execute(f"DELETE FROM url_registry WHERE id IN ({ph})", ids)
+    con.close()
+    return len(ids)
+
+def cleanup_orphans():
+    """Remove facts/paths with no matching url_id in url_registry."""
+    con = get_con()
+    facts_del = con.execute("""
+        DELETE FROM facts WHERE url_id NOT IN (SELECT id FROM url_registry)
+    """).rowcount
+    paths_del = con.execute("""
+        DELETE FROM url_paths WHERE url_id NOT IN (SELECT id FROM url_registry)
+    """).rowcount
+    con.close()
+    return {"orphan_facts_deleted": facts_del, "orphan_paths_deleted": paths_del}
+
+def get_facts_for_explorer(verified: str = "all", search: str = ""):
+    """Return facts with source info, optionally filtered."""
+    con = get_con()
+    sql = """
+        SELECT f.id, f.fact, f.verified, r.id as url_id, r.title, r.url, r.domain
+        FROM facts f
+        JOIN url_registry r ON r.id = f.url_id
+        WHERE 1=1
+    """
+    params = []
+    if verified == "yes":
+        sql += " AND f.verified = TRUE"
+    elif verified == "no":
+        sql += " AND f.verified = FALSE"
+    if search:
+        sql += " AND f.fact ILIKE ?"
+        params.append(f"%{search}%")
+    sql += " ORDER BY f.verified DESC, f.id DESC LIMIT 500"
+    rows = con.execute(sql, params).fetchall()
+    con.close()
+    return [{"id": r[0], "fact": r[1], "verified": r[2],
+             "url_id": r[3], "source_title": r[4], "source_url": r[5], "domain": r[6]}
+            for r in rows]

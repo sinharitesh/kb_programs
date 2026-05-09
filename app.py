@@ -439,3 +439,70 @@ async def index_export(table: str = "url_registry", fmt: str = "json"):
             headers={"Content-Disposition": f"attachment; filename={table}.csv"}
         )
     return JSONResponse({"table": table, "count": len(data), "data": data})
+
+# ── Delete / Cleanup Routes ────────────────────────────────────
+from db import (delete_fact, delete_facts_bulk, delete_facts_by_url,
+                delete_keyword, delete_keywords_by_topic, delete_keywords_bulk,
+                delete_question, delete_questions_by_category, delete_questions_bulk,
+                delete_url, delete_urls_below_quality, cleanup_orphans,
+                get_facts_for_explorer)
+from typing import List
+
+@app.delete("/facts/{fact_id}")
+async def api_delete_fact(fact_id: int):
+    delete_fact(fact_id)
+    return JSONResponse({"status": "deleted", "id": fact_id})
+
+@app.post("/facts/delete-bulk")
+async def api_delete_facts_bulk(ids: List[int]):
+    delete_facts_bulk(ids)
+    return JSONResponse({"status": "deleted", "count": len(ids)})
+
+@app.get("/facts/explorer")
+async def api_facts_explorer(verified: str = "all", search: str = ""):
+    return JSONResponse({"facts": get_facts_for_explorer(verified, search)})
+
+@app.delete("/keywords/{keyword_id}")
+async def api_delete_keyword(keyword_id: int):
+    delete_keyword(keyword_id)
+    return JSONResponse({"status": "deleted", "id": keyword_id})
+
+@app.post("/keywords/delete-bulk")
+async def api_delete_keywords_bulk(ids: List[int]):
+    delete_keywords_bulk(ids)
+    return JSONResponse({"status": "deleted", "count": len(ids)})
+
+@app.delete("/keywords/topic/{topic}")
+async def api_delete_keywords_by_topic(topic: str):
+    delete_keywords_by_topic(topic)
+    return JSONResponse({"status": "deleted", "topic": topic})
+
+@app.delete("/questions/{question_id}")
+async def api_delete_question(question_id: int):
+    delete_question(question_id)
+    return JSONResponse({"status": "deleted", "id": question_id})
+
+@app.post("/questions/delete-bulk")
+async def api_delete_questions_bulk(ids: List[int]):
+    delete_questions_bulk(ids)
+    return JSONResponse({"status": "deleted", "count": len(ids)})
+
+@app.delete("/questions/category/{category}")
+async def api_delete_questions_by_category(category: str):
+    delete_questions_by_category(category)
+    return JSONResponse({"status": "deleted", "category": category})
+
+@app.delete("/urls/{url_id}")
+async def api_delete_url(url_id: int):
+    delete_url(url_id)
+    return JSONResponse({"status": "deleted", "id": url_id})
+
+@app.post("/urls/delete-below-quality")
+async def api_delete_below_quality(min_score: int = Form(...)):
+    count = delete_urls_below_quality(min_score)
+    return JSONResponse({"status": "deleted", "count": count})
+
+@app.post("/db/cleanup-orphans")
+async def api_cleanup_orphans():
+    result = cleanup_orphans()
+    return JSONResponse(result)

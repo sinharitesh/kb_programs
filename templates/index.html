@@ -201,6 +201,14 @@
   <!-- URL MANAGER -->
   <div id="urlmanager" class="section">
     <h2>🔗 URL Manager</h2>
+    <div class="card" style="margin-bottom:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label>🗑 Bulk Delete URLs below quality score</label>
+        <input type="number" id="bulk-quality-threshold" placeholder="e.g. 4" min="1" max="10" style="width:100px">
+      </div>
+      <button class="btn btn-red" onclick="deleteBelowQuality()">Delete Low Quality</button>
+      <button class="btn btn-grey" onclick="cleanupOrphans()">🧹 Cleanup Orphans</button>
+    </div>
     <div class="url-manager-layout">
       <div>
         <div class="cat-tree" id="cat-tree">
@@ -265,39 +273,24 @@
     <div class="card">
       <div class="filter-bar">
         <div>
-          <label>Search topic or keyword</label>
-          <input type="text" id="facts-topic-search" placeholder="🔍 e.g. Ganesha, Krishna..." oninput="searchFacts()">
+          <label>Search fact</label>
+          <input type="text" id="facts-topic-search" placeholder="🔍 e.g. Shiva, Trishul..." oninput="searchFacts()">
         </div>
         <div>
-          <label>Source</label>
-          <select id="facts-source-filter" onchange="searchFacts()">
-            <option value="">All Sources</option>
-            <option value="google">Google</option>
-            <option value="wikipedia">Wikipedia</option>
-            <option value="reddit">Reddit</option>
-            <option value="ddg_facts">DDG Facts</option>
+          <label>Verified</label>
+          <select id="facts-verified-filter" onchange="searchFacts()">
+            <option value="all">All</option>
+            <option value="yes">✅ Verified</option>
+            <option value="no">❓ Unverified</option>
           </select>
         </div>
-        <div>
-          <label>Time Range</label>
-          <select id="facts-days" onchange="searchFacts()">
-            <option value="7">Last 7 days</option>
-            <option value="30" selected>Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="365">Last year</option>
-            <option value="0">All time</option>
-          </select>
-        </div>
-        <div>
-          <label>Min Score</label>
-          <input type="number" id="facts-min-score" placeholder="0" min="0" onchange="searchFacts()" style="width:90px">
-        </div>
-        <div style="display:flex;align-items:flex-end">
-          <button class="btn btn-grey" onclick="loadFacts()">↺</button>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <button class="btn btn-grey" onclick="loadFacts()">↺ Reset</button>
+          <button class="btn btn-red" onclick="deleteSelectedFacts()">🗑 Delete Selected</button>
         </div>
       </div>
     </div>
-    <div id="facts-list"><p style="color:#666">Enter a search term above to explore saved facts.</p></div>
+    <div id="facts-list"><p style="color:#666">Loading...</p></div>
   </div>
 
 	<!-- QUESTIONS -->
@@ -808,8 +801,13 @@ async function analyzeKeywords() {
 }
 
 function renderKeywords(data) {
+  const topic = document.getElementById('kw-topic').value;
   document.getElementById('kw-results').innerHTML = `
-    <div class="card" style="margin-top:16px">
+    <div style="margin-bottom:12px">
+      <button class="btn btn-red" style="font-size:0.85em"
+        onclick="deleteKeywordTopic('${topic.replace(/'/g,"\\'")}')">🗑 Delete all keywords for this topic</button>
+    </div>
+    <div class="card" style="margin-top:8px">
       <h3>🔍 Google Suggestions</h3>
       ${(data.google_suggestions||[]).map(s => `<span class="tag">${s}</span>`).join('') || 'None found'}
     </div>
@@ -842,26 +840,21 @@ let currentFacts = [];
 
 async function loadFacts() {
   document.getElementById('facts-topic-search').value = '';
-  document.getElementById('facts-source-filter').value = '';
-  document.getElementById('facts-days').value = '30';
-  document.getElementById('facts-min-score').value = '';
+  document.getElementById('facts-verified-filter').value = 'all';
   await fetchFacts();
 }
 
 async function searchFacts() {
-  const topic = document.getElementById('facts-topic-search').value;
-  const source = document.getElementById('facts-source-filter').value;
-  const days = document.getElementById('facts-days').value;
-  const minScore = document.getElementById('facts-min-score').value || 0;
-  await fetchFacts(topic, source, days, minScore);
+  await fetchFacts(
+    document.getElementById('facts-topic-search').value,
+    document.getElementById('facts-verified-filter').value
+  );
 }
 
-async function fetchFacts(topic='', source='', days=30, minScore=0) {
+async function fetchFacts(search='', verified='all') {
   const params = new URLSearchParams();
-  if (topic) params.append('topic', topic);
-  if (source) params.append('source', source);
-  if (days) params.append('days', days);
-  if (minScore > 0) params.append('min_score', minScore);
+  if (search) params.append('search', search);
+  if (verified && verified !== 'all') params.append('verified', verified);
   const res = await fetch('/facts/explorer?' + params.toString());
   const data = await res.json();
   currentFacts = data.facts;
@@ -871,51 +864,45 @@ async function fetchFacts(topic='', source='', days=30, minScore=0) {
 function renderFacts(facts) {
   const div = document.getElementById('facts-list');
   if (!facts.length) { div.innerHTML = '<p style="color:#666">No facts found.</p>'; return; }
-  const bySource = {};
-  facts.forEach(f => {
-    bySource[f.source] = bySource[f.source] || [];
-    bySource[f.source].push(f);
-  });
-  div.innerHTML = Object.entries(bySource).map(([source, items]) => `
-    <div class="card" style="margin-bottom:16px">
-      <h3>${getSourceIcon(source)} ${source.replace('_', ' ').toUpperCase()}
-        <span style="font-size:0.8em;color:#666;font-weight:400;margin-left:8px">${items.length} results</span>
-      </h3>
-      ${items.map(f => `
-        <div class="url-card" style="padding:10px 14px;margin-bottom:8px">
-          <div style="font-size:0.9em;margin-bottom:4px;font-weight:500">${f.keyword}</div>
-          ${f.notes ? `<div style="font-size:0.8em;color:#1a73e8;word-break:break-all;margin-bottom:4px">${f.notes}</div>` : ''}
-          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-            <span style="font-size:0.75em;color:#999">${f.analyzed_at?.substring(0,10) || ''}</span>
-            ${f.score > 0 ? `<span style="font-size:0.75em;color:#34a853">⬆ ${f.score}</span>` : ''}
-            <span style="flex:1"></span>
-            <button class="btn btn-green" style="font-size:0.8em;padding:5px 10px"
-              onclick="openCategoryModal('${(f.notes||f.keyword).replace(/'/g,"\\'")}')">
-              📁 Set Category & Ingest
-            </button>
-          </div>
-        </div>
-      `).join('')}
+  div.innerHTML = `
+    <div style="margin-bottom:8px;font-size:0.85em;color:#666">${facts.length} facts — <label>
+      <input type="checkbox" onchange="toggleAllFacts(this)"> Select All</label>
     </div>
-  `).join('');
+    ${facts.map(f => `
+    <div class="url-card" style="padding:10px 14px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px">
+      <input type="checkbox" class="fact-chk" data-id="${f.id}" style="margin-top:4px;flex-shrink:0">
+      <div style="flex:1">
+        <div style="font-size:0.9em;margin-bottom:4px">${f.verified ? '✅' : '❓'} ${f.fact}</div>
+        <div style="font-size:0.78em;color:#888">
+          <a href="${f.source_url}" target="_blank">${f.source_title||f.domain||''}</a>
+        </div>
+      </div>
+      <button class="btn btn-red" style="font-size:0.78em;padding:4px 8px;flex-shrink:0"
+        onclick="deleteOneFact(${f.id}, this)">🗑</button>
+    </div>`).join('')}`;
 }
 
-function getSourceIcon(source) {
-  const icons = {google: '🔍', wikipedia: '📖', reddit: '💬', ddg_facts: '🦆'};
-  return icons[source] || '📄';
+function toggleAllFacts(chk) {
+  document.querySelectorAll('.fact-chk').forEach(c => c.checked = chk.checked);
 }
 
-function openCategoryModal(urlOrKeyword) {
-  document.getElementById('facts-cat-target').textContent = urlOrKeyword.substring(0, 80) + (urlOrKeyword.length > 80 ? '...' : '');
-  document.getElementById('facts-cat-url').value = urlOrKeyword;
-  document.getElementById('facts-cat-select').selectedIndex = 0;
-  document.getElementById('facts-cat-new').value = '';
-  document.getElementById('facts-cat-modal').style.display = 'block';
+async function deleteOneFact(id, btn) {
+  if (!confirm('Delete this fact?')) return;
+  await fetch(`/facts/${id}`, {method: 'DELETE'});
+  btn.closest('.url-card').remove();
 }
 
-function scheduleIngest(url) { openCategoryModal(url); }
+async function deleteSelectedFacts() {
+  const ids = [...document.querySelectorAll('.fact-chk:checked')].map(c => +c.dataset.id);
+  if (!ids.length) { alert('No facts selected.'); return; }
+  if (!confirm(`Delete ${ids.length} facts?`)) return;
+  await fetch('/facts/delete-bulk', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(ids)});
+  await fetchFacts(
+    document.getElementById('facts-topic-search').value,
+    document.getElementById('facts-verified-filter').value
+  );
+}
 
-async function confirmFactsCategory() {
   const url = document.getElementById('facts-cat-url').value;
   const existingCat = document.getElementById('facts-cat-select').value;
   const newCat = document.getElementById('facts-cat-new').value.trim();
@@ -964,7 +951,15 @@ async function fetchQuestions(category='', keyphrase='', source='') {
 function renderQuestions(questions) {
   const div = document.getElementById('questions-list');
   if (!questions.length) { div.innerHTML = '<p style="color:#666">No questions found.</p>'; return; }
-  div.innerHTML = `<div style="margin-top:8px">
+  // Group by category for bulk delete
+  const cats = [...new Set(questions.map(q => q.category))];
+  const catBtns = cats.map(c => `<button class="btn btn-red" style="font-size:0.8em;padding:5px 10px"
+    onclick="deleteQuestionsByCategory('${c.replace(/'/g,"\\'")}')">🗑 All in ${c}</button>`).join(' ');
+  div.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:0.85em;color:#666">Delete by category:</span>${catBtns}
+    </div>
+    <div style="margin-top:8px">
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
       <thead style="background:#f1f3f4">
         <tr>
@@ -972,7 +967,7 @@ function renderQuestions(questions) {
           <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Category</th>
           <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Keyphrase</th>
           <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Date</th>
-          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Action</th>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -982,11 +977,11 @@ function renderQuestions(questions) {
           <td style="padding:10px 14px"><span class="tag">${q.category||''}</span></td>
           <td style="padding:10px 14px;font-size:0.85em;color:#666">${q.keyphrase||''}</td>
           <td style="padding:10px 14px;font-size:0.8em;color:#999">${(q.analyzed_at||'').substring(0,10)}</td>
-          <td style="padding:10px 14px">
+          <td style="padding:10px 14px;display:flex;gap:6px">
             <button class="btn btn-green" style="font-size:0.8em;padding:5px 10px"
-              onclick="useAsArticleTopic('${q.question.replace(/'/g,"\\'")}')">
-              ✍️ Use as Topic
-            </button>
+              onclick="useAsArticleTopic('${q.question.replace(/'/g,"\\'")}')">✍️ Use</button>
+            <button class="btn btn-red" style="font-size:0.8em;padding:5px 10px"
+              onclick="deleteQuestion(${q.id}, this)">🗑</button>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -999,6 +994,47 @@ function useAsArticleTopic(question) {
   showTab('keywords', document.querySelector('[onclick*="keywords"]'));
   alert('✅ Topic loaded in Keyword Finder!');
 }
+
+// ── Delete helpers ──
+async function deleteQuestion(id, btn) {
+  if (!confirm('Delete this question?')) return;
+  await fetch(`/questions/${id}`, {method: 'DELETE'});
+  btn.closest('tr').remove();
+}
+
+async function deleteQuestionsByCategory(category) {
+  if (!confirm(`Delete ALL questions in category "${category}"?`)) return;
+  await fetch(`/questions/category/${encodeURIComponent(category)}`, {method: 'DELETE'});
+  loadQuestions();
+}
+
+async function deleteKeywordTopic(topic) {
+  if (!confirm(`Delete ALL keywords for topic "${topic}"?`)) return;
+  await fetch(`/keywords/topic/${encodeURIComponent(topic)}`, {method: 'DELETE'});
+  document.getElementById('kw-results').innerHTML = '<p style="color:#666">Keywords deleted.</p>';
+}
+
+async function deleteBelowQuality() {
+  const score = document.getElementById('bulk-quality-threshold').value;
+  if (!score) { alert('Enter a quality score threshold first.'); return; }
+  if (!confirm(`Delete ALL URLs with quality score below ${score}? This also deletes their facts and paths.`)) return;
+  const fd = new FormData(); fd.append('min_score', score);
+  const res = await fetch('/urls/delete-below-quality', {method: 'POST', body: fd});
+  const d = await res.json();
+  alert(`✅ Deleted ${d.count} URLs.`);
+  loadURLs();
+  loadIndexSummary();
+}
+
+async function cleanupOrphans() {
+  if (!confirm('Remove orphaned facts and paths (those with no matching URL)? This cannot be undone.')) return;
+  const res = await fetch('/db/cleanup-orphans', {method: 'POST'});
+  const d = await res.json();
+  alert(`✅ Cleaned up: ${d.orphan_facts_deleted} orphan facts, ${d.orphan_paths_deleted} orphan paths deleted.`);
+  loadIndexSummary();
+}
+
+
 
 
 
