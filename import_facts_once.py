@@ -1,4 +1,4 @@
-# One-time backfill: imports facts from verified_facts.md files into DuckDB.
+# One-time backfill: extracts bullet-point facts from wiki .md files into DuckDB.
 # Run this once from C:\Users\sinha\git\kb_programs
 import re, duckdb
 from pathlib import Path
@@ -8,32 +8,47 @@ con = duckdb.connect(str(KB_ROOT / "kb.duckdb"))
 imported = 0
 skipped = 0
 
-for fact_file in (KB_ROOT / "wiki").rglob("verified_facts.md"):
-    content = fact_file.read_text(encoding="utf-8", errors="ignore")
-    wiki_files = [f for f in fact_file.parent.glob("*.md") if f.name != "verified_facts.md"]
-    url_id = None
-    for wf in wiki_files:
-        wc = wf.read_text(encoding="utf-8", errors="ignore")
-        url_match = re.search(r'^url:\s*(\S+)', wc, re.MULTILINE)
-        if url_match:
-            row = con.execute("SELECT id FROM url_registry WHERE url=?", [url_match.group(1)]).fetchone()
-            if row:
-                url_id = row[0]
-                break
-    if not url_id:
-        print(f"SKIP (no URL match): {fact_file}")
+for wiki_file in (KB_ROOT / "wiki").rglob("*.md"):
+    if wiki_file.name == "verified_facts.md":
+        continue
+
+    content = wiki_file.read_text(encoding="utf-8", errors="ignore")
+
+    # Extract URL from frontmatter
+    url_match = re.search(r'^url:\s*(\S+)', content, re.MULTILINE)
+    if not url_match:
+        print(f"SKIP (no url in frontmatter): {wiki_file.name}")
         skipped += 1
         continue
-    facts = re.findall(r'^- (?:\[\d+\] )?(.+?)$', content, re.MULTILINE)
+
+    url = url_match.group(1)
+    row = con.execute("SELECT id FROM url_registry WHERE url=?", [url]).fetchone()
+    if not row:
+        print(f"SKIP (url not in registry): {url}")
+        skipped += 1
+        continue
+
+    url_id = row[0]
+
+    # Extract body (after second --- in frontmatter)
+    body = re.split(r'^---\s*$', content, flags=re.MULTILINE)
+    body_text = body[2] if len(body) > 2 else body[-1]
+
+    # Get bullet points as facts
+    facts = re.findall(r'^[-*]\s+(.+)$', body_text, re.MULTILINE)
+
     existing = set(r[0] for r in con.execute("SELECT fact FROM facts WHERE url_id=?", [url_id]).fetchall())
+    count = 0
     for fact in facts:
         fact = fact.strip()
-        if fact and fact not in existing and not fact.startswith('#'):
+        if fact and len(fact) > 20 and fact not in existing:
             next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
             con.execute("INSERT INTO facts (id, url_id, fact, verified) VALUES (?,?,?,?)",
                         [next_id, url_id, fact, False])
             imported += 1
+            count += 1
+    print(f"Imported {count} facts from: {wiki_file.name}")
 
 con.close()
-print(f"\n✅ Done! Imported: {imported} facts | Skipped (no URL match): {skipped}")
+print(f"\nDone! Imported: {imported} facts | Skipped: {skipped}")
 input("\nPress Enter to close...")
