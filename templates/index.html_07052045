@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Base Manager</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Google Sans', Arial, sans-serif; background: #f8f9fa; display: flex; height: 100vh; overflow: hidden; }
+
+    #sidebar {
+      width: 240px; min-width: 240px; background: #fff;
+      border-right: 1px solid #e0e0e0; display: flex;
+      flex-direction: column; padding: 16px 0;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.05); overflow-y: auto;
+    }
+    #sidebar .logo {
+      padding: 8px 20px 24px;
+      font-size: 1.2em; font-weight: 600; color: #1a73e8;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px; cursor: pointer; color: #444;
+      border-radius: 0 24px 24px 0; margin-right: 12px;
+      font-size: 0.95em; transition: background 0.15s;
+    }
+    .nav-item:hover { background: #f1f3f4; }
+    .nav-item.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
+    .nav-icon { font-size: 1.1em; width: 24px; text-align: center; }
+    .nav-divider { border-top: 1px solid #e0e0e0; margin: 12px 0; }
+
+    #main { flex: 1; overflow-y: auto; padding: 32px 40px; }
+    .section { display: none; }
+    .section.active { display: block; }
+    h2 { font-size: 1.4em; color: #202124; margin-bottom: 20px; font-weight: 500; }
+    h3 { font-size: 1.1em; color: #444; margin: 20px 0 10px; font-weight: 500; }
+
+    label { font-size: 0.85em; color: #666; display: block; margin-bottom: 4px; margin-top: 12px; }
+    input[type=text], select, textarea {
+      width: 100%; padding: 10px 14px; border: 1px solid #dadce0;
+      border-radius: 8px; font-size: 0.95em; outline: none;
+      transition: border 0.2s; background: #fff;
+    }
+    input[type=text]:focus, select:focus, textarea:focus { border-color: #1a73e8; }
+    textarea { height: 420px; font-family: monospace; font-size: 0.88em; resize: vertical; }
+
+    .btn {
+      padding: 9px 20px; border: none; border-radius: 6px;
+      cursor: pointer; font-size: 0.9em; font-weight: 500;
+      margin-right: 8px; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.88; }
+    .btn-green { background: #1a73e8; color: white; }
+    .btn-red { background: #d93025; color: white; }
+    .btn-blue { background: #1967d2; color: white; }
+    .btn-grey { background: #f1f3f4; color: #444; border: 1px solid #dadce0; }
+
+    .card {
+      background: #fff; border: 1px solid #e0e0e0;
+      border-radius: 10px; padding: 16px 20px; margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .card.green { border-left: 4px solid #34a853; }
+    .card.orange { border-left: 4px solid #fbbc04; }
+    .card.red { border-left: 4px solid #d93025; }
+    .card.grey { border-left: 4px solid #9aa0a6; }
+
+    .tag {
+      display: inline-block; background: #e8f0fe; color: #1a73e8;
+      padding: 3px 10px; border-radius: 12px; margin: 2px;
+      font-size: 0.82em;
+    }
+    .tag a { color: #d93025; text-decoration: none; margin-left: 4px; }
+
+    .status-box {
+      padding: 12px 16px; background: #f8f9fa; border-radius: 8px;
+      margin-top: 12px; font-family: monospace; font-size: 0.88em;
+      border: 1px solid #e0e0e0; color: #444;
+    }
+
+    .url-manager-layout { display: grid; grid-template-columns: 220px 1fr; gap: 20px; }
+    .cat-tree { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; overflow-y: auto; max-height: calc(100vh - 160px); }
+    .cat-tree-item { padding: 6px 10px; cursor: pointer; border-radius: 6px; font-size: 0.88em; color: #444; }
+    .cat-tree-item:hover { background: #f1f3f4; }
+    .cat-tree-item.selected { background: #e8f0fe; color: #1a73e8; }
+    .url-main { overflow-y: auto; max-height: calc(100vh - 160px); }
+    .url-search { display: flex; gap: 10px; margin-bottom: 16px; }
+    .url-search input { flex: 1; }
+    .url-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 14px 18px; margin-bottom: 10px; }
+    .url-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .url-card .title { font-weight: 500; color: #202124; margin-bottom: 4px; }
+    .url-card .url-text { font-size: 0.82em; color: #1a73e8; margin-bottom: 6px; word-break: break-all; }
+    .url-card .meta { font-size: 0.8em; color: #666; display: flex; gap: 16px; flex-wrap: wrap; }
+    .url-card .actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .quality-bar { display: inline-block; height: 6px; border-radius: 3px; background: #34a853; vertical-align: middle; margin-left: 6px; }
+
+    .wiki-rendered { padding: 20px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; overflow-y: auto; min-height: 300px; }
+    .wiki-rendered img { max-width: 100%; }
+    .toggle-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+
+    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:200; }
+    .modal { background: #fff; border-radius: 12px; padding: 28px 32px; max-width: 520px; margin: 80px auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    .modal h3 { margin-bottom: 16px; color: #202124; font-size: 1.15em; }
+    .modal p { margin-bottom: 10px; font-size: 0.95em; color: #444; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    th { padding: 10px 14px; text-align: left; font-size: 0.85em; color: #666; background: #f1f3f4; }
+    td { padding: 10px 14px; border-top: 1px solid #e0e0e0; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<div id="sidebar">
+  <div class="logo">📚 KB Manager</div>
+  <div class="nav-item active" onclick="showTab('ingest', this)">
+    <span class="nav-icon">➕</span> Ingest URL
+  </div>
+  <div class="nav-item" onclick="showTab('queue', this)">
+    <span class="nav-icon">📋</span> Queue
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-item" onclick="showTab('urlmanager', this)">
+    <span class="nav-icon">🔗</span> URL Manager
+  </div>
+  <div class="nav-item" onclick="showTab('wiki', this)">
+    <span class="nav-icon">📖</span> Browse Wiki
+  </div>
+  <div class="nav-item" onclick="showTab('keywords', this)">
+    <span class="nav-icon">🔑</span> Keywords
+  </div>
+  <div class="nav-item" onclick="showTab('kwexplorer', this)">
+    <span class="nav-icon">🔍</span> KW Explorer
+  </div>
+  <div class="nav-item" onclick="showTab('indexrebuild', this)">
+    <span class="nav-icon">🔄</span> Index
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-item" onclick="showTab('categories', this)">
+    <span class="nav-icon">📁</span> Categories
+  </div>
+  <div class="nav-item" onclick="showTab('domains', this)">
+    <span class="nav-icon">🌐</span> Domains
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div id="main">
+
+  <!-- INGEST -->
+  <div id="ingest" class="section active">
+    <h2>Ingest New URL</h2>
+    <div class="card">
+      <label>URL</label>
+      <input type="text" id="ingest-url" placeholder="https://example.com/article">
+      <label>Category</label>
+      <select id="ingest-category">
+        {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <label>Keywords (optional)</label>
+      <input type="text" id="ingest-keywords" placeholder="hanuman, lanka, ramayana">
+      <label style="display:flex; align-items:center; gap:8px; margin-top:14px;">
+        <input type="checkbox" id="force-refresh" style="width:auto;">
+        Force Refresh (re-download even if already exists)
+      </label>
+      <div style="margin-top:16px;">
+        <button class="btn btn-green" onclick="showConfirm()">🚀 Ingest</button>
+      </div>
+    </div>
+    <div class="status-box" id="ingest-status">Ready.</div>
+  </div>
+
+  <!-- QUEUE -->
+  <div id="queue" class="section">
+    <h2>📋 Job Queue
+      <button class="btn btn-grey" onclick="refreshQueue()" style="float:right;font-size:0.85em">🔄 Refresh</button>
+    </h2>
+    <h3>⚙️ Processing</h3>
+    <div id="q-processing"></div>
+    <h3>🕐 Pending</h3>
+    <div id="q-pending"></div>
+    <h3>✅ Done</h3>
+    <div id="q-done"></div>
+  </div>
+
+  <!-- URL MANAGER -->
+  <div id="urlmanager" class="section">
+    <h2>🔗 URL Manager</h2>
+    <div class="url-manager-layout">
+      <div>
+        <div class="cat-tree" id="cat-tree">
+          <div style="font-size:0.82em;color:#666;margin-bottom:8px;">📁 Categories</div>
+          <div class="cat-tree-item selected" onclick="filterByPath('', this)">All URLs</div>
+        </div>
+      </div>
+      <div class="url-main">
+        <div class="url-search">
+          <input type="text" id="url-search" placeholder="🔍 Search by title, URL or keyword..." oninput="searchURLs()">
+          <button class="btn btn-grey" onclick="loadURLs()">↺ Reset</button>
+        </div>
+        <div id="url-list"><p style="color:#666">Loading...</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WIKI -->
+  <div id="wiki" class="section">
+    <h2>📖 Browse Wiki</h2>
+    <div class="url-manager-layout">
+      <div>
+        <div class="cat-tree" id="wiki-cat-tree">
+          <div style="font-size:0.82em;color:#666;margin-bottom:8px;">📁 Categories</div>
+          <div class="cat-tree-item selected" onclick="filterWikiByPath('', this)">All Files</div>
+        </div>
+      </div>
+      <div class="url-main">
+        <div class="url-search">
+          <input type="text" id="wiki-search" placeholder="🔍 Search wiki files..." oninput="searchWiki()">
+          <button class="btn btn-grey" onclick="loadWikiList()">↺ Reset</button>
+        </div>
+        <div id="wiki-file-list" style="max-height:260px;overflow-y:auto;margin-bottom:16px;"></div>
+        <div class="toggle-bar">
+          <button class="btn btn-grey" onclick="showRendered()">📄 Rendered</button>
+          <button class="btn btn-grey" onclick="showRaw()">✏️ Edit Raw</button>
+          <button id="save-btn" class="btn btn-blue" style="display:none" onclick="saveWiki()">💾 Save</button>
+        </div>
+        <div id="wiki-rendered" class="wiki-rendered">Select a file to view...</div>
+        <textarea id="wiki-raw" style="display:none"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYWORDS -->
+  <div id="keywords" class="section">
+    <h2>🔑 Keyword Intelligence</h2>
+    <div class="card">
+      <label>Topic</label>
+      <input type="text" id="kw-topic" placeholder="e.g. Maha Mrityunjaya Mantra">
+      <label>Save to Category</label>
+      <select id="kw-category">
+        {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <div style="margin-top:12px;">
+        <button class="btn btn-green" onclick="analyzeKeywords()">🔍 Analyze</button>
+      </div>
+    </div>
+    <div class="status-box" id="kw-status" style="display:none"></div>
+    <div id="kw-results"></div>
+  </div>
+
+  <!-- KW EXPLORER -->
+  <div id="kwexplorer" class="section">
+    <h2>🔍 Keyword Explorer</h2>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+        <div>
+          <label>Topic</label>
+          <input type="text" id="kwe-topic" placeholder="e.g. Ganesha">
+        </div>
+        <div>
+          <label>Category</label>
+          <input type="text" id="kwe-category" placeholder="e.g. mythology">
+        </div>
+        <div>
+          <label>Source</label>
+          <select id="kwe-source">
+            <option value="">All Sources</option>
+            <option value="google">Google</option>
+            <option value="wikipedia">Wikipedia</option>
+            <option value="reddit">Reddit</option>
+          </select>
+        </div>
+        <div>
+          <label>Min Score</label>
+          <input type="text" id="kwe-score" placeholder="0">
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-green" onclick="exploreKeywords()">🔍 Search</button>
+        <button class="btn btn-grey" onclick="clearKWExplorer()">↺ Clear</button>
+      </div>
+    </div>
+    <div id="kwe-results"></div>
+  </div>
+
+  <!-- INDEX REBUILD -->
+  <div id="indexrebuild" class="section">
+    <h2>🔄 Index Management</h2>
+    <div class="card">
+      <p style="color:#666;margin-bottom:16px;">Rebuild all category indexes and master cross-reference from wiki files.</p>
+      <button class="btn btn-green" onclick="rebuildIndex()">🔄 Rebuild All Indexes</button>
+    </div>
+    <div id="index-status" class="status-box" style="display:none"></div>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div id="categories" class="section">
+    <h2>📁 Manage Categories</h2>
+    <div class="card">
+      <label>New Category Path (e.g. cooking/italian/pasta)</label>
+      <input type="text" id="new-category" placeholder="category/sub/specific">
+      <div style="margin-top:12px;">
+        <button class="btn btn-green" onclick="addCategory()">➕ Add</button>
+      </div>
+    </div>
+    <h3>Existing Categories</h3>
+    <div id="category-list">
+      {% for cat in categories %}
+      <span class="tag">{{ cat }} <a href="#" onclick="removeCategory('{{ cat }}')">✕</a></span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- DOMAINS -->
+  <div id="domains" class="section">
+    <h2>🌐 Manage Domains</h2>
+    <div class="card">
+      <label>Domain</label>
+      <input type="text" id="new-domain" placeholder="wikipedia.org">
+      <label>List</label>
+      <select id="domain-type">
+        <option value="whitelist">✅ Whitelist</option>
+        <option value="blocklist">🚫 Blocklist</option>
+      </select>
+      <div style="margin-top:12px;">
+        <button class="btn btn-green" onclick="addDomain()">➕ Add</button>
+      </div>
+    </div>
+    <h3>Current Domains</h3>
+    <div id="domain-list"></div>
+  </div>
+
+</div>
+
+<!-- ── CONFIRM MODAL ── -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <h3>Confirm Ingestion</h3>
+    <p><strong>URL:</strong> <span id="confirm-url"></span></p>
+    <p><strong>Category:</strong> <span id="confirm-category"></span></p>
+    <p><strong>Keywords:</strong> <span id="confirm-keywords"></span></p>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="submitIngest()">✅ Confirm</button>
+      <button class="btn btn-red" onclick="closeConfirm()">✕ Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ASSIGN PATH MODAL ── -->
+<div class="modal-overlay" id="assign-modal">
+  <div class="modal">
+    <h3>➕ Assign Additional Path</h3>
+    <p><strong>URL:</strong> <span id="assign-url-title"></span></p>
+    <input type="hidden" id="assign-url-id">
+    <label>New Category Path</label>
+    <select id="assign-path-select">
+      {% for cat in categories %}
+      <option value="{{ cat }}">{{ cat }}</option>
+      {% endfor %}
+    </select>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="confirmAssignPath()">✅ Assign</button>
+      <button class="btn btn-grey" onclick="closeAssignModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MOVE PATH MODAL ── -->
+<div class="modal-overlay" id="move-modal">
+  <div class="modal">
+    <h3>📦 Move to New Path</h3>
+    <input type="hidden" id="move-url-id">
+    <label>Current Path</label>
+    <input type="text" id="move-old-path" readonly style="background:#f5f5f5">
+    <label>New Path</label>
+    <select id="move-new-path">
+      {% for cat in categories %}
+      <option value="{{ cat }}">{{ cat }}</option>
+      {% endfor %}
+    </select>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="confirmMove()">✅ Move</button>
+      <button class="btn btn-grey" onclick="document.getElementById('move-modal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ──
+function showTab(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'wiki') loadWikiList();
+  if (name === 'domains') loadDomains();
+  if (name === 'queue') refreshQueue();
+  if (name === 'urlmanager') { loadCatTree(); loadURLs(); }
+}
+
+// ── Confirm modal ──
+function showConfirm() {
+  document.getElementById('confirm-url').textContent = document.getElementById('ingest-url').value;
+  document.getElementById('confirm-category').textContent = document.getElementById('ingest-category').value;
+  document.getElementById('confirm-keywords').textContent = document.getElementById('ingest-keywords').value;
+  document.getElementById('confirm-modal').style.display = 'block';
+}
+function closeConfirm() { document.getElementById('confirm-modal').style.display = 'none'; }
+
+async function submitIngest() {
+  closeConfirm();
+  const fd = new FormData();
+  fd.append('url', document.getElementById('ingest-url').value);
+  fd.append('category', document.getElementById('ingest-category').value);
+  fd.append('keywords', document.getElementById('ingest-keywords').value);
+  fd.append('force_refresh', document.getElementById('force-refresh').checked);
+  const res = await fetch('/ingest', {method: 'POST', body: fd});
+  const data = await res.json();
+  const box = document.getElementById('ingest-status');
+  box.textContent = data.status === 'skipped'
+    ? `⚠️ ${data.message}`
+    : `✅ Job queued: ${data.job_id}`;
+}
+
+// ── Queue ──
+async function refreshQueue() {
+  const res = await fetch('/queue');
+  const jobs = await res.json();
+  const sections = { processing: [], queued: [], done: [] };
+  for (const [id, job] of Object.entries(jobs)) {
+    const s = job.status;
+    if (s === 'processing' || s === 'enriching') sections.processing.push([id, job]);
+    else if (s === 'queued') sections.queued.push([id, job]);
+    else sections.done.push([id, job]);
+  }
+  document.getElementById('q-processing').innerHTML = sections.processing.map(([id, j]) =>
+    `<div class="card orange">⚙️ <strong>${j.title || j.url}</strong> — ${j.status}</div>`
+  ).join('') || '<p style="color:#666">None</p>';
+  document.getElementById('q-pending').innerHTML = sections.queued.map(([id, j]) =>
+    `<div class="card grey">🕐 <strong>${j.url}</strong></div>`
+  ).join('') || '<p style="color:#666">None</p>';
+  document.getElementById('q-done').innerHTML = sections.done.map(([id, j]) =>
+    `<div class="card ${j.status === 'rejected' ? 'red' : 'green'}">
+      ${j.status === 'rejected' ? '🚫' : '✅'} <strong>${j.title || j.url}</strong><br>
+      <small style="color:#666">${j.reason || j.category || ''}</small>
+    </div>`
+  ).join('') || '<p style="color:#666">None</p>';
+}
+
+// ── URL Manager ──
+let currentPath = '';
+
+async function loadCatTree() {
+  const res = await fetch('/categories');
+  const data = await res.json();
+  const tree = document.getElementById('cat-tree');
+  const topLevel = [...new Set(data.categories.map(c => c.split('/')[0]))];
+  tree.innerHTML = `<div style="font-size:0.82em;color:#666;margin-bottom:8px;">📁 Categories</div>
+    <div class="cat-tree-item selected" onclick="filterByPath('', this)">All URLs</div>` +
+    topLevel.map(t =>
+      `<div class="cat-tree-item" onclick="filterByPath('${t}', this)">📁 ${t}</div>` +
+      data.categories.filter(c => c.startsWith(t)).map(c =>
+        `<div class="cat-tree-item" style="padding-left:22px" onclick="filterByPath('${c}', this)">└ ${c.split('/').pop()}</div>`
+      ).join('')
+    ).join('');
+}
+
+function filterByPath(path, el) {
+  document.querySelectorAll('#cat-tree .cat-tree-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  currentPath = path;
+  loadURLs();
+}
+
+async function loadURLs(search='') {
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (currentPath) params.append('path', currentPath);
+  const res = await fetch('/urls?' + params.toString());
+  const data = await res.json();
+  renderURLs(data.urls);
+}
+
+function searchURLs() { loadURLs(document.getElementById('url-search').value); }
+
+function renderURLs(urls) {
+  const div = document.getElementById('url-list');
+  if (!urls.length) { div.innerHTML = '<p style="color:#666">No URLs found.</p>'; return; }
+  div.innerHTML = urls.map(u => {
+    const qWidth = (u.quality_score || 0) * 20;
+    const qColor = u.quality_score >= 7 ? '#34a853' : u.quality_score >= 4 ? '#fbbc04' : '#d93025';
+    return `<div class="url-card">
+      <div class="title">${u.title || 'Untitled'}</div>
+      <div class="url-text">${u.url}</div>
+      <div class="meta">
+        <span>📁 ${u.paths || 'Unassigned'}</span>
+        <span>📝 ${u.word_count || 0} words</span>
+        <span>⭐ <span style="color:${qColor}">${u.quality_score || 0}/10</span>
+          <span class="quality-bar" style="width:${qWidth}px;background:${qColor}"></span>
+        </span>
+        <span>🕒 ${u.last_downloaded ? u.last_downloaded.substring(0,10) : ''}</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-blue" onclick="openAssignModal(${u.id}, '${(u.title||'').replace(/'/g,"\\'")}')">➕ Path</button>
+        <button class="btn btn-grey" onclick="openMoveModal(${u.id}, '${u.paths}')">📦 Move</button>
+        <button class="btn btn-grey" onclick="requestRefresh(${u.id})">🔄 Refresh</button>
+        <button class="btn btn-red" onclick="deleteURL(${u.id})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAssignModal(url_id, title) {
+  document.getElementById('assign-url-id').value = url_id;
+  document.getElementById('assign-url-title').textContent = title;
+  document.getElementById('assign-modal').style.display = 'block';
+}
+function closeAssignModal() { document.getElementById('assign-modal').style.display = 'none'; }
+
+async function confirmAssignPath() {
+  const fd = new FormData();
+  fd.append('url_id', document.getElementById('assign-url-id').value);
+  fd.append('path', document.getElementById('assign-path-select').value);
+  await fetch('/urls/assign-path', {method: 'POST', body: fd});
+  closeAssignModal(); loadURLs();
+}
+
+function openMoveModal(url_id, paths) {
+  document.getElementById('move-url-id').value = url_id;
+  document.getElementById('move-old-path').value = paths ? paths.split(',')[0].trim() : '';
+  document.getElementById('move-modal').style.display = 'block';
+}
+
+async function confirmMove() {
+  const fd = new FormData();
+  fd.append('url_id', document.getElementById('move-url-id').value);
+  fd.append('old_path', document.getElementById('move-old-path').value);
+  fd.append('new_path', document.getElementById('move-new-path').value);
+  await fetch('/urls/move-path', {method: 'POST', body: fd});
+  document.getElementById('move-modal').style.display = 'none';
+  loadURLs();
+}
+
+async function requestRefresh(url_id) {
+  const fd = new FormData(); fd.append('url_id', url_id);
+  await fetch('/urls/request-refresh', {method: 'POST', body: fd});
+  alert('✅ Refresh requested.');
+}
+
+async function deleteURL(url_id) {
+  if (!confirm('Delete this URL from registry?')) return;
+  await fetch(`/urls/${url_id}`, {method: 'DELETE'});
+  loadURLs();
+}
+
+// ── Wiki ──
+let currentWikiPath = null;
+let allWikiFiles = [];
+let currentWikiCatFilter = '';
+
+async function loadWikiList() {
+  const res = await fetch('/wiki');
+  const data = await res.json();
+  allWikiFiles = data.files;
+  renderWikiFileList(allWikiFiles);
+  buildWikiCatTree(allWikiFiles);
+}
+
+function buildWikiCatTree(files) {
+  const tree = document.getElementById('wiki-cat-tree');
+  const tops = [...new Set(files.map(f => f.split(/[\\/]/)[0]))];
+  tree.innerHTML = `<div style="font-size:0.82em;color:#666;margin-bottom:8px;">📁 Categories</div>
+    <div class="cat-tree-item selected" onclick="filterWikiByPath('', this)">All Files</div>` +
+    tops.map(t =>
+      `<div class="cat-tree-item" onclick="filterWikiByPath('${t}', this)">📁 ${t}</div>`
+    ).join('');
+}
+
+function filterWikiByPath(path, el) {
+  document.querySelectorAll('#wiki-cat-tree .cat-tree-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  currentWikiCatFilter = path;
+  const filtered = path ? allWikiFiles.filter(f => f.startsWith(path)) : allWikiFiles;
+  renderWikiFileList(filtered);
+}
+
+function searchWiki() {
+  const q = document.getElementById('wiki-search').value.toLowerCase();
+  const filtered = allWikiFiles.filter(f =>
+    f.toLowerCase().includes(q) &&
+    (!currentWikiCatFilter || f.startsWith(currentWikiCatFilter))
+  );
+  renderWikiFileList(filtered);
+}
+
+function renderWikiFileList(files) {
+  const div = document.getElementById('wiki-file-list');
+  if (!files.length) { div.innerHTML = '<p style="color:#666">No files found.</p>'; return; }
+  div.innerHTML = files.map(f =>
+    `<div class="url-card" style="padding:10px 14px;cursor:pointer"
+      onclick="loadWikiFile('${f.replace(/\\/g, '/')}')">
+      📄 <span style="font-size:0.9em">${f}</span>
+    </div>`
+  ).join('');
+}
+
+async function loadWikiFile(path) {
+  currentWikiPath = path;
+  const res = await fetch(`/wiki/file?path=${encodeURIComponent(path)}`);
+  const data = await res.json();
+  document.getElementById('wiki-raw').value = data.content || '';
+  document.getElementById('wiki-rendered').innerHTML = marked.parse(data.content || '');
+  showRendered();
+}
+
+function showRendered() {
+  document.getElementById('wiki-rendered').style.display = 'block';
+  document.getElementById('wiki-raw').style.display = 'none';
+  document.getElementById('save-btn').style.display = 'none';
+}
+
+function showRaw() {
+  document.getElementById('wiki-rendered').style.display = 'none';
+  document.getElementById('wiki-raw').style.display = 'block';
+  document.getElementById('save-btn').style.display = 'inline-block';
+}
+
+async function saveWiki() {
+  const content = document.getElementById('wiki-raw').value;
+  const fd = new FormData();
+  fd.append('path', currentWikiPath.replace(/\\/g, '/'));
+  fd.append('content', content);
+  await fetch('/wiki/save', {method: 'POST', body: fd});
+  document.getElementById('wiki-rendered').innerHTML = marked.parse(content);
+  showRendered();
+  alert('✅ Saved!');
+}
+
+// ── Keywords ──
+async function analyzeKeywords() {
+  const topic = document.getElementById('kw-topic').value;
+  const category = document.getElementById('kw-category').value;
+  const status = document.getElementById('kw-status');
+  status.style.display = 'block';
+  status.textContent = '⏳ Analyzing keywords...';
+  const fd = new FormData();
+  fd.append('topic', topic);
+  fd.append('category', category);
+  const res = await fetch('/keywords/analyze', {method: 'POST', body: fd});
+  const data = await res.json();
+  status.textContent = `✅ Done! Saved to ${data.saved_to}`;
+  renderKeywords(data);
+}
+
+function renderKeywords(data) {
+  document.getElementById('kw-results').innerHTML = `
+    <div class="card" style="margin-top:16px">
+      <h3>🔍 Google Suggestions</h3>
+      ${(data.google_suggestions||[]).map(s => `<span class="tag">${s}</span>`).join('') || 'None found'}
+    </div>
+    <div class="card">
+      <h3>📖 Wikipedia Related</h3>
+      ${(data.wikipedia_related||[]).map(w => `<span class="tag">${w}</span>`).join('') || 'None found'}
+    </div>
+    <div class="card">
+      <h3>💬 Reddit Trending</h3>
+      ${(data.reddit_trending||[]).map(r =>
+        `<div class="url-card" style="padding:8px 12px">
+          <span>${r.title}</span>
+          <span style="color:#1a73e8;float:right">⬆${r.score}</span>
+        </div>`
+      ).join('') || 'None found'}
+    </div>`;
+}
+
+// ── KW Explorer ──
+async function exploreKeywords() {
+  const params = new URLSearchParams({
+    topic: document.getElementById('kwe-topic').value,
+    category: document.getElementById('kwe-category').value,
+    source: document.getElementById('kwe-source').value,
+    min_score: document.getElementById('kwe-score').value || 0
+  });
+  const res = await fetch('/keywords/explore?' + params);
+  const data = await res.json();
+  const div = document.getElementById('kwe-results');
+  if (!data.keywords.length) {
+    div.innerHTML = '<p style="color:#666;margin-top:16px">No keywords found.</p>';
+    return;
+  }
+  div.innerHTML = `<div style="margin-top:16px">
+    <table>
+      <thead>
+        <tr>
+          <th>Keyword</th><th>Topic</th><th>Category</th>
+          <th>Source</th><th style="text-align:right">Score ⬇</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.keywords.map(k => `
+        <tr>
+          <td style="font-weight:500">${k.keyword}</td>
+          <td style="color:#666">${k.topic}</td>
+          <td><span class="tag">${k.category}</span></td>
+          <td style="color:#1a73e8">${k.source}</td>
+          <td style="text-align:right;color:#34a853;font-weight:500">${k.score}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function clearKWExplorer() {
+  ['kwe-topic','kwe-category','kwe-score'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('kwe-source').value = '';
+  document.getElementById('kwe-results').innerHTML = '';
+}
+
+// ── Index rebuild ──
+async function rebuildIndex() {
+  const box = document.getElementById('index-status');
+  box.style.display = 'block';
+  box.textContent = '⏳ Rebuilding indexes...';
+  const res = await fetch('/index/rebuild', {method: 'POST'});
+  const data = await res.json();
+  box.textContent = `✅ ${data.message}`;
+}
+
+// ── Categories ──
+async function addCategory() {
+  const fd = new FormData();
+  fd.append('category', document.getElementById('new-category').value);
+  await fetch('/categories/add', {method: 'POST', body: fd});
+  location.reload();
+}
+async function removeCategory(cat) {
+  const fd = new FormData(); fd.append('category', cat);
+  await fetch('/categories/remove', {method: 'POST', body: fd});
+  location.reload();
+}
+
+// ── Domains ──
+async function loadDomains() {
+  const res = await fetch('/domains');
+  const data = await res.json();
+  const div = document.getElementById('domain-list');
+  div.innerHTML = '';
+  ['whitelist','blocklist'].forEach(type => {
+    div.innerHTML += `<h3>${type === 'whitelist' ? '✅ Whitelist' : '🚫 Blocklist'}</h3>`;
+    (data[type]||[]).forEach(d => {
+      div.innerHTML += `<span class="tag">${d} <a href="#" onclick="removeDomain('${d}','${type}')">✕</a></span>`;
+    });
+  });
+}
+async function addDomain() {
+  const fd = new FormData();
+  fd.append('domain', document.getElementById('new-domain').value);
+  fd.append('list_type', document.getElementById('domain-type').value);
+  await fetch('/domains/add', {method: 'POST', body: fd});
+  loadDomains();
+}
+async function removeDomain(domain, list_type) {
+  const fd = new FormData();
+  fd.append('domain', domain);
+  fd.append('list_type', list_type);
+  await fetch('/domains/remove', {method: 'POST', body: fd});
+  loadDomains();
+}
+
+// Auto-refresh queue every 5 seconds
+setInterval(() => {
+  if (document.getElementById('queue').classList.contains('active')) refreshQueue();
+}, 5000);
+</script>
+</body>
+</html>

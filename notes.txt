@@ -1,0 +1,32 @@
+📚 Knowledge Base System — Session Summary
+Goal
+A local, offline, LLM-powered knowledge base for blogging research with a Google-style web UI.
+
+Paths
+KB Root: C:\knowledge-base\
+Code: C:\Users\sinha\OneDrive\Documents\github\kb_programs\
+Files Built
+File	Purpose
+setup_kb.py	Folder structure, DuckDB, config init
+scraper.py	Scrape URLs, junk detection, background queue
+db.py	DuckDB helpers, URL registry, path management
+llm_enricher.py	Chunked LLM enrichment, Wikipedia verify, wiki writer
+app.py	FastAPI backend, all routes
+templates/index.html	Full Google-style UI
+Features Completed
+✅ Dynamic categories + domains (whitelist/blocklist)
+✅ Background scrape queue with live status polling
+✅ Chunked LLM enrichment (headings → fixed chunks → merge)
+✅ URL Registry in DuckDB (no re-download, multi-path)
+✅ Move path = moves files on disk
+✅ Google-style UI with left nav pane
+✅ Wiki browser (category tree + search + rendered/raw toggle)
+✅ URL Manager (category tree + search + quality bar)
+✅ Index rebuild tab
+Local LLM Setup
+Ollama running qwen2.5:14b (enrichment)
+nous-hermes2:10.7b also available
+Machine: 32GB RAM, 8GB VRAM
+Remaining Features
+⏳ #5 Quality Dashboard (rank + delete low quality URLs)
+⏳ #6 Blog Draft Generator
