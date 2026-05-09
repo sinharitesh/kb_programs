@@ -9,6 +9,10 @@ KB_ROOT = Path(r"C:\knowledge-base")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5:14b"
 MAX_CHUNK_WORDS = 2000
+
+# Logging helper with timestamp
+def log(msg):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 # ── Prompt Templates ───────────────────────────────────────────
 CHUNK_PROMPT = """You are a knowledge base assistant. Extract structured information from this section of an article.
 
@@ -150,11 +154,11 @@ def enrich(scrape_result: dict, user_category: str = None) -> dict:
     full_text = scrape_result.get("full_text") or scrape_result.get("text", "")
 
     chunks = chunk_text(full_text)
-    print(f"[LLM] Processing {len(chunks)} chunks for: {title}")
+    log(f"[LLM] Processing {len(chunks)} chunks for: {title}")
 
     section_results = []
     for i, chunk in enumerate(chunks):
-        print(f"[LLM] Chunk {i+1}/{len(chunks)}: {chunk['title']}")
+        log(f"[LLM] Chunk {i+1}/{len(chunks)}: {chunk['title']}")
         prompt = CHUNK_PROMPT.format(
             title=title,
             url=url,
@@ -171,7 +175,7 @@ def enrich(scrape_result: dict, user_category: str = None) -> dict:
         return {"error": "All chunks failed to parse"}
 
     # Merge via LLM
-    print(f"[LLM] Merging {len(section_results)} sections...")
+    log(f"[LLM] Merging {len(section_results)} sections...")
     merge_prompt = MERGE_PROMPT.format(
         title=title,
         sections=json.dumps(section_results, indent=2)[:8000]  # cap merge input
@@ -258,7 +262,7 @@ enriched_at: {enriched['enriched_at']}
 [{enriched['url']}]({enriched['url']})
 """
     filepath.write_text(content, encoding="utf-8")
-    print(f"[Wiki] Written: {filepath}")
+    log(f"[Wiki] Written: {filepath}")
     return str(filepath)
 
 # ── Index Updater ──────────────────────────────────────────────

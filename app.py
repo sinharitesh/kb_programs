@@ -1,6 +1,7 @@
 # app.py
 import json
 import time
+from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -8,6 +9,10 @@ from fastapi.templating import Jinja2Templates
 from scraper import enqueue_scrape, get_job_status, results_store
 from llm_enricher import process_scrape_result, update_indexes
 from keyword_intelligence import run_keyword_intelligence, save_keyword_report
+
+# Logging helper with timestamp
+def log(msg):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
 KB_ROOT = Path(r"C:\knowledge-base")
 CONFIG = KB_ROOT / "config"
@@ -240,9 +245,9 @@ async def rebuild_index():
                 "cross_refs": fm.get("cross_refs", [])
             })
             count += 1
-            print(f"Indexed: {fm.get('title')}")
+            log(f"Indexed: {fm.get('title')}")
         except Exception as e:
-            print(f"Skipped {md_file.name}: {e}")
+            log(f"Skipped {md_file.name}: {e}")
     return JSONResponse({"message": f"Rebuilt indexes from {count} wiki files"})
 @app.get("/debug/wiki-files")
 async def debug_wiki_files():
@@ -283,8 +288,8 @@ async def explore_keywords(
          "keyword": r[4], "score": r[5], "notes": r[6], "analyzed_at": str(r[7])}
         for r in rows
     ]})
-@app.get("/facts/explorer")
-async def get_facts_explorer(topic: str = "", source: str = ""):
+@app.get("/keywords/explorer")
+async def get_keywords_explorer(topic: str = "", source: str = ""):
     con = get_con()
     sql = "SELECT * FROM keyword_intelligence WHERE 1=1"
     params = []
@@ -298,10 +303,10 @@ async def get_facts_explorer(topic: str = "", source: str = ""):
     
     df = con.execute(sql, params).fetchdf()
     con.close()
-    return {"facts": df.to_dict('records')}  
+    return {"keywords": df.to_dict('records')}  
 
-@app.get("/facts/explorer")
-async def get_facts_explorer(
+@app.get("/keywords/explorer2")
+async def get_keywords_explorer2(
     topic: str = "", 
     source: str = "",
     category: str = "",
@@ -330,7 +335,7 @@ async def get_facts_explorer(
     
     df = con.execute(sql, params).fetchdf()
     con.close()
-    return {"facts": df.to_dict('records')}
+    return {"keywords": df.to_dict('records')}
 
 @app.get("/questions")
 async def get_questions(category: str = "", keyphrase: str = "", source: str = ""):

@@ -8,6 +8,10 @@ from ddgs import DDGS
 
 KB_ROOT = Path(r"C:\knowledge-base")
 
+# Logging helper with timestamp
+def log(msg):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+
 def fetch_duckduckgo_facts(query: str, max_results: int = 10) -> list:
     try:
         with DDGS() as ddgs:
@@ -15,7 +19,7 @@ def fetch_duckduckgo_facts(query: str, max_results: int = 10) -> list:
                        for r in ddgs.text(query + " interesting facts", max_results=max_results)]
         return [{"snippet": body, "url": url} for body, url in results if body]
     except Exception as e:
-        print(f"[DDG] Error: {e}")
+        log(f"[DDG] Error: {e}")
         return []
 
 def fetch_wikipedia_via_ddg(query: str) -> list:

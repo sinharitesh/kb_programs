@@ -14,6 +14,10 @@ KB_ROOT = Path(r"C:\knowledge-base")
 RAW_ROOT = KB_ROOT / "raw"
 CONFIG = KB_ROOT / "config"
 
+# Logging helper with timestamp
+def log(msg):
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+
 # ── Domain config ──────────────────────────────────────────────
 def load_domains():
     with open(CONFIG / "domains.json") as f:
@@ -125,7 +129,7 @@ from llm_enricher import process_scrape_result
 from db import register_url, assign_path
 
 def background_worker():
-    print("[Worker] Thread started and waiting for jobs...")
+    log("[Worker] Thread started and waiting for jobs...")
     while True:
         
         job = scrape_queue.get()
@@ -142,7 +146,7 @@ def background_worker():
             if url_id:
                 assign_path(url_id, results_store[job_id].get("category", "uncategorized"))
             results_store[job_id]["status"] = "done"
-        print(f"[Queue] Job {job_id} done: {results_store[job_id]['status']}")
+        log(f"[Queue] Job {job_id} done: {results_store[job_id]['status']}")
         scrape_queue.task_done()
 
 
