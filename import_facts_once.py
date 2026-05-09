@@ -1,7 +1,5 @@
-"""
-One-time backfill: imports facts from verified_facts.md files into DuckDB.
-Run this once from C:\Users\sinha\git\kb_programs
-"""
+# One-time backfill: imports facts from verified_facts.md files into DuckDB.
+# Run this once from C:\Users\sinha\git\kb_programs
 import re, duckdb
 from pathlib import Path
 
