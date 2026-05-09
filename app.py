@@ -380,6 +380,50 @@ async def index_search(q: str = ""):
         return JSONResponse({"urls": [], "facts": [], "keywords": [], "questions": []})
     return JSONResponse(search_index(q))
 
+@app.post("/index/import-facts")
+async def import_facts_from_files():
+    """Backfill facts table from existing verified_facts.md files."""
+    import re
+    from db import get_con
+    wiki_root = KB_ROOT / "wiki"
+    con = get_con()
+    imported = 0
+    skipped = 0
+    for fact_file in wiki_root.rglob("verified_facts.md"):
+        content = fact_file.read_text(encoding="utf-8", errors="ignore")
+        # Extract source URL from section headers like "## 📄 From: Title"
+        # Match DDG snippets and Wikipedia verified entities
+        # Try to find associated URL from wiki file in same folder
+        wiki_files = [f for f in fact_file.parent.glob("*.md") if f.name != "verified_facts.md"]
+        url_id = None
+        for wf in wiki_files:
+            wc = wf.read_text(encoding="utf-8", errors="ignore")
+            url_match = re.search(r'^url:\s*(\S+)', wc, re.MULTILINE)
+            if url_match:
+                url = url_match.group(1)
+                row = con.execute("SELECT id FROM url_registry WHERE url=?", [url]).fetchone()
+                if row:
+                    url_id = row[0]
+                    break
+        if not url_id:
+            skipped += 1
+            continue
+        # Extract bullet facts from DuckDuckGo and Wikipedia sections
+        facts = re.findall(r'^- (?:\[\d+\] )?(.+?)(?:\n  🔗 .+)?$', content, re.MULTILINE)
+        next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
+        # Check existing facts for this url_id to avoid duplicates
+        existing = set(r[0] for r in con.execute("SELECT fact FROM facts WHERE url_id=?", [url_id]).fetchall())
+        for fact in facts:
+            fact = fact.strip()
+            if fact and fact not in existing and not fact.startswith('#'):
+                verified = '📖 Wikipedia' in content and fact in content
+                con.execute("INSERT INTO facts (id, url_id, fact, verified) VALUES (?,?,?,?)",
+                            [next_id, url_id, fact, verified])
+                next_id += 1
+                imported += 1
+    con.close()
+    return JSONResponse({"imported": imported, "skipped_no_url": skipped})
+
 @app.get("/index/export")
 async def index_export(table: str = "url_registry", fmt: str = "json"):
     data = export_index_data(table)

@@ -76,6 +76,31 @@ def move_url_path(url_id: int, old_path: str, new_path: str):
                 shutil.move(str(f), str(new_dir / f.name))
 
 
+def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None):
+    """Save LLM-extracted facts and Wikipedia-verified entities to DuckDB."""
+    con = get_con()
+    next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
+    for fact in facts:
+        if fact and fact.strip():
+            con.execute(
+                "INSERT INTO facts (id, url_id, fact, verified) VALUES (?, ?, ?, ?)",
+                [next_id, url_id, fact.strip(), False]
+            )
+            next_id += 1
+    # Save Wikipedia-verified entities as verified facts
+    if verified_entities:
+        for entity, info in verified_entities.items():
+            if info.get("verified") and info.get("wiki_summary"):
+                fact_text = f"{entity}: {info['wiki_summary'][:300]}"
+                con.execute(
+                    "INSERT INTO facts (id, url_id, fact, verified) VALUES (?, ?, ?, ?)",
+                    [next_id, url_id, fact_text, True]
+                )
+                next_id += 1
+    con.close()
+
+
+
 
 # ── Index Management Helpers ───────────────────────────────────
 

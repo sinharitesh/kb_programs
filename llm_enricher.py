@@ -9,8 +9,6 @@ KB_ROOT = Path(r"C:\knowledge-base")
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5:14b"
 MAX_CHUNK_WORDS = 2000
-from ddgs import DDGS
-
 # ── Prompt Templates ───────────────────────────────────────────
 CHUNK_PROMPT = """You are a knowledge base assistant. Extract structured information from this section of an article.
 
@@ -296,83 +294,17 @@ def process_scrape_result(scrape_result: dict, user_category: str = None):
         raw_file=scrape_result.get("raw_file", ""),
         status="ok"
     )
-    # Fetch and save verified facts
-    ddg_facts = fetch_duckduckgo_facts(enriched["title"])
-    suggestions = fetch_google_suggestions(enriched["title"])
-    write_verified_facts(enriched, ddg_facts, suggestions)
+    # Save facts to DuckDB (LLM-extracted + Wikipedia-verified entities)
+    from db import save_facts_to_db
+    save_facts_to_db(
+        url_id=url_id,
+        facts=enriched.get("facts", []),
+        verified_entities=enriched.get("verified_entities", {})
+    )
     update_indexes(enriched)
     return {**enriched, "wiki_file": wiki_path, "url_id": url_id}
 
 
 
-from duckduckgo_search import DDGS
 
-def fetch_duckduckgo_facts(query: str, max_results: int = 10) -> list:
-    try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=max_results))
-        return [{"title": r["title"], "snippet": r["body"], "url": r["href"]} for r in results]
-    except Exception as e:
-        print(f"[DDG] Error: {e}")
-        return []
-
-def fetch_google_suggestions(query: str) -> list:
-    try:
-        url = f"https://suggestqueries.google.com/complete/search?client=firefox&q={query}"
-        r = httpx.get(url, timeout=10)
-        return r.json()[1][:10]
-    except Exception as e:
-        print(f"[Suggest] Error: {e}")
-        return []
-
-def write_verified_facts(enriched: dict, ddg_facts: list, suggestions: list):
-    path = KB_ROOT / "wiki" / enriched["category_path"]
-    path.mkdir(parents=True, exist_ok=True)
-    filepath = path / "verified_facts.md"
-
-    # Load existing facts if file exists
-    existing_ddg = []
-    existing_suggestions = []
-    if filepath.exists():
-        existing = filepath.read_text(encoding="utf-8")
-        # Extract existing DDG URLs to deduplicate
-        existing_ddg_urls = set(re.findall(r'🔗 (https?://\S+)', existing))
-        ddg_facts = [f for f in ddg_facts if f["url"] not in existing_ddg_urls]
-        # Extract existing suggestions to deduplicate
-        existing_suggestions = re.findall(r'^- (.+)$', existing, re.MULTILINE)
-        suggestions = [s for s in suggestions if s not in existing_suggestions]
-
-    # Append new DDG facts
-    ddg_md = "\n".join([
-        f"- [{i+1}] {f['snippet']}\n  🔗 {f['url']}"
-        for i, f in enumerate(ddg_facts)
-    ])
-
-    suggest_md = "\n".join([f"- {s}" for s in suggestions])
-
-    wiki_md = ""
-    for entity, info in enriched.get("verified_entities", {}).items():
-        if info.get("verified"):
-            wiki_md += f"\n- **{entity}**: {info['wiki_summary'][:200]}...\n  🔗 {info['wiki_url']}"
-
-    # Append to existing file
-    append_content = f"""
-## 📄 From: {enriched['title']}
-
-### 🦆 DuckDuckGo Facts
-{ddg_md or 'None found'}
-
-### 🔍 Related Keywords
-{suggest_md or 'None found'}
-
-### 📖 Wikipedia Verified
-{wiki_md or 'None verified'}
-"""
-    if not filepath.exists():
-        filepath.write_text(f"# Verified Facts: {enriched['category_path']}\n" + append_content, encoding="utf-8")
-    else:
-        with open(filepath, "a", encoding="utf-8") as f:
-            f.write(append_content)
-
-    print(f"[Facts] Updated: {filepath}")
 

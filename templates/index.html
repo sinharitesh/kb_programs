@@ -420,6 +420,11 @@
         <p style="color:#666;margin-bottom:16px;">Rebuild all category indexes and master cross-reference from wiki files.</p>
         <button class="btn btn-green" onclick="rebuildIndex()">🔄 Rebuild All Indexes</button>
       </div>
+      <div class="card" style="margin-top:16px;">
+        <h3>📥 Backfill Facts from Files</h3>
+        <p style="color:#666;margin-bottom:16px;">Import existing <code>verified_facts.md</code> files into DuckDB. Run once to migrate historical data.</p>
+        <button class="btn btn-blue" onclick="importFactsFromFiles()">📥 Import Facts from Files</button>
+      </div>
       <div id="index-status" class="status-box" style="display:none"></div>
     </div>
   </div>
@@ -1007,6 +1012,16 @@ async function rebuildIndex() {
   const res = await fetch('/index/rebuild', {method: 'POST'});
   const data = await res.json();
   box.textContent = `✅ ${data.message}`;
+}
+
+async function importFactsFromFiles() {
+  const box = document.getElementById('index-status');
+  box.style.display = 'block';
+  box.textContent = '⏳ Importing facts from verified_facts.md files...';
+  const res = await fetch('/index/import-facts', {method: 'POST'});
+  const d = await res.json();
+  box.textContent = `✅ Imported: ${d.imported} facts | Skipped (no URL match): ${d.skipped_no_url}`;
+  loadIndexSummary();
 }
 
 // ── Index Management ──
