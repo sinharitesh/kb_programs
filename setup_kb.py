@@ -4,7 +4,7 @@ import duckdb
 from pathlib import Path
 
 KB_ROOT = Path(r"C:\knowledge-base")
-SRC_ROOT = Path(r"C:\Users\sinha\OneDrive\Documents\github\kb_programs")
+SRC_ROOT = Path(r"C:\Users\sinha\git\kb_programs")
 
 INITIAL_CATEGORIES = [
     "mythology/indian/deity",
