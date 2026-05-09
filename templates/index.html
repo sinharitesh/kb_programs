@@ -903,6 +903,7 @@ async function deleteSelectedFacts() {
   );
 }
 
+async function confirmFactsCategory() {
   const url = document.getElementById('facts-cat-url').value;
   const existingCat = document.getElementById('facts-cat-select').value;
   const newCat = document.getElementById('facts-cat-new').value.trim();
