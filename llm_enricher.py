@@ -315,12 +315,17 @@ def process_scrape_result(scrape_result: dict, user_category: str = None):
 def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
     """Fetch web snippets from DuckDuckGo as verified facts."""
     try:
+        import re
+        def clean_text(text):
+            text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+            text = re.sub(r'([0-9])([A-Z])', r'\1 \2', text)
+            return re.sub(r' +', ' ', text).strip()
         from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
-        return [{"snippet": r["body"], "url": r["href"]} for r in results if r.get("body")]
+        return [{"snippet": clean_text(r["body"]), "url": r["href"]} for r in results if r.get("body")]
     except Exception as e:
-        print(f"[DDG] Error: {e}")
+        log(f"[DDG] Error: {e}")
         return []
 
 

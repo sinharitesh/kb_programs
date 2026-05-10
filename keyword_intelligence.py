@@ -12,12 +12,28 @@ KB_ROOT = Path(r"C:\knowledge-base")
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
+import re
+
+def clean_text(text: str) -> str:
+    """Fix jumbled text from DDG snippets where spaces between HTML elements are lost.
+    e.g. 'isHanumanTemple' -> 'is Hanuman Temple'
+    """
+    if not text:
+        return text
+    # Insert space before uppercase letters that follow lowercase letters (camelCase fix)
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    # Insert space before uppercase letters that follow digits
+    text = re.sub(r'([0-9])([A-Z])', r'\1 \2', text)
+    # Collapse multiple spaces
+    text = re.sub(r' +', ' ', text)
+    return text.strip()
+
 def fetch_duckduckgo_facts(query: str, max_results: int = 10) -> list:
     try:
         with DDGS() as ddgs:
             results = [(r.get('body',''), r.get('href',''))
                        for r in ddgs.text(query + " interesting facts", max_results=max_results)]
-        return [{"snippet": body, "url": url} for body, url in results if body]
+        return [{"snippet": clean_text(body), "url": url} for body, url in results if body]
     except Exception as e:
         log(f"[DDG] Error: {e}")
         return []
