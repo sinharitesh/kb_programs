@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, Request, Form, Query
+from typing import List
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from scraper import enqueue_scrape, get_job_status, results_store
