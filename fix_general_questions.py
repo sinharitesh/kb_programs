@@ -79,6 +79,49 @@ def main():
                     if word.startswith(cat_lower) or cat_lower.startswith(word):
                         return cat  # "hanuman" matches "hanumana"
         
+        
+        # Third: keyword-to-category semantic mappings for religious terms
+        keyword_map = {
+            # Hanuman related
+            'sunder kand': 'hanumana',
+            'sundar kand': 'hanumana',
+            'bajrang': 'hanumana',
+            'bajrangbali': 'hanumana',
+            'hanuman chalisa': 'hanumana',
+            'pavan putra': 'hanumana',
+            'anjani putra': 'hanumana',
+            # Shiva related
+            'trishul': 'shiva',
+            'trishulam': 'shiva',
+            'damru': 'shiva',
+            'rudraksha': 'shiva',
+            'rudraksh': 'shiva',
+            'kailash': 'shiva',
+            'mount kailash': 'shiva',
+            'third eye': 'shiva',
+            'neelkanth': 'shiva',
+            'bholenath': 'shiva',
+            'mahadev': 'shiva',
+            'mahadeva': 'shiva',
+            'nataraj': 'shiva',
+            'nataraja': 'shiva',
+            # Krishna related
+            'radha': 'krishna',
+            'radhe': 'krishna',
+            'vrindavan': 'krishna',
+            'mathura': 'krishna',
+            'dwarka': 'krishna',
+            'gita': 'krishna',
+            'bhagavad gita': 'krishna',
+            'flute': 'krishna',
+            'bansuri': 'krishna',
+            'sudarshan': 'krishna',
+            'sudarshana': 'krishna',
+            'chakra': 'krishna',
+        }
+        for keyword, cat in keyword_map.items():
+            if keyword in kp_lower:
+                return cat
         # Second: try pattern matching from existing keyphrases (for future use)
         best_cat = None
         best_score = 0
