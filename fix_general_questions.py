@@ -65,24 +65,25 @@ def main():
         if not keyphrase:
             return None
         kp_lower = keyphrase.lower()
+        
+        # First: direct category name matching
+        for cat in categories:
+            cat_lower = cat.lower()
+            if cat_lower in kp_lower:
+                return cat  # e.g., "shiva" in "lord shiva" -> matches "shiva"
+        
+        # Second: try pattern matching from existing keyphrases (for future use)
         best_cat = None
         best_score = 0
-        
         for cat, patterns in cat_patterns.items():
             score = 0
             for pattern in patterns:
-                # Exact match gets highest score
                 if pattern == kp_lower:
                     score += 100
-                # Contains pattern
                 elif pattern in kp_lower:
                     score += 50
-                # Pattern contains keyphrase
                 elif kp_lower in pattern:
                     score += 25
-                # Word overlap
-                elif any(word in kp_lower for word in pattern.split() if len(word) > 3):
-                    score += 10
             if score > best_score:
                 best_score = score
                 best_cat = cat
