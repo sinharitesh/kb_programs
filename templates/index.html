@@ -299,8 +299,11 @@
 	  <div class="card">
 		<div class="filter-bar">
 		  <div>
-			<label>Category</label>
-			<input type="text" id="q-category" placeholder="e.g. krishna" oninput="searchQuestions()">
+			<label>Category (multi-select, Ctrl+click)</label>
+			<select id="q-category" multiple onchange="searchQuestions()"
+              style="height:100px;min-width:200px;padding:6px;">
+			  <option value="" selected>All Categories</option>
+			</select>
 		  </div>
 		  <div>
 			<label>Keyphrase</label>
@@ -319,7 +322,7 @@
 		  </div>
 		</div>
 	  </div>
-	  <div id="questions-list"><p style="color:#666">Enter a search term above.</p></div>
+	  <div id="questions-list"><p style="color:#666">Select a category above to explore questions.</p></div>
 	</div>
 
 
@@ -925,15 +928,34 @@ async function confirmFactsCategory() {
 
 // ── Questions ──
 async function loadQuestions() {
-  document.getElementById('q-category').value = '';
+  // Reset filters
+  const sel = document.getElementById('q-category');
+  Array.from(sel.options).forEach(o => o.selected = o.value === '');
   document.getElementById('q-keyphrase').value = '';
   document.getElementById('q-source').value = '';
+  // Populate category dropdown from DB
+  await populateQuestionCategories();
   await fetchQuestions();
 }
 
+async function populateQuestionCategories() {
+  const sel = document.getElementById('q-category');
+  const res = await fetch('/index/questions');
+  const d = await res.json();
+  // Get unique categories
+  const cats = [...new Set(d.questions.map(q => q.category).filter(Boolean))].sort();
+  // Keep "All" option, rebuild the rest
+  sel.innerHTML = '<option value="">All Categories</option>' +
+    cats.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
 async function searchQuestions() {
+  const sel = document.getElementById('q-category');
+  // Get all selected values; if "All" or nothing selected, pass empty string
+  const selectedCats = Array.from(sel.selectedOptions).map(o => o.value).filter(v => v !== '');
+  const category = selectedCats.join(',');
   await fetchQuestions(
-    document.getElementById('q-category').value,
+    category,
     document.getElementById('q-keyphrase').value,
     document.getElementById('q-source').value
   );
@@ -941,7 +963,10 @@ async function searchQuestions() {
 
 async function fetchQuestions(category='', keyphrase='', source='') {
   const params = new URLSearchParams();
-  if (category) params.append('category', category);
+  // Support multiple categories as comma-separated
+  if (category) {
+    category.split(',').forEach(c => params.append('category', c.trim()));
+  }
   if (keyphrase) params.append('keyphrase', keyphrase);
   if (source) params.append('source', source);
   const res = await fetch('/questions?' + params.toString());

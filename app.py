@@ -3,7 +3,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from fastapi import FastAPI, BackgroundTasks, Request, Form
+from fastapi import FastAPI, BackgroundTasks, Request, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from scraper import enqueue_scrape, get_job_status, results_store
@@ -338,12 +338,15 @@ async def get_keywords_explorer2(
     return {"keywords": df.to_dict('records')}
 
 @app.get("/questions")
-async def get_questions(category: str = "", keyphrase: str = "", source: str = ""):
+async def get_questions(category: List[str] = Query(default=[]), keyphrase: str = "", source: str = ""):
+    from db import get_con
     con = get_con()
     sql = "SELECT * FROM questions_research WHERE 1=1"
     params = []
     if category:
-        sql += " AND category ILIKE ?"; params.append(f"%{category}%")
+        placeholders = ','.join(['?' for _ in category])
+        sql += f" AND category IN ({placeholders})"
+        params.extend(category)
     if keyphrase:
         sql += " AND keyphrase ILIKE ?"; params.append(f"%{keyphrase}%")
     if source:
