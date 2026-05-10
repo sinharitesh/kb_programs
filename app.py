@@ -165,7 +165,8 @@ async def save_wiki_file(path: str = Form(...), content: str = Form(...)):
 from db import get_con
 
 @app.get("/urls")
-async def get_urls(search: str = "", path: str = "", max_quality: int = -1, sort_quality: str = ""):
+async def get_urls(search: str = "", path: str = "", cat_search: str = "",
+                   score_op: str = "", score_val: int = -1, sort_quality: str = ""):
     con = get_con()
     query = """
         SELECT r.id, r.url, r.title, r.domain, r.quality_score,
@@ -182,9 +183,15 @@ async def get_urls(search: str = "", path: str = "", max_quality: int = -1, sort
     if path:
         query += " AND p.path ILIKE ?"
         params += [f"{path}%"]
-    if max_quality >= 0:
-        query += " AND (r.quality_score <= ? OR r.quality_score IS NULL)"
-        params += [max_quality]
+    if cat_search:
+        query += " AND p.path ILIKE ?"
+        params += [f"%{cat_search}%"]
+    if score_val >= 0:
+        if score_op == "gte":
+            query += " AND r.quality_score >= ?"
+        else:  # default lte
+            query += " AND (r.quality_score <= ? OR r.quality_score IS NULL)"
+        params += [score_val]
     query += " GROUP BY r.id, r.url, r.title, r.domain, r.quality_score, r.word_count, r.status, r.last_downloaded"
     if sort_quality == "asc":
         query += " ORDER BY r.quality_score ASC NULLS FIRST"
@@ -352,14 +359,15 @@ async def get_questions(category: List[str] = Query(default=[]), keyphrase: str 
     sql = "SELECT * FROM questions_research WHERE 1=1"
     params = []
     if category:
-        placeholders = ','.join(['?' for _ in category])
-        sql += f" AND category IN ({placeholders})"
-        params.extend(category)
+        # Use ILIKE OR for each selected category for flexible matching
+        cat_clauses = ' OR '.join(['category ILIKE ?' for _ in category])
+        sql += f" AND ({cat_clauses})"
+        params.extend([f"%{c}%" for c in category])
     if keyphrase:
         sql += " AND keyphrase ILIKE ?"; params.append(f"%{keyphrase}%")
     if source:
         sql += " AND source = ?"; params.append(source)
-    sql += " ORDER BY analyzed_at DESC LIMIT 200"
+    sql += " ORDER BY category, analyzed_at DESC LIMIT 500"
     df = con.execute(sql, params).fetchdf()
     con.close()
     return {"questions": df.to_dict('records')}

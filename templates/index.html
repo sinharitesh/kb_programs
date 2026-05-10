@@ -217,20 +217,31 @@
         </div>
       </div>
       <div class="url-main">
-        <div class="url-search" style="flex-wrap:wrap;gap:8px;">
-          <input type="text" id="url-search" placeholder="🔍 Search by title, URL or keyword..." oninput="searchURLs()" style="flex:1;min-width:200px">
-          <select id="url-quality-filter" onchange="searchURLs()" style="width:160px">
-            <option value="-1">All Quality</option>
-            <option value="3">⚠️ Low (≤3)</option>
-            <option value="5">🟡 Medium (≤5)</option>
-            <option value="7">🟢 Good (≤7)</option>
-          </select>
-          <select id="url-sort-quality" onchange="searchURLs()" style="width:150px">
-            <option value="">Default Sort</option>
-            <option value="asc">⬆ Quality Low→High</option>
-            <option value="desc">⬇ Quality High→Low</option>
-          </select>
-          <button class="btn btn-grey" onclick="loadURLs()">↺ Reset</button>
+        <div class="url-search" style="flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+          <input type="text" id="url-search" placeholder="🔍 Search by title or URL..." oninput="searchURLs()" style="flex:1;min-width:200px">
+          <input type="text" id="url-cat-search" placeholder="📁 Category filter..." oninput="searchURLs()" style="width:160px">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">
+          <div>
+            <label style="font-size:0.8em;color:#666">Quality Score</label>
+            <div style="display:flex;gap:4px;align-items:center">
+              <select id="url-score-op" onchange="searchURLs()" style="width:60px;padding:6px 4px">
+                <option value="lte">≤</option>
+                <option value="gte">≥</option>
+              </select>
+              <input type="number" id="url-score-val" placeholder="Score" min="1" max="10"
+                oninput="searchURLs()" style="width:70px">
+            </div>
+          </div>
+          <div>
+            <label style="font-size:0.8em;color:#666">Sort</label>
+            <select id="url-sort-quality" onchange="searchURLs()" style="width:160px">
+              <option value="">Default</option>
+              <option value="asc">⬆ Quality Low→High</option>
+              <option value="desc">⬇ Quality High→Low</option>
+            </select>
+          </div>
+          <button class="btn btn-grey" onclick="resetURLFilters()">↺ Reset</button>
         </div>
         <div id="url-list"><p style="color:#666">Loading...</p></div>
       </div>
@@ -643,9 +654,12 @@ async function loadURLs(search='') {
   const params = new URLSearchParams();
   if (search) params.append('search', search);
   if (currentPath) params.append('path', currentPath);
-  const maxQ = document.getElementById('url-quality-filter')?.value ?? '-1';
+  const catSearch = document.getElementById('url-cat-search')?.value ?? '';
+  const scoreOp = document.getElementById('url-score-op')?.value ?? 'lte';
+  const scoreVal = document.getElementById('url-score-val')?.value ?? '';
   const sortQ = document.getElementById('url-sort-quality')?.value ?? '';
-  if (maxQ && maxQ !== '-1') params.append('max_quality', maxQ);
+  if (catSearch) params.append('cat_search', catSearch);
+  if (scoreVal !== '') { params.append('score_op', scoreOp); params.append('score_val', scoreVal); }
   if (sortQ) params.append('sort_quality', sortQ);
   const res = await fetch('/urls?' + params.toString());
   const data = await res.json();
@@ -654,6 +668,15 @@ async function loadURLs(search='') {
 
 function searchURLs() {
   loadURLs(document.getElementById('url-search').value);
+}
+
+function resetURLFilters() {
+  document.getElementById('url-search').value = '';
+  document.getElementById('url-cat-search').value = '';
+  document.getElementById('url-score-val').value = '';
+  document.getElementById('url-score-op').value = 'lte';
+  document.getElementById('url-sort-quality').value = '';
+  loadURLs();
 }
 
 function renderURLs(urls) {
@@ -966,7 +989,7 @@ async function populateQuestionCategories() {
   const d2 = await res2.json();
   const sysCats = (d2.categories || []).sort();
   // Merge both, dedup, sort — show all system cats, mark ones with questions
-  const allCats = [...new Set([...sysCats, ...dbCats])].sort();
+  const allCats = [...new Set([...sysCats, ...dbCats])].filter(c => c.toLowerCase() !== 'general').sort();
   sel.innerHTML = '<option value="">All Categories</option>' +
     allCats.map(c => {
       const hasQ = dbCats.includes(c);
