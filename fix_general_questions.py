@@ -7,17 +7,26 @@ import re
 
 def main():
     con = get_con()
+    # Get categories from categories.json config (source of truth)
+    import json
+    from pathlib import Path
+    KB_ROOT = Path(r"C:\knowledge-base")
+    CONFIG = KB_ROOT / "config"
+    try:
+        with open(CONFIG / "categories.json") as f:
+            cats_data = json.load(f)
+            categories = [c for c in cats_data.get("categories", []) 
+                         if c and c.lower() != 'general']
+    except Exception as e:
+        print(f"Error loading categories.json: {e}")
+        categories = []
     
-    # Get all valid categories (excluding 'general')
-    all_cats = con.execute("""
-        SELECT DISTINCT category FROM keyword_intelligence 
-        WHERE category IS NOT NULL AND category != 'general'
-        UNION
-        SELECT DISTINCT category FROM questions_research 
-        WHERE category IS NOT NULL AND category != 'general'
-    """).fetchdf()
-    categories = sorted([c for c in all_cats['category'].tolist() if c])
-    print(f"Found {len(categories)} valid categories:")
+    if not categories:
+        print("No categories found in config!")
+        con.close()
+        return
+        
+    print(f"Found {len(categories)} categories from config:")
     for c in categories:
         print(f"  - {c}")
     
