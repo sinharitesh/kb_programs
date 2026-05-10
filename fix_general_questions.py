@@ -66,11 +66,18 @@ def main():
             return None
         kp_lower = keyphrase.lower()
         
-        # First: direct category name matching
+        # First: direct category name matching (with fuzzy logic)
         for cat in categories:
             cat_lower = cat.lower()
+            # Exact containment
             if cat_lower in kp_lower:
                 return cat  # e.g., "shiva" in "lord shiva" -> matches "shiva"
+            # Fuzzy: check if keyphrase word starts with category (hanuman vs hanumana)
+            words = kp_lower.replace('-', ' ').replace('_', ' ').split()
+            for word in words:
+                if len(word) >= 4:  # Only check significant words
+                    if word.startswith(cat_lower) or cat_lower.startswith(word):
+                        return cat  # "hanuman" matches "hanumana"
         
         # Second: try pattern matching from existing keyphrases (for future use)
         best_cat = None
