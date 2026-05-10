@@ -281,6 +281,12 @@
     <div class="card">
       <label>Topic</label>
       <input type="text" id="kw-topic" placeholder="e.g. Maha Mrityunjaya Mantra">
+      <label>Category</label>
+      <select id="kw-category" style="width:100%">
+        {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+      </select>
       <div style="margin-top:12px;">
         <button class="btn btn-green" onclick="analyzeKeywords()">🔍 Find Keywords</button>
       </div>
@@ -597,7 +603,12 @@ async function submitIngest() {
   const res = await fetch('/ingest', {method: 'POST', body: fd});
   const data = await res.json();
   const box = document.getElementById('ingest-status');
-  box.textContent = data.status === 'skipped' ? `⚠️ ${data.message}` : `✅ Job queued: ${data.job_id}`;
+  box.style.display = 'block';
+  box.style.background = data.status === 'skipped' ? '#fff3cd' : '#d4edda';
+  box.style.color = data.status === 'skipped' ? '#856404' : '#155724';
+  box.textContent = data.status === 'skipped'
+    ? `⚠️ Already ingested: ${data.message}`
+    : `✅ Job queued: ${data.job_id}`;
 }
 
 // ── Queue ──
@@ -831,12 +842,14 @@ async function saveWiki() {
 // ── Keyword Finder ──
 async function analyzeKeywords() {
   const topic = document.getElementById('kw-topic').value;
+  const category = document.getElementById('kw-category')?.value || 'general';
   const status = document.getElementById('kw-status');
+  if (!topic.trim()) { alert('Please enter a topic first.'); return; }
   status.style.display = 'block';
-  status.textContent = '⏳ Analyzing keywords...';
+  status.textContent = `⏳ Analyzing keywords for "${topic}" in [${category}]...`;
   const fd = new FormData();
   fd.append('topic', topic);
-  fd.append('category', 'general');
+  fd.append('category', category);
   const res = await fetch('/keywords/analyze', {method: 'POST', body: fd});
   const data = await res.json();
   status.textContent = `✅ Done! Results saved to DuckDB.`;
