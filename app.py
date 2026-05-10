@@ -165,7 +165,7 @@ async def save_wiki_file(path: str = Form(...), content: str = Form(...)):
 from db import get_con
 
 @app.get("/urls")
-async def get_urls(search: str = "", path: str = ""):
+async def get_urls(search: str = "", path: str = "", max_quality: int = -1, sort_quality: str = ""):
     con = get_con()
     query = """
         SELECT r.id, r.url, r.title, r.domain, r.quality_score,
@@ -182,7 +182,14 @@ async def get_urls(search: str = "", path: str = ""):
     if path:
         query += " AND p.path ILIKE ?"
         params += [f"{path}%"]
+    if max_quality >= 0:
+        query += " AND (r.quality_score <= ? OR r.quality_score IS NULL)"
+        params += [max_quality]
     query += " GROUP BY r.id, r.url, r.title, r.domain, r.quality_score, r.word_count, r.status, r.last_downloaded"
+    if sort_quality == "asc":
+        query += " ORDER BY r.quality_score ASC NULLS FIRST"
+    elif sort_quality == "desc":
+        query += " ORDER BY r.quality_score DESC"
     results = con.execute(query, params).fetchall()
     con.close()
     return JSONResponse({"urls": [

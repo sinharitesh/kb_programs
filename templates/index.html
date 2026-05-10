@@ -217,8 +217,19 @@
         </div>
       </div>
       <div class="url-main">
-        <div class="url-search">
-          <input type="text" id="url-search" placeholder="🔍 Search by title, URL or keyword..." oninput="searchURLs()">
+        <div class="url-search" style="flex-wrap:wrap;gap:8px;">
+          <input type="text" id="url-search" placeholder="🔍 Search by title, URL or keyword..." oninput="searchURLs()" style="flex:1;min-width:200px">
+          <select id="url-quality-filter" onchange="searchURLs()" style="width:160px">
+            <option value="-1">All Quality</option>
+            <option value="3">⚠️ Low (≤3)</option>
+            <option value="5">🟡 Medium (≤5)</option>
+            <option value="7">🟢 Good (≤7)</option>
+          </select>
+          <select id="url-sort-quality" onchange="searchURLs()" style="width:150px">
+            <option value="">Default Sort</option>
+            <option value="asc">⬆ Quality Low→High</option>
+            <option value="desc">⬇ Quality High→Low</option>
+          </select>
           <button class="btn btn-grey" onclick="loadURLs()">↺ Reset</button>
         </div>
         <div id="url-list"><p style="color:#666">Loading...</p></div>
@@ -632,12 +643,18 @@ async function loadURLs(search='') {
   const params = new URLSearchParams();
   if (search) params.append('search', search);
   if (currentPath) params.append('path', currentPath);
+  const maxQ = document.getElementById('url-quality-filter')?.value ?? '-1';
+  const sortQ = document.getElementById('url-sort-quality')?.value ?? '';
+  if (maxQ && maxQ !== '-1') params.append('max_quality', maxQ);
+  if (sortQ) params.append('sort_quality', sortQ);
   const res = await fetch('/urls?' + params.toString());
   const data = await res.json();
   renderURLs(data.urls);
 }
 
-function searchURLs() { loadURLs(document.getElementById('url-search').value); }
+function searchURLs() {
+  loadURLs(document.getElementById('url-search').value);
+}
 
 function renderURLs(urls) {
   const div = document.getElementById('url-list');
@@ -940,13 +957,21 @@ async function loadQuestions() {
 
 async function populateQuestionCategories() {
   const sel = document.getElementById('q-category');
+  // Fetch categories that actually have questions in DB
   const res = await fetch('/index/questions');
   const d = await res.json();
-  // Get unique categories
-  const cats = [...new Set(d.questions.map(q => q.category).filter(Boolean))].sort();
-  // Keep "All" option, rebuild the rest
+  const dbCats = [...new Set(d.questions.map(q => q.category).filter(Boolean))].sort();
+  // Also fetch all configured system categories
+  const res2 = await fetch('/categories');
+  const d2 = await res2.json();
+  const sysCats = (d2.categories || []).sort();
+  // Merge both, dedup, sort — show all system cats, mark ones with questions
+  const allCats = [...new Set([...sysCats, ...dbCats])].sort();
   sel.innerHTML = '<option value="">All Categories</option>' +
-    cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    allCats.map(c => {
+      const hasQ = dbCats.includes(c);
+      return `<option value="${c}">${c}${hasQ ? ' ✓' : ''}</option>`;
+    }).join('');
 }
 
 async function searchQuestions() {
