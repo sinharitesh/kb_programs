@@ -76,19 +76,33 @@ def move_url_path(url_id: int, old_path: str, new_path: str):
                 shutil.move(str(f), str(new_dir / f.name))
 
 
-def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None):
-    """Save LLM-extracted facts, DDG web facts, and Wikipedia-verified entities to DuckDB."""
+def migrate_facts_add_source():
+    """Add source column to facts table if it doesn't exist."""
     con = get_con()
+    try:
+        # Check if source column exists
+        con.execute("SELECT source FROM facts LIMIT 1")
+    except:
+        # Column doesn't exist, add it
+        con.execute("ALTER TABLE facts ADD COLUMN source VARCHAR(20) DEFAULT 'llm'")
+        con.commit()
+        print("Migrated facts table: added source column")
+    con.close()
+
+def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, reddit_facts: list = None, google_facts: list = None):
+    """Save LLM-extracted facts, DDG web facts, Reddit facts, Google facts, and Wikipedia-verified entities to DuckDB."""
+    con = get_con()
+    migrate_facts_add_source()  # Ensure source column exists
     next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
-    # LLM-extracted facts — unverified
+    # LLM-extracted facts — unverified, source='llm'
     for fact in facts:
         if fact and fact.strip():
             con.execute(
-                "INSERT INTO facts (id, url_id, fact, verified) VALUES (?, ?, ?, ?)",
-                [next_id, url_id, fact.strip(), False]
+                "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
+                [next_id, url_id, fact.strip(), False, 'llm']
             )
             next_id += 1
-    # DDG web-sourced facts — marked verified (sourced from live web)
+    # DDG web-sourced facts — marked verified, source='ddg_facts'
     if ddg_facts:
         for item in ddg_facts:
             snippet = item.get("snippet", "").strip()
@@ -96,18 +110,38 @@ def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = No
             if snippet:
                 fact_text = f"{snippet} [src: {source_url}]" if source_url else snippet
                 con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified) VALUES (?, ?, ?, ?)",
-                    [next_id, url_id, fact_text[:500], True]
+                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
+                    [next_id, url_id, fact_text[:500], True, 'ddg_facts']
                 )
                 next_id += 1
-    # Wikipedia-verified entities — marked verified
+    # Reddit facts — marked verified, source='reddit'
+    if reddit_facts:
+        for item in reddit_facts:
+            title = item.get("title", "").strip()
+            if title:
+                con.execute(
+                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
+                    [next_id, url_id, title[:500], True, 'reddit']
+                )
+                next_id += 1
+    # Google facts — marked verified, source='google'
+    if google_facts:
+        for item in google_facts:
+            text = item.get("text", "").strip() if isinstance(item, dict) else str(item).strip()
+            if text:
+                con.execute(
+                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
+                    [next_id, url_id, text[:500], True, 'google']
+                )
+                next_id += 1
+    # Wikipedia-verified entities — marked verified, source='wikipedia'
     if verified_entities:
         for entity, info in verified_entities.items():
             if info.get("verified") and info.get("wiki_summary"):
                 fact_text = f"{entity}: {info['wiki_summary'][:300]}"
                 con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified) VALUES (?, ?, ?, ?)",
-                    [next_id, url_id, fact_text, True]
+                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
+                    [next_id, url_id, fact_text, True, 'wikipedia']
                 )
                 next_id += 1
     con.close()
@@ -318,11 +352,11 @@ def cleanup_orphans():
     con.close()
     return {"orphan_facts_deleted": facts_del, "orphan_paths_deleted": paths_del}
 
-def get_facts_for_explorer(verified: str = "all", search: str = ""):
-    """Return facts with source info, optionally filtered."""
+def get_facts_for_explorer(verified: str = "all", search: str = "", source: str = ""):
+    """Return facts with source info, optionally filtered by verified status, search, and source."""
     con = get_con()
     sql = """
-        SELECT f.id, f.fact, f.verified, r.id as url_id, r.title, r.url, r.domain
+        SELECT f.id, f.fact, f.verified, f.source, r.id as url_id, r.title, r.url, r.domain
         FROM facts f
         JOIN url_registry r ON r.id = f.url_id
         WHERE 1=1
@@ -335,9 +369,12 @@ def get_facts_for_explorer(verified: str = "all", search: str = ""):
     if search:
         sql += " AND f.fact ILIKE ?"
         params.append(f"%{search}%")
+    if source:
+        sql += " AND f.source = ?"
+        params.append(source)
     sql += " ORDER BY f.verified DESC, f.id DESC LIMIT 500"
     rows = con.execute(sql, params).fetchall()
     con.close()
-    return [{"id": r[0], "fact": r[1], "verified": r[2],
-             "url_id": r[3], "source_title": r[4], "source_url": r[5], "domain": r[6]}
+    return [{"id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
+             "url_id": r[4], "source_title": r[5], "source_url": r[6], "domain": r[7]}
             for r in rows]

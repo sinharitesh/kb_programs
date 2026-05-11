@@ -60,69 +60,81 @@ def main():
         if keyphrases:
             cat_patterns[cat] = keyphrases
     
+    # Keyword-to-category semantic mappings (defined outside function for efficiency)
+    keyword_map = {
+        # Hanuman related
+        'sunder kand': 'hanumana',
+        'sundar kand': 'hanumana',
+        'bajrang': 'hanumana',
+        'bajrangbali': 'hanumana',
+        'hanuman chalisa': 'hanumana',
+        'pavan putra': 'hanumana',
+        'anjani putra': 'hanumana',
+        # Shiva related
+        'trishul': 'shiva',
+        'trishulam': 'shiva',
+        'damru': 'shiva',
+        'rudraksha': 'shiva',
+        'rudraksh': 'shiva',
+        'kailash': 'shiva',
+        'mount kailash': 'shiva',
+        'third eye': 'shiva',
+        'neelkanth': 'shiva',
+        'bholenath': 'shiva',
+        'mahadev': 'shiva',
+        'mahadeva': 'shiva',
+        'nataraj': 'shiva',
+        'nataraja': 'shiva',
+        # Krishna related
+        'radha': 'krishna',
+        'radhe': 'krishna',
+        'vrindavan': 'krishna',
+        'mathura': 'krishna',
+        'dwarka': 'krishna',
+        'gita': 'krishna',
+        'bhagavad gita': 'krishna',
+        'flute': 'krishna',
+        'bansuri': 'krishna',
+        'sudarshan': 'krishna',
+        'sudarshana': 'krishna',
+        'chakra': 'krishna',
+    }
+    
     # Function to find best matching category
-    def find_category(keyphrase, question):
+    def find_category(keyphrase, question, debug=False):
         if not keyphrase:
             return None
         kp_lower = keyphrase.lower()
+        if debug:
+            print(f"  DEBUG: Checking '{kp_lower}'")
         
-        # First: direct category name matching (with fuzzy logic)
+        # First: keyword-to-category semantic mappings (HIGHEST PRIORITY)
+        for keyword, cat in keyword_map.items():
+            if keyword in kp_lower:
+                if debug:
+                    print(f"  DEBUG: Matched keyword '{keyword}' -> {cat}")
+                return cat
+        
+        # Second: direct category name matching (with fuzzy logic)
         for cat in categories:
             cat_lower = cat.lower()
             # Exact containment
             if cat_lower in kp_lower:
-                return cat  # e.g., "shiva" in "lord shiva" -> matches "shiva"
+                if debug:
+                    print(f"  DEBUG: Direct match '{cat_lower}' in '{kp_lower}'")
+                return cat
             # Fuzzy: check if keyphrase word starts with category (hanuman vs hanumana)
             words = kp_lower.replace('-', ' ').replace('_', ' ').split()
             for word in words:
-                if len(word) >= 4:  # Only check significant words
+                if len(word) >= 4:
                     if word.startswith(cat_lower) or cat_lower.startswith(word):
-                        return cat  # "hanuman" matches "hanumana"
+                        if debug:
+                            print(f"  DEBUG: Fuzzy match '{word}' ~ '{cat_lower}'")
+                        return cat
         
-        
-        # Third: keyword-to-category semantic mappings for religious terms
-        keyword_map = {
-            # Hanuman related
-            'sunder kand': 'hanumana',
-            'sundar kand': 'hanumana',
-            'bajrang': 'hanumana',
-            'bajrangbali': 'hanumana',
-            'hanuman chalisa': 'hanumana',
-            'pavan putra': 'hanumana',
-            'anjani putra': 'hanumana',
-            # Shiva related
-            'trishul': 'shiva',
-            'trishulam': 'shiva',
-            'damru': 'shiva',
-            'rudraksha': 'shiva',
-            'rudraksh': 'shiva',
-            'kailash': 'shiva',
-            'mount kailash': 'shiva',
-            'third eye': 'shiva',
-            'neelkanth': 'shiva',
-            'bholenath': 'shiva',
-            'mahadev': 'shiva',
-            'mahadeva': 'shiva',
-            'nataraj': 'shiva',
-            'nataraja': 'shiva',
-            # Krishna related
-            'radha': 'krishna',
-            'radhe': 'krishna',
-            'vrindavan': 'krishna',
-            'mathura': 'krishna',
-            'dwarka': 'krishna',
-            'gita': 'krishna',
-            'bhagavad gita': 'krishna',
-            'flute': 'krishna',
-            'bansuri': 'krishna',
-            'sudarshan': 'krishna',
-            'sudarshana': 'krishna',
-            'chakra': 'krishna',
-        }
-        for keyword, cat in keyword_map.items():
-            if keyword in kp_lower:
-                return cat
-        # Second: try pattern matching from existing keyphrases (for future use)
+        if debug:
+            print(f"  DEBUG: No match found")
+        # Third: try pattern matching from existing keyphrases (for future use)
         best_cat = None
         best_score = 0
         for cat, patterns in cat_patterns.items():

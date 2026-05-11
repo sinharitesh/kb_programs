@@ -483,8 +483,8 @@ async def api_delete_facts_bulk(ids: List[int]):
     return JSONResponse({"status": "deleted", "count": len(ids)})
 
 @app.get("/facts/explorer")
-async def api_facts_explorer(verified: str = "all", search: str = ""):
-    return JSONResponse({"facts": get_facts_for_explorer(verified, search)})
+async def api_facts_explorer(verified: str = "all", search: str = "", source: str = ""):
+    return JSONResponse({"facts": get_facts_for_explorer(verified, search, source)})
 
 @app.delete("/keywords/{keyword_id}")
 async def api_delete_keyword(keyword_id: int):

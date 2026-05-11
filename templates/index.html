@@ -364,6 +364,16 @@
           <input type="text" id="facts-topic-search" placeholder="🔍 e.g. Shiva, Trishul..." oninput="searchFacts()">
         </div>
         <div>
+          <label>Source</label>
+          <select id="facts-source-filter" onchange="searchFacts()">
+            <option value="">All Sources</option>
+            <option value="ddg_facts">DDG Facts</option>
+            <option value="wikipedia">Wikipedia</option>
+            <option value="reddit">Reddit</option>
+            <option value="google">Google</option>
+          </select>
+        </div>
+        <div>
           <label>Verified</label>
           <select id="facts-verified-filter" onchange="searchFacts()">
             <option value="all">All</option>
@@ -962,6 +972,7 @@ let currentFacts = [];
 
 async function loadFacts() {
   document.getElementById('facts-topic-search').value = '';
+  document.getElementById('facts-source-filter').value = '';
   document.getElementById('facts-verified-filter').value = 'all';
   await fetchFacts();
 }
@@ -969,13 +980,15 @@ async function loadFacts() {
 async function searchFacts() {
   await fetchFacts(
     document.getElementById('facts-topic-search').value,
+    document.getElementById('facts-source-filter').value,
     document.getElementById('facts-verified-filter').value
   );
 }
 
-async function fetchFacts(search='', verified='all') {
+async function fetchFacts(search='', source='', verified='all') {
   const params = new URLSearchParams();
   if (search) params.append('search', search);
+  if (source) params.append('source', source);
   if (verified && verified !== 'all') params.append('verified', verified);
   const res = await fetch('/facts/explorer?' + params.toString());
   const data = await res.json();
