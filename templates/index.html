@@ -388,52 +388,6 @@
     <div id="kw-results"></div>
   </div>
 
-
-// High Potential Keywords functions (moved here for proper hoisting)
-async function loadHighPotentialKeywords() {
-  const search = document.getElementById('ka-search')?.value || '';
-  const category = document.getElementById('ka-category')?.value || '';
-  const minSources = document.getElementById('ka-min-sources')?.value || 2;
-  
-  const params = new URLSearchParams();
-  if (search) params.append('search', search);
-  if (category) params.append('category', category);
-  params.append('min_sources', minSources);
-  
-  const resp = await fetch('/analysis/keywords/high-potential?' + params.toString());
-  const data = await resp.json();
-  
-  renderHighPotentialKeywords(data);
-}
-
-function renderHighPotentialKeywords(data) {
-  const container = document.getElementById('ka-high-potential');
-  document.getElementById('ka-hp-count').textContent = data.total ? `(${data.total} found)` : '';
-  
-  if (!data.keywords || data.keywords.length === 0) {
-    container.innerHTML = '<p style="color:#666;padding:20px;text-align:center;">No keywords match your filters. Try adjusting minimum sources or search.</p>';
-    return;
-  }
-  
-  container.innerHTML = data.keywords.map(kw => `
-    <div class="kw-card" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')">
-      <div class="kw-header">
-        <span class="kw-title">${kw.keyword}</span>
-        <span class="kw-score ${kw.potential}">${kw.potential === 'hot' ? '🔥' : kw.potential === 'warm' ? '⚡' : '❄️'} ${kw.score}/100</span>
-      </div>
-      <div class="kw-meta">
-        <span>📊 ${kw.source_count} sources</span>
-        <span>🔗 ${kw.url_count} URLs</span>
-        <span>🔄 ${kw.total_mentions} mentions</span>
-        <span>🗕️ ${kw.last_analyzed?.slice(0, 10) || 'N/A'}</span>
-      </div>
-      <div class="kw-sources">
-        ${kw.sources.map(s => `<span class="kw-src-badge">${s}</span>`).join('')}
-      </div>
-    </div>
-  `).join('');
-}
-
   <!-- KEYWORD ANALYSIS -->
   <div id="kwanalysis" class="section">
     <h2>📊 Keyword Analysis</h2>
@@ -836,6 +790,52 @@ function renderHighPotentialKeywords(data) {
 </div>
 
 <script>
+
+// High Potential Keywords functions (moved here for proper hoisting)
+async function loadHighPotentialKeywords() {
+  const search = document.getElementById('ka-search')?.value || '';
+  const category = document.getElementById('ka-category')?.value || '';
+  const minSources = document.getElementById('ka-min-sources')?.value || 2;
+  
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (category) params.append('category', category);
+  params.append('min_sources', minSources);
+  
+  const resp = await fetch('/analysis/keywords/high-potential?' + params.toString());
+  const data = await resp.json();
+  
+  renderHighPotentialKeywords(data);
+}
+
+function renderHighPotentialKeywords(data) {
+  const container = document.getElementById('ka-high-potential');
+  document.getElementById('ka-hp-count').textContent = data.total ? `(${data.total} found)` : '';
+  
+  if (!data.keywords || data.keywords.length === 0) {
+    container.innerHTML = '<p style="color:#666;padding:20px;text-align:center;">No keywords match your filters. Try adjusting minimum sources or search.</p>';
+    return;
+  }
+  
+  container.innerHTML = data.keywords.map(kw => `
+    <div class="kw-card" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')">
+      <div class="kw-header">
+        <span class="kw-title">${kw.keyword}</span>
+        <span class="kw-score ${kw.potential}">${kw.potential === 'hot' ? '🔥' : kw.potential === 'warm' ? '⚡' : '❄️'} ${kw.score}/100</span>
+      </div>
+      <div class="kw-meta">
+        <span>📊 ${kw.source_count} sources</span>
+        <span>🔗 ${kw.url_count} URLs</span>
+        <span>🔄 ${kw.total_mentions} mentions</span>
+        <span>🗕️ ${kw.last_analyzed?.slice(0, 10) || 'N/A'}</span>
+      </div>
+      <div class="kw-sources">
+        ${kw.sources.map(s => `<span class="kw-src-badge">${s}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
 // ── Tab switching ──
 function showTab(name, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
