@@ -74,6 +74,30 @@
     .stat-card h3 { font-size: 2em; color: #1a73e8; margin: 0; }
     .stat-card p { color: #666; font-size: 0.9em; margin-top: 4px; }
 
+    /* Keyword potential badges */
+    .kw-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: box-shadow 0.2s; }
+    .kw-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .kw-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .kw-title { font-weight: 600; color: #202124; font-size: 1.05em; }
+    .kw-score { font-size: 0.85em; padding: 4px 10px; border-radius: 12px; font-weight: 600; }
+    .kw-score.hot { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+    .kw-score.warm { background: #fff3e0; color: #ef6c00; border: 1px solid #ffcc80; }
+    .kw-score.cold { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .kw-meta { display: flex; gap: 16px; font-size: 0.85em; color: #666; }
+    .kw-meta span { display: flex; align-items: center; gap: 4px; }
+    .kw-sources { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .kw-src-badge { font-size: 0.75em; padding: 2px 8px; border-radius: 10px; background: #e8f0fe; color: #1a73e8; }
+    .kw-detail-row { padding: 10px 0; border-bottom: 1px solid #e0e0e0; }
+    .kw-detail-row:last-child { border-bottom: none; }
+    .kw-url-item { display: flex; justify-content: space-between; font-size: 0.88em; padding: 6px 0; }
+    .kw-url-item a { color: #1a73e8; text-decoration: none; max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kw-url-item a:hover { text-decoration: underline; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: #fff; border-radius: 12px; padding: 24px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { margin-bottom: 16px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .filter-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+
 
     .tag {
       display: inline-block; background: #e8f0fe; color: #1a73e8;
@@ -368,6 +392,40 @@
   <div id="kwanalysis" class="section">
     <h2>📊 Keyword Analysis</h2>
     
+    <!-- FILTERS -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:200px;">
+          <label>🔍 Search Keywords</label>
+          <input type="text" id="ka-search" placeholder="Type to filter keywords..." oninput="loadHighPotentialKeywords()">
+        </div>
+        <div style="min-width:150px;">
+          <label>Category</label>
+          <select id="ka-category" onchange="loadHighPotentialKeywords()">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="min-width:120px;">
+          <label>Min Sources: <span id="ka-min-src-val">2</span></label>
+          <input type="range" id="ka-min-sources" min="1" max="4" value="2" oninput="document.getElementById('ka-min-src-val').textContent=this.value;loadHighPotentialKeywords()" style="width:100%">
+        </div>
+        <div>
+          <button class="btn btn-green" onclick="loadHighPotentialKeywords()">🔄 Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HIGH POTENTIAL KEYWORDS -->
+    <div class="card" style="margin-bottom:16px;">
+      <h3>🔥 High Potential Keywords <span id="ka-hp-count" style="font-size:0.7em;color:#666;font-weight:normal;"></span></h3>
+      <div id="ka-high-potential" style="max-height:400px;overflow-y:auto;">
+        <p style="color:#666;padding:20px;text-align:center;">Click Refresh to load high-potential keywords</p>
+      </div>
+    </div>
+
     <!-- Summary Cards -->
     <div class="card-grid" id="kw-summary-cards">
       <div class="stat-card"><h3 id="ka-total">0</h3><p>Total Keywords</p></div>
@@ -375,28 +433,41 @@
       <div class="stat-card"><h3 id="ka-urls">0</h3><p>URLs Discovered</p></div>
     </div>
 
-    <!-- Source Breakdown -->
-    <div class="card">
-      <h3>📈 By Source</h3>
-      <table class="data-table" id="ka-source-table">
-        <thead><tr><th>Source</th><th>Keywords</th><th>Topics</th><th>Categories</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <!-- Source Breakdown -->
+      <div class="card">
+        <h3>📈 By Source</h3>
+        <table class="data-table" id="ka-source-table">
+          <thead><tr><th>Source</th><th>Keywords</th><th>Topics</th><th>Categories</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
 
-    <!-- Topics List -->
-    <div class="card">
-      <h3>📚 Topics Analyzed</h3>
-      <div id="ka-topics-list"></div>
+      <!-- Topics List -->
+      <div class="card">
+        <h3>📚 Topics Analyzed</h3>
+        <div id="ka-topics-list" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
     </div>
 
     <!-- URLs Discovered -->
-    <div class="card">
+    <div class="card" style="margin-top:16px;">
       <h3>🔗 Recently Discovered URLs</h3>
       <table class="data-table" id="ka-urls-table">
         <thead><tr><th>Keyword</th><th>Source</th><th>URL</th><th>Topic</th><th>Status</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- KEYWORD DETAIL MODAL -->
+  <div class="modal-overlay" id="kw-detail-modal" style="display:none;">
+    <div class="modal" style="max-width:800px;max-height:90vh;overflow-y:auto;">
+      <h3>🔍 Keyword Detail: <span id="kw-detail-title"></span></h3>
+      <div id="kw-detail-content"></div>
+      <div class="modal-actions">
+        <button class="btn btn-grey" onclick="closeKeywordDetail()">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1597,6 +1668,92 @@ function renderKeywordAnalysis(data) {
     </tr>
   `).join('');
   
+// NEW: High Potential Keywords with Search & Filters
+async function loadHighPotentialKeywords() {
+  const search = document.getElementById('ka-search')?.value || '';
+  const category = document.getElementById('ka-category')?.value || '';
+  const minSources = document.getElementById('ka-min-sources')?.value || 2;
+  
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (category) params.append('category', category);
+  params.append('min_sources', minSources);
+  
+  const resp = await fetch('/analysis/keywords/high-potential?' + params.toString());
+  const data = await resp.json();
+  
+  renderHighPotentialKeywords(data);
+}
+
+function renderHighPotentialKeywords(data) {
+  const container = document.getElementById('ka-high-potential');
+  document.getElementById('ka-hp-count').textContent = data.total ? `(${data.total} found)` : '';
+  
+  if (!data.keywords || data.keywords.length === 0) {
+    container.innerHTML = '<p style="color:#666;padding:20px;text-align:center;">No keywords match your filters. Try adjusting minimum sources or search.</p>';
+    return;
+  }
+  
+  container.innerHTML = data.keywords.map(kw => `
+    <div class="kw-card" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')">
+      <div class="kw-header">
+        <span class="kw-title">${kw.keyword}</span>
+        <span class="kw-score ${kw.potential}">${kw.potential === 'hot' ? '🔥' : kw.potential === 'warm' ? '⚡' : '❄️'} ${kw.score}/100</span>
+      </div>
+      <div class="kw-meta">
+        <span>📊 ${kw.source_count} sources</span>
+        <span>🔗 ${kw.url_count} URLs</span>
+        <span>🔄 ${kw.total_mentions} mentions</span>
+        <span>🗕️ ${kw.last_analyzed?.slice(0, 10) || 'N/A'}</span>
+      </div>
+      <div class="kw-sources">
+        ${kw.sources.map(s => `<span class="kw-src-badge">${s}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function showKeywordDetail(keyword) {
+  const resp = await fetch('/analysis/keywords/' + keyword + '/detail');
+  const data = await resp.json();
+  
+  document.getElementById('kw-detail-title').textContent = decodeURIComponent(data.keyword);
+  
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+      <div class="stat-card"><h3>${data.total_mentions}</h3><p>Total Mentions</p></div>
+      <div class="stat-card"><h3>${data.urls_found}</h3><p>URLs Found</p></div>
+      <div class="stat-card"><h3>${data.sources.length}</h3><p>Data Sources</p></div>
+    </div>
+    
+    <h4>All Mentions</h4>
+    <div style="max-height:200px;overflow-y:auto;margin-bottom:16px;">
+      ${data.mentions.map(m => `
+        <div class="kw-detail-row">
+          <strong>${m.source}</strong> • ${m.topic} (${m.category})<br>
+          <small style="color:#666">${m.note || 'No note'} • ${m.at?.slice(0, 16).replace('T', ' ') || 'N/A'}</small>
+        </div>
+      `).join('')}
+    </div>
+    
+    <h4>URLs Discovered (${data.urls_found})</h4>
+    <div style="max-height:200px;overflow-y:auto;">
+      ${data.urls.length ? data.urls.map(u => `
+        <div class="kw-url-item">
+          <a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 60)}${u.url.length > 60 ? '...' : ''}</a>
+          <span class="tag">${u.source}</span>
+        </div>
+      `).join('') : '<p style="color:#666;">No URLs found for this keyword.</p>'}
+    </div>
+  `;
+  
+  document.getElementById('kw-detail-content').innerHTML = html;
+  document.getElementById('kw-detail-modal').style.display = 'flex';
+}
+
+function closeKeywordDetail() {
+  document.getElementById('kw-detail-modal').style.display = 'none';
+}
   // Topics list
   const topicsDiv = document.getElementById('ka-topics-list');
   topicsDiv.innerHTML = data.by_topic.map(t => `

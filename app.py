@@ -439,6 +439,102 @@ async def analyze_keywords_data():
         "urls_discovered": [{"keyword": r[0], "source": r[1], "url": r[2], "topic": r[3], "category": r[4], "discovered_at": fmt_dt(r[5]), "url_id": r[6], "status": r[7]} for r in recent_urls]
     })
 
+@app.get("/analysis/keywords/high-potential")
+async def get_high_potential_keywords(
+    min_sources: int = 2,
+    category: str = "",
+    search: str = ""
+):
+    """Return keywords scored by multi-source presence and URL yield."""
+    from db import get_con
+    con = get_con()
+    
+    # Base query for keyword aggregation
+    where_clauses = ["1=1"]
+    if category:
+        where_clauses.append(f"category = '{category}'")
+    if search:
+        where_clauses.append(f"keyword ILIKE '%{search}%'")
+    where_sql = " AND ".join(where_clauses)
+    
+    # Get keyword scores
+    rows = con.execute(f"""
+        SELECT 
+            keyword,
+            topic,
+            category,
+            COUNT(DISTINCT source) as source_count,
+            COUNT(*) as total_mentions,
+            COUNT(DISTINCT CASE WHEN notes LIKE 'http%' THEN notes END) as url_count,
+            MAX(analyzed_at) as last_analyzed,
+            array_agg(DISTINCT source) as sources
+        FROM keyword_intelligence
+        WHERE {where_sql}
+        GROUP BY keyword, topic, category
+        HAVING COUNT(DISTINCT source) >= {min_sources}
+        ORDER BY source_count DESC, url_count DESC, total_mentions DESC
+        LIMIT 100
+    """).fetchall()
+    
+    # Calculate potential score (0-100)
+    def calc_score(r):
+        sources = r[3]  # source_count
+        urls = r[5]     # url_count
+        mentions = r[4] # total_mentions
+        # Score: sources*30 + urls*20 + log(mentions)*10, capped at 100
+        return min(100, int(sources * 30 + urls * 20 + (mentions ** 0.5) * 5))
+    
+    keywords = [{
+        "keyword": r[0],
+        "topic": r[1],
+        "category": r[2],
+        "source_count": r[3],
+        "total_mentions": r[4],
+        "url_count": r[5],
+        "last_analyzed": r[6].isoformat() if r[6] else None,
+        "sources": r[7],
+        "score": calc_score(r),
+        "potential": "hot" if calc_score(r) >= 70 else "warm" if calc_score(r) >= 40 else "cold"
+    } for r in rows]
+    
+    con.close()
+    return JSONResponse({"keywords": keywords, "total": len(keywords)})
+
+@app.get("/analysis/keywords/{keyword}/detail")
+async def get_keyword_detail(keyword: str):
+    """Return detailed analysis for a specific keyword."""
+    from db import get_con
+    con = get_con()
+    
+    # All mentions of this keyword
+    mentions = con.execute("""
+        SELECT keyword, source, topic, category, notes, analyzed_at
+        FROM keyword_intelligence
+        WHERE keyword = ?
+        ORDER BY analyzed_at DESC
+    """, [keyword]).fetchall()
+    
+    # URLs found for this keyword
+    urls = con.execute("""
+        SELECT ki.notes as url, ki.source, ki.analyzed_at, u.status, u.quality_score
+        FROM keyword_intelligence ki
+        LEFT JOIN url_registry u ON ki.notes = u.url
+        WHERE ki.keyword = ? AND ki.notes LIKE 'http%'
+        ORDER BY ki.analyzed_at DESC
+    """, [keyword]).fetchall()
+    
+    con.close()
+    
+    return JSONResponse({
+        "keyword": keyword,
+        "mentions": [{"source": m[1], "topic": m[2], "category": m[3], "note": m[4], "at": m[5].isoformat() if m[5] else None} for m in mentions],
+        "urls": [{"url": u[0], "source": u[1], "discovered_at": u[2].isoformat() if u[2] else None, "status": u[3], "quality": u[4]} for u in urls],
+        "total_mentions": len(mentions),
+        "urls_found": len(urls),
+        "sources": list(set(m[1] for m in mentions))
+    })
+
+
 
 @app.get("/index/facts")
 async def index_facts(url_id: int = None):
