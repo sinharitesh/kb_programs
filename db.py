@@ -28,11 +28,11 @@ def register_url(url: str, title: str, domain: str, quality_score: int,
     if existing:
         # Only update discovery_source if not already set (preserve first discovery method)
         if discovery_source:
+            # Note: discovery_source column not in url_registry table yet
             con.execute("""
                 UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
-                word_count=?, raw_file=?, status=?, refresh_requested=FALSE,
-                discovery_source=COALESCE(discovery_source, ?) WHERE url=?
-            """, [title, now, quality_score, word_count, raw_file, status, discovery_source, url])
+                word_count=?, raw_file=?, status=?, refresh_requested=FALSE WHERE url=?
+            """, [title, now, quality_score, word_count, raw_file, status, url])
         else:
             con.execute("""
                 UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
@@ -43,9 +43,9 @@ def register_url(url: str, title: str, domain: str, quality_score: int,
         next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM url_registry").fetchone()[0]
         con.execute("""
             INSERT INTO url_registry (id, url, title, domain, first_downloaded, last_downloaded,
-            quality_score, word_count, raw_file, status, discovery_source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [next_id, url, title, domain, now, now, quality_score, word_count, raw_file, status, discovery_source])
+            quality_score, word_count, raw_file, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [next_id, url, title, domain, now, now, quality_score, word_count, raw_file, status])
         url_id = next_id
 
     con.close()
