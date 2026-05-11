@@ -85,15 +85,19 @@ def move_url_path(url_id: int, old_path: str, new_path: str):
                 shutil.move(str(f), str(new_dir / f.name))
 
 
+
 def migrate_facts_add_source():
     """Add source column to facts table if it doesn't exist."""
     con = get_con()
     try:
-
-def migrate_url_registry_add_discovery_source():
-    """Add discovery_source column to url_registry to track search origin."""
-    con = get_con()
-    try:
+        # Check if source column exists
+        con.execute("SELECT source FROM facts LIMIT 1")
+    except:
+        # Column doesn't exist, add it
+        con.execute("ALTER TABLE facts ADD COLUMN source VARCHAR(20) DEFAULT 'llm'")
+        con.commit()
+        print("Migrated facts table: added source column")
+    con.close()
 
 
 def migrate_facts_add_discovery_source():
@@ -105,21 +109,6 @@ def migrate_facts_add_discovery_source():
         con.execute("ALTER TABLE facts ADD COLUMN discovery_source VARCHAR(20)")
         con.commit()
         print("Migrated facts table: added discovery_source column")
-    con.close()
-        con.execute("SELECT discovery_source FROM url_registry LIMIT 1")
-    except:
-        con.execute("ALTER TABLE url_registry ADD COLUMN discovery_source VARCHAR(20)")
-        con.commit()
-        print("Migrated url_registry: added discovery_source column")
-    con.close()
-
-        # Check if source column exists
-        con.execute("SELECT source FROM facts LIMIT 1")
-    except:
-        # Column doesn't exist, add it
-        con.execute("ALTER TABLE facts ADD COLUMN source VARCHAR(20) DEFAULT 'llm'")
-        con.commit()
-        print("Migrated facts table: added source column")
     con.close()
 
 def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, reddit_facts: list = None, google_facts: list = None, discovery_source: str = None):
