@@ -1791,6 +1791,7 @@ async function showKeywordDetail(keyword) {
 
 function closeKeywordDetail() {
   document.getElementById('kw-detail-modal').style.display = 'none';
+}
 
 // Mini Ingest Modal functions for discovered URLs
 function openMiniIngest(url) {
@@ -1828,6 +1829,29 @@ async function submitMiniIngest() {
   // Refresh the keyword analysis to update status
   analyzeKeywordsWithSearch();
 }
+
+async function analyzeKeywordsWithSearch() {
+  const search = document.getElementById('ka-search')?.value || '';
+  const category = document.getElementById('ka-category')?.value || '';
+  await analyzeKeywordsWithFilters(search, category);
+}
+
+async function analyzeKeywordsWithFilters(search='', category='') {
+  const btn = document.getElementById('ka-analyze-btn');
+  btn.disabled = true; btn.textContent = 'Analyzing...';
+  
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (category) params.append('category', category);
+  
+  const resp = await fetch('/analysis/keywords?' + params.toString());
+  const data = await resp.json();
+  
+  renderKeywordAnalysis(data);
+  
+  btn.disabled = false; btn.textContent = '🔍 Analyze Keywords';
+}
+
   // Topics list
   const topicsDiv = document.getElementById('ka-topics-list');
   topicsDiv.innerHTML = data.by_topic.map(t => `
