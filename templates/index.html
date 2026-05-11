@@ -1749,7 +1749,7 @@ function renderKeywordAnalysis(data) {
       <td>${s.categories}</td>
     </tr>
   `).join('');
-  
+}
 
 async function showKeywordDetail(keyword) {
   const resp = await fetch('/analysis/keywords/' + keyword + '/detail');
@@ -1828,10 +1828,6 @@ async function submitMiniIngest() {
   
   // Refresh the keyword analysis to update status
   analyzeKeywordsWithSearch();
-}
-  const search = document.getElementById('ka-search')?.value || '';
-  const category = document.getElementById('ka-category')?.value || '';
-  await analyzeKeywordsWithFilters(search, category);
 }
 
 async function analyzeKeywordsWithFilters(search='', category='') {
