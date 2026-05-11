@@ -430,10 +430,13 @@ async def analyze_keywords_data():
     
     con.close()
     
+    def fmt_dt(dt):
+        return dt.isoformat() if dt else None
+    
     return JSONResponse({
         "by_source": [{"source": r[0], "count": r[1], "topics": r[2], "categories": r[3]} for r in source_stats],
-        "by_topic": [{"topic": r[0], "category": r[1], "keywords": r[2], "sources": r[3], "last_analyzed": r[4]} for r in topic_stats],
-        "urls_discovered": [{"keyword": r[0], "source": r[1], "url": r[2], "topic": r[3], "category": r[4], "discovered_at": r[5], "url_id": r[6], "status": r[7]} for r in recent_urls]
+        "by_topic": [{"topic": r[0], "category": r[1], "keywords": r[2], "sources": r[3], "last_analyzed": fmt_dt(r[4])} for r in topic_stats],
+        "urls_discovered": [{"keyword": r[0], "source": r[1], "url": r[2], "topic": r[3], "category": r[4], "discovered_at": fmt_dt(r[5]), "url_id": r[6], "status": r[7]} for r in recent_urls]
     })
 
 
