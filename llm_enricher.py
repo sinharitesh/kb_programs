@@ -282,7 +282,7 @@ def update_indexes(enriched: dict):
         f.write(xref_entry + "\n")
 
 # ── Full Pipeline ──────────────────────────────────────────────
-def process_scrape_result(scrape_result: dict, user_category: str = None):
+def process_scrape_result(scrape_result: dict, user_category: str = None, discovery_source: str = None):
     enriched = enrich(scrape_result, user_category)
     if "error" in enriched:
         print(f"[Error] {enriched}")
@@ -306,7 +306,8 @@ def process_scrape_result(scrape_result: dict, user_category: str = None):
         url_id=url_id,
         facts=enriched.get("facts", []),
         verified_entities=enriched.get("verified_entities", {}),
-        ddg_facts=ddg_facts
+        ddg_facts=ddg_facts,
+        discovery_source=discovery_source
     )
     update_indexes(enriched)
     return {**enriched, "wiki_file": wiki_path, "url_id": url_id}

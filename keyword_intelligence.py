@@ -140,6 +140,17 @@ def save_to_duckdb(topic: str, category: str, data: dict):
     con.executemany("INSERT INTO keyword_intelligence (topic, category, source, keyword, score, notes, analyzed_at) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
     con.close()
     print(f"[KW] Appended {len(rows)} rows to DuckDB")
+    
+    # Auto-queue discovered URLs for scraping with their discovery source
+    from scraper import enqueue_scrape
+    queued = 0
+    for row in rows:
+        source, url = row[2], row[5]  # source, notes (URL)
+        if url and url.startswith("http"):
+            job_id = enqueue_scrape(url, category, discovery_source=source)
+            if not job_id.startswith("SKIP"):
+                queued += 1
+    print(f"[KW] Queued {queued} URLs for scraping")
 
 
 

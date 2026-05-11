@@ -20,23 +20,32 @@ def is_url_registered(url: str) -> dict | None:
     return None
 
 def register_url(url: str, title: str, domain: str, quality_score: int,
-                 word_count: int, raw_file: str, status: str):
+                 word_count: int, raw_file: str, status: str, discovery_source: str = None):
+    migrate_url_registry_add_discovery_source()  # Ensure column exists
     con = get_con()
     now = datetime.now()
     existing = con.execute("SELECT id FROM url_registry WHERE url = ?", [url]).fetchone()
     if existing:
-        con.execute("""
-            UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
-            word_count=?, raw_file=?, status=?, refresh_requested=FALSE WHERE url=?
-        """, [title, now, quality_score, word_count, raw_file, status, url])
+        # Only update discovery_source if not already set (preserve first discovery method)
+        if discovery_source:
+            con.execute("""
+                UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
+                word_count=?, raw_file=?, status=?, refresh_requested=FALSE,
+                discovery_source=COALESCE(discovery_source, ?) WHERE url=?
+            """, [title, now, quality_score, word_count, raw_file, status, discovery_source, url])
+        else:
+            con.execute("""
+                UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
+                word_count=?, raw_file=?, status=?, refresh_requested=FALSE WHERE url=?
+            """, [title, now, quality_score, word_count, raw_file, status, url])
         url_id = existing[0]
     else:
         next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM url_registry").fetchone()[0]
         con.execute("""
             INSERT INTO url_registry (id, url, title, domain, first_downloaded, last_downloaded,
-            quality_score, word_count, raw_file, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [next_id, url, title, domain, now, now, quality_score, word_count, raw_file, status])
+            quality_score, word_count, raw_file, status, discovery_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [next_id, url, title, domain, now, now, quality_score, word_count, raw_file, status, discovery_source])
         url_id = next_id
 
     con.close()
@@ -80,6 +89,30 @@ def migrate_facts_add_source():
     """Add source column to facts table if it doesn't exist."""
     con = get_con()
     try:
+
+def migrate_url_registry_add_discovery_source():
+    """Add discovery_source column to url_registry to track search origin."""
+    con = get_con()
+    try:
+
+
+def migrate_facts_add_discovery_source():
+    """Add discovery_source column to facts table to track origin."""
+    con = get_con()
+    try:
+        con.execute("SELECT discovery_source FROM facts LIMIT 1")
+    except:
+        con.execute("ALTER TABLE facts ADD COLUMN discovery_source VARCHAR(20)")
+        con.commit()
+        print("Migrated facts table: added discovery_source column")
+    con.close()
+        con.execute("SELECT discovery_source FROM url_registry LIMIT 1")
+    except:
+        con.execute("ALTER TABLE url_registry ADD COLUMN discovery_source VARCHAR(20)")
+        con.commit()
+        print("Migrated url_registry: added discovery_source column")
+    con.close()
+
         # Check if source column exists
         con.execute("SELECT source FROM facts LIMIT 1")
     except:
@@ -89,17 +122,18 @@ def migrate_facts_add_source():
         print("Migrated facts table: added source column")
     con.close()
 
-def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, reddit_facts: list = None, google_facts: list = None):
+def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, reddit_facts: list = None, google_facts: list = None, discovery_source: str = None):
     """Save LLM-extracted facts, DDG web facts, Reddit facts, Google facts, and Wikipedia-verified entities to DuckDB."""
     con = get_con()
     migrate_facts_add_source()  # Ensure source column exists
+    migrate_facts_add_discovery_source()  # Ensure discovery_source column exists
     next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
     # LLM-extracted facts — unverified, source='llm'
     for fact in facts:
         if fact and fact.strip():
             con.execute(
-                "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
-                [next_id, url_id, fact.strip(), False, 'llm']
+                "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
+                [next_id, url_id, fact.strip(), False, 'llm', discovery_source]
             )
             next_id += 1
     # DDG web-sourced facts — marked verified, source='ddg_facts'
@@ -110,8 +144,8 @@ def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = No
             if snippet:
                 fact_text = f"{snippet} [src: {source_url}]" if source_url else snippet
                 con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
-                    [next_id, url_id, fact_text[:500], True, 'ddg_facts']
+                    "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
+                    [next_id, url_id, fact_text[:500], True, 'ddg_facts', discovery_source]
                 )
                 next_id += 1
     # Reddit facts — marked verified, source='reddit'
@@ -120,8 +154,8 @@ def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = No
             title = item.get("title", "").strip()
             if title:
                 con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
-                    [next_id, url_id, title[:500], True, 'reddit']
+                    "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
+                    [next_id, url_id, title[:500], True, 'reddit', discovery_source]
                 )
                 next_id += 1
     # Google facts — marked verified, source='google'
@@ -130,8 +164,8 @@ def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = No
             text = item.get("text", "").strip() if isinstance(item, dict) else str(item).strip()
             if text:
                 con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
-                    [next_id, url_id, text[:500], True, 'google']
+                    "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
+                    [next_id, url_id, text[:500], True, 'google', discovery_source]
                 )
                 next_id += 1
     # Wikipedia-verified entities — marked verified, source='wikipedia'

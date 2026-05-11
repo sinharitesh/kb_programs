@@ -136,12 +136,13 @@ def background_worker():
         if job is None:
             break
         job_id, url, category_path = job["id"], job["url"], job["category_path"]
+        discovery_source = job.get("discovery_source")
         results_store[job_id] = {**results_store[job_id], "status": "processing"}
         result = scrape_url(url, category_path)
         results_store[job_id] = {**results_store[job_id], **result}
         if result["status"] == "ok":
             results_store[job_id]["status"] = "enriching"
-            enriched = process_scrape_result(result, results_store[job_id].get("category"))
+            enriched = process_scrape_result(result, results_store[job_id].get("category"), discovery_source)
             url_id = enriched.get("url_id")
             if url_id:
                 assign_path(url_id, results_store[job_id].get("category", "uncategorized"))
@@ -153,16 +154,17 @@ def background_worker():
 
 from db import is_url_registered
 
-def enqueue_scrape(url: str, category_path: str, keywords: str = "", force_refresh: bool = False) -> str:
+def enqueue_scrape(url: str, category_path: str, keywords: str = "", force_refresh: bool = False, discovery_source: str = None) -> str:
     existing = is_url_registered(url)
     if existing and not existing["refresh_requested"] and not force_refresh:
         return f"SKIP:{existing['id']}"  # already downloaded
     job_id = hashlib.md5(f"{url}{datetime.now()}".encode()).hexdigest()[:8]
     results_store[job_id] = {
         "status": "queued", "url": url,
-        "category": category_path, "keywords": keywords
+        "category": category_path, "keywords": keywords,
+        "discovery_source": discovery_source
     }
-    scrape_queue.put({"id": job_id, "url": url, "category_path": category_path})
+    scrape_queue.put({"id": job_id, "url": url, "category_path": category_path, "discovery_source": discovery_source})
     return job_id
 
 
