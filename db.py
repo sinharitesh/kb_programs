@@ -21,7 +21,7 @@ def is_url_registered(url: str) -> dict | None:
 
 def register_url(url: str, title: str, domain: str, quality_score: int,
                  word_count: int, raw_file: str, status: str, discovery_source: str = None):
-    migrate_url_registry_add_discovery_source()  # Ensure column exists
+    # Note: discovery_source column needs to be added to url_registry table via migration
     con = get_con()
     now = datetime.now()
     existing = con.execute("SELECT id FROM url_registry WHERE url = ?", [url]).fetchone()
