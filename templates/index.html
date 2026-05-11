@@ -1829,8 +1829,6 @@ async function submitMiniIngest() {
   // Refresh the keyword analysis to update status
   analyzeKeywordsWithSearch();
 }
-
-async function analyzeKeywordsWithSearch() {
   const search = document.getElementById('ka-search')?.value || '';
   const category = document.getElementById('ka-category')?.value || '';
   await analyzeKeywordsWithFilters(search, category);
@@ -1850,37 +1848,6 @@ async function analyzeKeywordsWithFilters(search='', category='') {
   renderKeywordAnalysis(data);
   
   btn.disabled = false; btn.textContent = '🔍 Analyze Keywords';
-}
-
-
-function renderKeywordAnalysis(data) {
-  // Topics list
-  const topicsDiv = document.getElementById('ka-topics-list');
-  topicsDiv.innerHTML = data.by_topic.map(t => `
-    <div class="url-card" style="margin-bottom:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <strong>${t.topic}</strong>
-        <span class="tag">${t.category}</span>
-      </div>
-      <div style="font-size:0.85em;color:#666;margin-top:4px;">
-        ${t.keywords} keywords from ${t.sources} sources • Last analyzed: ${new Date(t.last_analyzed).toLocaleDateString()}
-      </div>
-    </div>
-  `).join('');
-  
-  // URLs discovered table
-  const urlsTbody = document.querySelector('#ka-urls-table tbody');
-  const statusColors = { pending: 'orange', processing: 'blue', done: 'green', failed: 'red' };
-  urlsTbody.innerHTML = data.urls_discovered.map(u => `
-    <tr>
-      <td>${u.keyword}</td>
-      <td><span class="tag">${u.source}</span></td>
-      <td><a href="${u.url}" target="_blank" style="font-size:0.85em;">${u.url.substring(0, 60)}...</a></td>
-      <td>${u.topic}</td>
-      <td><span class="tag ${statusColors[u.status] || 'grey'}">${u.status || 'pending'}</span></td>
-      <td><button class="btn btn-green" style="padding:4px 8px;font-size:0.85em;" onclick="openMiniIngest('${u.url.replace(/'/g, "\\'")}')">🚀 Ingest</button></td>
-    </tr>
-  `).join('');
 }
 </script>
 </body>
