@@ -390,6 +390,53 @@ async def index_categories():
 async def index_keywords(topic: str = ""):
     return JSONResponse({"keywords": get_keywords_index(topic)})
 
+@app.get("/analysis/keywords")
+async def analyze_keywords_data():
+    """Return aggregated keyword analysis data from DuckDB."""
+    from db import get_con
+    con = get_con()
+    
+    # Summary stats by source
+    source_stats = con.execute("""
+        SELECT source, COUNT(*) as count, 
+               COUNT(DISTINCT topic) as topics,
+               COUNT(DISTINCT category) as categories
+        FROM keyword_intelligence 
+        GROUP BY source
+        ORDER BY count DESC
+    """).fetchall()
+    
+    # Keywords by topic
+    topic_stats = con.execute("""
+        SELECT topic, category, COUNT(*) as keyword_count,
+               COUNT(DISTINCT source) as sources,
+               MAX(analyzed_at) as last_analyzed
+        FROM keyword_intelligence 
+        GROUP BY topic, category
+        ORDER BY keyword_count DESC
+        LIMIT 50
+    """).fetchall()
+    
+    # Recent URLs discovered (with scrape status if available)
+    recent_urls = con.execute("""
+        SELECT ki.keyword, ki.source, ki.notes as url, ki.topic, ki.category,
+               ki.analyzed_at, u.id as url_id, u.status
+        FROM keyword_intelligence ki
+        LEFT JOIN url_registry u ON ki.notes = u.url
+        WHERE ki.notes LIKE 'http%'
+        ORDER BY ki.analyzed_at DESC
+        LIMIT 100
+    """).fetchall()
+    
+    con.close()
+    
+    return JSONResponse({
+        "by_source": [{"source": r[0], "count": r[1], "topics": r[2], "categories": r[3]} for r in source_stats],
+        "by_topic": [{"topic": r[0], "category": r[1], "keywords": r[2], "sources": r[3], "last_analyzed": r[4]} for r in topic_stats],
+        "urls_discovered": [{"keyword": r[0], "source": r[1], "url": r[2], "topic": r[3], "category": r[4], "discovered_at": r[5], "url_id": r[6], "status": r[7]} for r in recent_urls]
+    })
+
+
 @app.get("/index/facts")
 async def index_facts(url_id: int = None):
     return JSONResponse({"facts": get_facts_index(url_id)})

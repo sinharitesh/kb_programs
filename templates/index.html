@@ -68,6 +68,13 @@
     .card.red { border-left: 4px solid #d93025; }
     .card.grey { border-left: 4px solid #9aa0a6; }
 
+    /* Keyword Analysis stat cards */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; text-align: center; }
+    .stat-card h3 { font-size: 2em; color: #1a73e8; margin: 0; }
+    .stat-card p { color: #666; font-size: 0.9em; margin-top: 4px; }
+
+
     .tag {
       display: inline-block; background: #e8f0fe; color: #1a73e8;
       padding: 3px 10px; border-radius: 12px; margin: 2px;
@@ -197,6 +204,9 @@
   </div>
   <div class="nav-item" onclick="showTab('keywords', this)">
     <span class="nav-icon">🔑</span> Keyword Finder
+  </div>
+  <div class="nav-item" onclick="showTab('kwanalysis', this)">
+    <span class="nav-icon">📊</span> Keyword Analysis
   </div>
   <div class="nav-item" onclick="showTab('facts', this)">
     <span class="nav-icon">🔎</span> Facts Explorer
@@ -353,6 +363,43 @@
     <div class="status-box" id="kw-status" style="display:none"></div>
     <div id="kw-results"></div>
   </div>
+
+  <!-- KEYWORD ANALYSIS -->
+  <div id="kwanalysis" class="section">
+    <h2>📊 Keyword Analysis</h2>
+    
+    <!-- Summary Cards -->
+    <div class="card-grid" id="kw-summary-cards">
+      <div class="stat-card"><h3 id="ka-total">0</h3><p>Total Keywords</p></div>
+      <div class="stat-card"><h3 id="ka-topics">0</h3><p>Topics Analyzed</p></div>
+      <div class="stat-card"><h3 id="ka-urls">0</h3><p>URLs Discovered</p></div>
+    </div>
+
+    <!-- Source Breakdown -->
+    <div class="card">
+      <h3>📈 By Source</h3>
+      <table class="data-table" id="ka-source-table">
+        <thead><tr><th>Source</th><th>Keywords</th><th>Topics</th><th>Categories</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Topics List -->
+    <div class="card">
+      <h3>📚 Topics Analyzed</h3>
+      <div id="ka-topics-list"></div>
+    </div>
+
+    <!-- URLs Discovered -->
+    <div class="card">
+      <h3>🔗 Recently Discovered URLs</h3>
+      <table class="data-table" id="ka-urls-table">
+        <thead><tr><th>Keyword</th><th>Source</th><th>URL</th><th>Topic</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
 
   <!-- FACTS EXPLORER -->
   <div id="facts" class="section">
@@ -656,6 +703,7 @@ function showTab(name, el) {
   if (name === 'urlmanager') { loadCatTree(); loadURLs(); }
   if (name === 'facts') loadFacts();
   if (name === 'questions') loadQuestions();
+  if (name === 'kwanalysis') loadKeywordAnalysis();
   if (name === 'indexrebuild') loadIndexSummary();
 }
 
@@ -1521,6 +1569,61 @@ async function removeDomain(domain, list_type) {
 setInterval(() => {
   if (document.getElementById('queue').classList.contains('active')) refreshQueue();
 }, 5000);
+// ── Keyword Analysis ──
+async function loadKeywordAnalysis() {
+  const res = await fetch('/analysis/keywords');
+  const data = await res.json();
+  renderKeywordAnalysis(data);
+}
+
+function renderKeywordAnalysis(data) {
+  // Summary cards
+  const totalKws = data.by_source.reduce((sum, s) => sum + s.count, 0);
+  const totalTopics = new Set(data.by_topic.map(t => t.topic)).size;
+  const totalUrls = data.urls_discovered.length;
+  
+  document.getElementById('ka-total').textContent = totalKws.toLocaleString();
+  document.getElementById('ka-topics').textContent = totalTopics.toLocaleString();
+  document.getElementById('ka-urls').textContent = totalUrls.toLocaleString();
+  
+  // Source breakdown table
+  const sourceTbody = document.querySelector('#ka-source-table tbody');
+  sourceTbody.innerHTML = data.by_source.map(s => `
+    <tr>
+      <td><span class="tag">${s.source}</span></td>
+      <td>${s.count.toLocaleString()}</td>
+      <td>${s.topics}</td>
+      <td>${s.categories}</td>
+    </tr>
+  `).join('');
+  
+  // Topics list
+  const topicsDiv = document.getElementById('ka-topics-list');
+  topicsDiv.innerHTML = data.by_topic.map(t => `
+    <div class="url-card" style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>${t.topic}</strong>
+        <span class="tag">${t.category}</span>
+      </div>
+      <div style="font-size:0.85em;color:#666;margin-top:4px;">
+        ${t.keywords} keywords from ${t.sources} sources • Last analyzed: ${new Date(t.last_analyzed).toLocaleDateString()}
+      </div>
+    </div>
+  `).join('');
+  
+  // URLs discovered table
+  const urlsTbody = document.querySelector('#ka-urls-table tbody');
+  const statusColors = { pending: 'orange', processing: 'blue', done: 'green', failed: 'red' };
+  urlsTbody.innerHTML = data.urls_discovered.map(u => `
+    <tr>
+      <td>${u.keyword}</td>
+      <td><span class="tag">${u.source}</span></td>
+      <td><a href="${u.url}" target="_blank" style="font-size:0.85em;">${u.url.substring(0, 60)}...</a></td>
+      <td>${u.topic}</td>
+      <td><span class="tag ${statusColors[u.status] || 'grey'}">${u.status || 'pending'}</span></td>
+    </tr>
+  `).join('');
+}
 </script>
 </body>
 </html>
