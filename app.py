@@ -391,7 +391,7 @@ async def index_keywords(topic: str = ""):
     return JSONResponse({"keywords": get_keywords_index(topic)})
 
 @app.get("/analysis/keywords")
-async def analyze_keywords_data():
+async def analyze_keywords_data(search: str = ""):
     """Return aggregated keyword analysis data from DuckDB."""
     from db import get_con
     con = get_con()
@@ -418,12 +418,17 @@ async def analyze_keywords_data():
     """).fetchall()
     
     # Recent URLs discovered (with scrape status if available)
-    recent_urls = con.execute("""
+    # Filter by search keyword if provided
+    where_clause = "WHERE ki.notes LIKE 'http%'"
+    if search:
+        where_clause += f" AND ki.keyword ILIKE '%{search}%'"
+    
+    recent_urls = con.execute(f"""
         SELECT ki.keyword, ki.source, ki.notes as url, ki.topic, ki.category,
                ki.analyzed_at, u.id as url_id, u.status
         FROM keyword_intelligence ki
         LEFT JOIN url_registry u ON ki.notes = u.url
-        WHERE ki.notes LIKE 'http%'
+        {where_clause}
         ORDER BY ki.analyzed_at DESC
         LIMIT 100
     """).fetchall()
@@ -467,7 +472,7 @@ async def get_high_potential_keywords(
             COUNT(*) as total_mentions,
             COUNT(DISTINCT CASE WHEN notes LIKE 'http%' THEN notes END) as url_count,
             MAX(analyzed_at) as last_analyzed,
-            array_agg(DISTINCT source) as sources
+            GROUP_CONCAT(DISTINCT source) as sources
         FROM keyword_intelligence
         WHERE {where_sql}
         GROUP BY keyword, topic, category
@@ -492,7 +497,7 @@ async def get_high_potential_keywords(
         "total_mentions": r[4],
         "url_count": r[5],
         "last_analyzed": r[6].isoformat() if r[6] else None,
-        "sources": r[7],
+        "sources": r[7].split(',') if r[7] else [],
         "score": calc_score(r),
         "potential": "hot" if calc_score(r) >= 70 else "warm" if calc_score(r) >= 40 else "cold"
     } for r in rows]

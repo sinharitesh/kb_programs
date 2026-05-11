@@ -452,7 +452,10 @@
 
     <!-- URLs Discovered -->
     <div class="card" style="margin-top:16px;">
-      <h3>🔗 Recently Discovered URLs</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3>🔗 Recently Discovered URLs</h3>
+        <input type="text" id="ka-url-search" placeholder="Search phrase..." oninput="analyzeKeywordsWithSearch()" style="width:200px;padding:6px 10px;border:1px solid #dadce0;border-radius:6px;">
+      </div>
       <table class="data-table" id="ka-urls-table">
         <thead><tr><th>Keyword</th><th>Source</th><th>URL</th><th>Topic</th><th>Status</th></tr></thead>
         <tbody></tbody>
@@ -1646,6 +1649,14 @@ async function loadKeywordAnalysis() {
   const data = await res.json();
   renderKeywordAnalysis(data);
 }
+// NEW: URL search with phrase filtering
+async function analyzeKeywordsWithSearch() {
+  const searchPhrase = document.getElementById('ka-url-search')?.value || '';
+  const res = await fetch('/analysis/keywords?search=' + encodeURIComponent(searchPhrase));
+  const data = await res.json();
+  renderKeywordAnalysis(data);
+}
+
 
 function renderKeywordAnalysis(data) {
   // Summary cards
