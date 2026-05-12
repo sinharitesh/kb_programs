@@ -1995,8 +1995,8 @@ async function loadArticleGenCategories() {
   sel.innerHTML = '<option value="">Select category...</option>';
   (data.categories || data).forEach(c => {
     const opt = document.createElement('option');
-    opt.value = c.slug;
-    opt.textContent = c.name;
+    opt.value = c.slug || c;
+    opt.textContent = c.name || c;
     sel.appendChild(opt);
   });
 }
