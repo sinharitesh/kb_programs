@@ -231,6 +231,8 @@ def gather_all_context(idea: str, category: str, search_phrases: list = None,
     for q in questions:
         ans = find_answer(q["question"], category)
         q["answer"] = ans["answer"]
+    
+    return {"idea": idea, "facts": facts, "questions": questions}
 
 
 # ── LLM Helpers ───────────────────────────────────────────────────────────────
