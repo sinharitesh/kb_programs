@@ -2110,7 +2110,8 @@ async function generateArticle() {
     language: document.getElementById('ag-language').value,
     content_type: document.getElementById('ag-type').value,
     selected_facts: selectedFacts,
-    selected_questions: selectedQuestions
+    selected_questions: selectedQuestions,
+    wiki_context: gatheredContext.wiki_context || []
   };
   
   try {

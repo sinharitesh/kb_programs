@@ -702,6 +702,7 @@ class GenerateArticleRequest(BaseModel):
     content_type: str = "Blog Post"
     selected_facts: list = []
     selected_questions: list = []
+    wiki_context: list = []
 
 
 class CacheInputRequest(BaseModel):
@@ -744,7 +745,8 @@ async def api_generate_article(
     ctx = {
         "idea": req.idea,
         "facts": req.selected_facts,
-        "questions": req.selected_questions
+        "questions": req.selected_questions,
+        "wiki_context": req.wiki_context
     }
     
     settings = {
