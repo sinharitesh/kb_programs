@@ -717,6 +717,11 @@ class OptimizePromptRequest(BaseModel):
     search_phrases: List[str] = []
     tone: str = "informative and engaging"
     content_type: str = "Blog Post"
+class SaveArticleWithPromptRequest(BaseModel):
+    article_path: str  # relative path where article is saved
+    final_prompt: str
+    inputs_snapshot: str = ""  # JSON string of inputs used
+
 # ── Article Generation ────────────────────────────────────────────────────────
 from article_generator import gather_all_context, generate_article
 import hashlib
@@ -900,3 +905,16 @@ async def api_list_prompts(topic: str = "", limit: int = 20):
          "usage_count": r[5], "success_score": r[6], "created_at": str(r[7])}
         for r in rows
     ]})
+@app.post("/articles/save-with-prompt")
+async def api_save_article_with_prompt(req: SaveArticleWithPromptRequest):
+    """Save the link between article file and the prompt used to generate it."""
+    con = get_con()
+    try:
+        con.execute("""
+            INSERT INTO article_prompts (article_path, final_prompt, inputs_snapshot)
+            VALUES (?, ?, ?)
+        """, [req.article_path, req.final_prompt, req.inputs_snapshot])
+        con.commit()
+        return JSONResponse({"status": "saved", "article_path": req.article_path})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)

@@ -637,6 +637,16 @@
           </select>
         </div>
       </div>
+        <div>
+          <label>Optimized Prompt (Optional)</label>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-blue" onclick="optimizePrompt()" id="ag-optimize-btn">Optimize Prompt</button>
+            <button class="btn btn-grey" onclick="clearOptimizedPrompt()" style="display:none;" id="ag-clear-prompt-btn">Clear</button>
+          </div>
+          <textarea id="ag-optimized-prompt" placeholder="Click 'Optimize Prompt' to generate an AI-optimized content brief based on your inputs above..." style="height:120px;font-size:0.85em;"></textarea>
+          <input type="hidden" id="ag-prompt-id" value="">
+          <p id="ag-prompt-status" style="margin-top:4px;font-size:0.8em;color:#666;"></p>
+        </div>
       <div style="margin-top:16px;">
         <button class="btn btn-green" onclick="gatherArticleContext()">🔍 Gather Context</button>
         <span id="ag-config-status" style="margin-left:12px;color:#666;font-size:0.9em;"></span>
@@ -2189,13 +2199,57 @@ function toggleArticleView(mode) {
 async function saveArticleToFile() {
   const md = document.getElementById('ag-article-md').value;
   const title = gatheredContext?.idea || 'article';
+  
+  // Download file
   const blob = new Blob([md], { type: 'text/markdown' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = title.toLowerCase().replace(/\s+/g, '_') + '.md';
+  const filename = title.toLowerCase().replace(/\s+/g, '_') + '.md';
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+  
+  // Save inputs to cache for autocomplete
+  const idea = document.getElementById('ag-idea').value.trim();
+  const keyphrase = document.getElementById('ag-keyphrase').value.trim();
+  const phrases = document.getElementById('ag-phrases').value.trim();
+  const category = document.getElementById('ag-category').value;
+  
+  if (idea && keyphrase) {
+    try {
+      await fetch('/articles/cache-input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: idea,
+          focus_keyphrase: keyphrase,
+          search_phrases: phrases,
+          category: category
+        })
+      });
+    } catch (e) {
+      console.error('Failed to cache inputs:', e);
+    }
+  }
+  
+  // Save prompt link to article
+  const optimizedPrompt = document.getElementById('ag-optimized-prompt').value.trim();
+  if (optimizedPrompt) {
+    try {
+      await fetch('/articles/save-with-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          article_path: 'articles/' + filename,
+          final_prompt: optimizedPrompt,
+          inputs_snapshot: JSON.stringify({idea, keyphrase, phrases, category})
+        })
+      });
+    } catch (e) {
+      console.error('Failed to save prompt link:', e);
+    }
+  }
 }
 
 async function loadGeneratedArticles() {
@@ -2247,6 +2301,137 @@ function resetArticleGen() {
 
 // Hook into showTab to load categories when Article Generator is opened
 const originalShowTab = window.showTab;
+// AUTOCOMPLETE for cached inputs
+let cachedInputs = [];
+
+async function loadCachedInputs() {
+  try {
+    const res = await fetch('/articles/input-history?limit=50');
+    const data = await res.json();
+    cachedInputs = data.history || [];
+  } catch (e) {
+    console.error('Failed to load cached inputs:', e);
+  }
+}
+
+function showAutocomplete(inputId, suggestions, fieldsToFill) {
+  const existing = document.getElementById(inputId + '-autocomplete');
+  if (existing) existing.remove();
+  if (suggestions.length === 0) return;
+  
+  const input = document.getElementById(inputId);
+  const dropdown = document.createElement('div');
+  dropdown.id = inputId + '-autocomplete';
+  dropdown.style.cssText = 'position:absolute;background:#fff;border:1px solid #dadce0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-height:200px;overflow-y:auto;z-index:1000;min-width:' + input.offsetWidth + 'px;';
+  
+  suggestions.forEach(item => {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:10px 14px;cursor:pointer;border-bottom:1px solid #f1f3f4;';
+    div.style.cssText += ':hover{background:#f1f3f4}';
+    div.innerHTML = '<strong>' + item.topic + '</strong>' + 
+      (item.focus_keyphrase ? '<br><small style="color:#666">Key: ' + item.focus_keyphrase + '</small>' : '');
+    div.onclick = () => {
+      if (fieldsToFill.idea) document.getElementById(fieldsToFill.idea).value = item.topic;
+      if (fieldsToFill.keyphrase) document.getElementById(fieldsToFill.keyphrase).value = item.focus_keyphrase || '';
+      if (fieldsToFill.phrases) document.getElementById(fieldsToFill.phrases).value = item.search_phrases || '';
+      if (fieldsToFill.category) document.getElementById(fieldsToFill.category).value = item.category || '';
+      dropdown.remove();
+    };
+    dropdown.appendChild(div);
+  });
+  
+  input.parentNode.style.position = 'relative';
+  input.parentNode.appendChild(dropdown);
+}
+
+function setupAutocomplete(inputId, fieldsToFill) {
+  const input = document.getElementById(inputId);
+  input.addEventListener('input', (e) => {
+    const value = e.target.value.toLowerCase();
+    if (value.length < 2) {
+      const existing = document.getElementById(inputId + '-autocomplete');
+      if (existing) existing.remove();
+      return;
+    }
+    const matches = cachedInputs.filter(item => 
+      item.topic.toLowerCase().includes(value) ||
+      (item.focus_keyphrase && item.focus_keyphrase.toLowerCase().includes(value))
+    ).slice(0, 5);
+    showAutocomplete(inputId, matches, fieldsToFill);
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#' + inputId)) {
+      const existing = document.getElementById(inputId + '-autocomplete');
+// OPTIMIZE PROMPT function
+async function optimizePrompt() {
+  const btn = document.getElementById('ag-optimize-btn');
+  const status = document.getElementById('ag-prompt-status');
+  const idea = document.getElementById('ag-idea').value.trim();
+  const keyphrase = document.getElementById('ag-keyphrase').value.trim();
+  const phrases = document.getElementById('ag-phrases').value.trim().split(',').map(p => p.trim()).filter(p => p);
+  const category = document.getElementById('ag-category').value;
+  const tone = document.getElementById('ag-tone').value;
+  const contentType = document.getElementById('ag-type').value;
+  
+  if (!idea || !keyphrase || phrases.length === 0) {
+    status.textContent = 'Please fill Central Idea, Focus Keyphrase, and Search Phrases first.';
+    status.style.color = '#d93025';
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Optimizing...';
+  status.textContent = 'Generating optimized prompt...';
+  status.style.color = '#666';
+  
+  try {
+    const res = await fetch('/articles/optimize-prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: idea,
+        category: category || 'general',
+        focus_keyphrase: keyphrase,
+        search_phrases: phrases,
+        tone: tone,
+        content_type: contentType
+      })
+    });
+    const data = await res.json();
+    
+    if (data.optimized_prompt) {
+      document.getElementById('ag-optimized-prompt').value = data.optimized_prompt;
+      document.getElementById('ag-clear-prompt-btn').style.display = 'inline-block';
+      status.textContent = 'Prompt optimized successfully!';
+      status.style.color = '#34a853';
+    } else {
+      throw new Error(data.message || 'Failed to optimize prompt');
+    }
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = '#d93025';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Optimize Prompt';
+  }
+}
+
+function clearOptimizedPrompt() {
+  document.getElementById('ag-optimized-prompt').value = '';
+  document.getElementById('ag-prompt-id').value = '';
+  document.getElementById('ag-clear-prompt-btn').style.display = 'none';
+  document.getElementById('ag-prompt-status').textContent = '';
+}
+      if (existing) existing.remove();
+    }
+  });
+}
+
+// Initialize autocomplete
+loadCachedInputs();
+setupAutocomplete('ag-idea', {idea: 'ag-idea', keyphrase: 'ag-keyphrase', phrases: 'ag-phrases', category: 'ag-category'});
+
 window.showTab = function(tabId, el) {
   if (originalShowTab) originalShowTab(tabId, el);
   if (tabId === 'articlegen') {
