@@ -681,3 +681,109 @@ async def api_delete_below_quality(min_score: int = Form(...)):
 async def api_cleanup_orphans():
     result = cleanup_orphans()
     return JSONResponse(result)
+
+# ── Article Generation ────────────────────────────────────────────────────────
+from article_generator import gather_all_context, generate_article
+import hashlib
+
+article_jobs = {}  # job_id → result
+
+@app.post("/articles/gather-context")
+async def api_gather_context(
+    idea: str = Form(...),
+    category: str = Form(""),
+    search_phrases: str = Form(""),
+    fact_limit: int = Form(7),
+    question_limit: int = Form(7)
+):
+    """Gather facts, questions, and wiki context for article generation."""
+    phrases = [p.strip() for p in search_phrases.split(",") if p.strip()] if search_phrases else None
+    context = gather_all_context(idea, category, phrases, fact_limit, question_limit)
+    return JSONResponse(context)
+
+@app.post("/articles/generate")
+async def api_generate_article(
+    background_tasks: BackgroundTasks,
+    context: str = Form(...),
+    title: str = Form(""),
+    keywords: str = Form(""),
+    focus_keyphrase: str = Form(""),
+    tone: str = Form("informative and engaging"),
+    word_count: int = Form(1200),
+    language: str = Form("en"),
+    content_type: str = Form("Blog Post"),
+    selected_fact_ids: str = Form(""),
+    selected_question_ids: str = Form("")
+):
+    """Start async article generation with selected context."""
+    ctx = json.loads(context)
+    
+    # Filter to selected facts/questions
+    if selected_fact_ids:
+        sel_ids = [int(x) for x in selected_fact_ids.split(",") if x.strip()]
+        ctx["selected_facts"] = [f for f in ctx["facts"] if f["id"] in sel_ids]
+    if selected_question_ids:
+        sel_ids = [int(x) for x in selected_question_ids.split(",") if x.strip()]
+        ctx["selected_questions"] = [q for q in ctx["questions"] if q["id"] in sel_ids]
+    
+    settings = {
+        "title": title or ctx["idea"],
+        "keywords": keywords or ctx["idea"],
+        "focus_keyphrase": focus_keyphrase or keywords or ctx["idea"],
+        "tone": tone,
+        "word_count": word_count,
+        "language": language,
+        "content_type": content_type
+    }
+    
+    job_id = hashlib.md5(f"{ctx['idea']}{datetime.now()}".encode()).hexdigest()[:8]
+    article_jobs[job_id] = {"status": "generating", "started_at": datetime.now().isoformat()}
+    
+    def run_generation():
+        try:
+            result = generate_article(ctx, settings)
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
+        except Exception as e:
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "error": str(e)}
+    
+    background_tasks.add_task(run_generation)
+    return JSONResponse({"job_id": job_id, "status": "generating"})
+
+@app.get("/articles/status/{job_id}")
+async def api_article_status(job_id: str):
+    """Check article generation status."""
+    job = article_jobs.get(job_id)
+    if not job:
+        return JSONResponse({"status": "not_found"}, status_code=404)
+    return JSONResponse(job)
+
+@app.get("/articles/list")
+async def api_list_articles():
+    """List all generated articles from wiki."""
+    from pathlib import Path
+    wiki_root = Path(r"C:\knowledge-base") / "wiki"
+    articles = []
+    for md_file in wiki_root.rglob("articles/*.md"):
+        try:
+            content = md_file.read_text(encoding="utf-8", errors="ignore")
+            # Parse frontmatter
+            if content.startswith("---"):
+                end = content.index("---", 3)
+                fm = content[3:end].strip()
+                meta = {}
+                for line in fm.split("\n"):
+                    if ":" in line:
+                        k, v = line.split(":", 1)
+                        meta[k.strip()] = v.strip().strip('"')
+                articles.append({
+                    "file": str(md_file.relative_to(wiki_root)),
+                    "title": meta.get("title", md_file.stem),
+                    "category": meta.get("category", ""),
+                    "seo_score": int(meta.get("seo_score", 0)),
+                    "generated_at": meta.get("generated_at", ""),
+                    "slug": meta.get("slug", "")
+                })
+        except Exception:
+            continue
+    articles.sort(key=lambda x: x.get("generated_at", ""), reverse=True)
+    return JSONResponse({"articles": articles})

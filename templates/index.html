@@ -238,6 +238,9 @@
   <div class="nav-item" onclick="showTab('questions', this)">
    <span class="nav-icon">❓</span> Questions
   </div>
+  <div class="nav-item" onclick="showTab('articlegen', this)">
+    <span class="nav-icon">✍️</span> Article Generator
+  </div>
   <div class="nav-item" onclick="showTab('indexrebuild', this)">
     <span class="nav-icon">🔄</span> Index
   </div>
@@ -575,6 +578,127 @@
 	  <div id="questions-list"><p style="color:#666">Select a category above to explore questions.</p></div>
 	</div>
 
+<!-- ARTICLE GENERATOR -->
+  <div id="articlegen" class="section">
+    <h2>✍️ Article Generator</h2>
+
+    <!-- STEP 1: Configuration -->
+    <div class="card" id="ag-config">
+      <h3>Step 1: Article Configuration</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label>Central Idea / Topic</label>
+          <input type="text" id="ag-idea" placeholder="e.g., Krishna and Shishupala story">
+        </div>
+        <div>
+          <label>Category</label>
+          <select id="ag-category">
+            <option value="">Select category...</option>
+          </select>
+        </div>
+        <div>
+          <label>Search Phrases (comma-separated)</label>
+          <input type="text" id="ag-phrases" placeholder="e.g., krishna shishupala, mahabharata curse">
+        </div>
+        <div>
+          <label>Focus Keyphrase (for SEO)</label>
+          <input type="text" id="ag-keyphrase" placeholder="Primary keyword phrase">
+        </div>
+        <div>
+          <label>Tone</label>
+          <select id="ag-tone">
+            <option value="informative and engaging">Informative & Engaging</option>
+            <option value="conversational and friendly">Conversational & Friendly</option>
+            <option value="professional and authoritative">Professional & Authoritative</option>
+            <option value="storytelling and vivid">Storytelling & Vivid</option>
+          </select>
+        </div>
+        <div>
+          <label>Language</label>
+          <select id="ag-language">
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+          </select>
+        </div>
+        <div>
+          <label>Target Word Count</label>
+          <input type="number" id="ag-wordcount" value="1200" min="300" max="3000" step="100">
+        </div>
+        <div>
+          <label>Content Type</label>
+          <select id="ag-type">
+            <option value="Blog Post">Blog Post</option>
+            <option value="Educational Article">Educational Article</option>
+            <option value="Story">Story</option>
+            <option value="Guide">Guide</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-green" onclick="gatherArticleContext()">🔍 Gather Context</button>
+        <span id="ag-config-status" style="margin-left:12px;color:#666;font-size:0.9em;"></span>
+      </div>
+    </div>
+
+    <!-- STEP 2: Context Selection -->
+    <div class="card" id="ag-context" style="display:none;">
+      <h3>Step 2: Select Context</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <h4 style="margin-bottom:10px;color:#1a73e8;">Facts <span id="ag-fact-count" style="font-weight:normal;color:#666;"></span></h4>
+          <div id="ag-facts-list" style="max-height:300px;overflow-y:auto;padding:8px;background:#f8f9fa;border-radius:8px;">
+            <p style="color:#666;font-size:0.9em;">Click "Gather Context" to load facts...</p>
+          </div>
+        </div>
+        <div>
+          <h4 style="margin-bottom:10px;color:#1a73e8;">Questions & Answers <span id="ag-question-count" style="font-weight:normal;color:#666;"></span></h4>
+          <div id="ag-questions-list" style="max-height:300px;overflow-y:auto;padding:8px;background:#f8f9fa;border-radius:8px;">
+            <p style="color:#666;font-size:0.9em;">Click "Gather Context" to load questions...</p>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-green" onclick="generateArticle()">✍️ Generate Article</button>
+        <button class="btn btn-grey" onclick="resetArticleGen()">↻ Reset</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Generation Progress -->
+    <div class="card" id="ag-progress" style="display:none;">
+      <h3>Generating Article...</h3>
+      <div style="padding:20px;text-align:center;">
+        <div style="width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;">
+          <div id="ag-progress-bar" style="width:0%;height:100%;background:#1a73e8;transition:width 0.3s;"></div>
+        </div>
+        <p id="ag-progress-text" style="margin-top:12px;color:#666;">Initializing...</p>
+      </div>
+    </div>
+
+    <!-- STEP 4: Article Preview -->
+    <div class="card" id="ag-preview" style="display:none;">
+      <h3>Article Preview</h3>
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <button class="btn btn-grey" onclick="toggleArticleView('rendered')" id="ag-view-rendered">Rendered</button>
+        <button class="btn btn-grey" onclick="toggleArticleView('markdown')" id="ag-view-md">Markdown</button>
+        <button class="btn btn-blue" onclick="saveArticleToFile()" style="margin-left:auto;">💾 Save</button>
+      </div>
+      <div id="ag-article-rendered" class="wiki-rendered" style="border:1px solid #e0e0e0;padding:20px;border-radius:8px;"></div>
+      <textarea id="ag-article-md" style="display:none;height:500px;"></textarea>
+      <div id="ag-seo-info" style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:8px;font-size:0.9em;"></div>
+    </div>
+
+    <!-- Generated Articles List -->
+    <div class="card">
+      <h3>Generated Articles</h3>
+      <button class="btn btn-blue" onclick="loadGeneratedArticles()" style="margin-bottom:12px;">🔄 Refresh List</button>
+      <div id="ag-articles-list">
+        <p style="color:#666;">Click refresh to load articles...</p>
+      </div>
+    </div>
+  </div>
 
 
   <!-- INDEX REBUILD -->
@@ -1858,6 +1982,278 @@ async function analyzeKeywordsWithFilters(search='', category='') {
   
   btn.disabled = false; btn.textContent = '🔍 Analyze Keywords';
 }
+
+// ==================== ARTICLE GENERATOR FUNCTIONS ====================
+
+let articleGenJobId = null;
+let gatheredContext = null;
+
+async function loadArticleGenCategories() {
+  const res = await fetch('/categories');
+  const data = await res.json();
+  const sel = document.getElementById('ag-category');
+  sel.innerHTML = '<option value="">Select category...</option>';
+  data.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.slug;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+
+async function gatherArticleContext() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '🔍 Gathering...';
+  
+  const idea = document.getElementById('ag-idea').value.trim();
+  const category = document.getElementById('ag-category').value;
+  const phrases = document.getElementById('ag-phrases').value.trim();
+  
+  if (!idea || !category) {
+    alert('Please enter central idea and select category');
+    btn.disabled = false;
+    btn.textContent = '🔍 Gather Context';
+    return;
+  }
+  
+  const payload = {
+    idea,
+    category_slug: category,
+    search_phrases: phrases ? phrases.split(',').map(p => p.trim()) : [],
+    top_n: 15
+  };
+  
+  try {
+    const res = await fetch('/articles/gather-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    gatheredContext = data;
+    
+    // Show facts
+    const factsDiv = document.getElementById('ag-facts-list');
+    if (data.facts && data.facts.length) {
+      document.getElementById('ag-fact-count').textContent = `(${data.facts.length})`;
+      factsDiv.innerHTML = data.facts.map((f, i) => `
+        <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
+          <input type="checkbox" id="ag-fact-${i}" value="${i}" checked style="margin-top:2px;">
+          <span>${f.fact} <span style="color:#666;font-size:0.85em;">(${f.source})</span></span>
+        </label>
+      `).join('');
+    } else {
+      factsDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No facts found.</p>';
+    }
+    
+    // Show questions
+    const qsDiv = document.getElementById('ag-questions-list');
+    if (data.questions && data.questions.length) {
+      document.getElementById('ag-question-count').textContent = `(${data.questions.length})`;
+      qsDiv.innerHTML = data.questions.map((q, i) => `
+        <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
+          <input type="checkbox" id="ag-q-${i}" value="${i}" checked style="margin-top:2px;">
+          <span><strong>${q.question}</strong><br><span style="color:#34a853;font-size:0.85em;">${q.answer || 'No answer yet'}</span></span>
+        </label>
+      `).join('');
+    } else {
+      qsDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No questions found.</p>';
+    }
+    
+    document.getElementById('ag-context').style.display = 'block';
+    document.getElementById('ag-config-status').textContent = `Found ${data.facts?.length||0} facts, ${data.questions?.length||0} questions`;
+  } catch(e) {
+    alert('Error: ' + e.message);
+    document.getElementById('ag-config-status').textContent = 'Error gathering context';
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '🔍 Gather Context';
+}
+
+async function generateArticle() {
+  if (!gatheredContext) return;
+  
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '✍️ Starting...';
+  
+  // Collect selected facts/questions
+  const selectedFacts = [];
+  const selectedQuestions = [];
+  
+  gatheredContext.facts?.forEach((f, i) => {
+    if (document.getElementById(`ag-fact-${i}`)?.checked) selectedFacts.push(f);
+  });
+  gatheredContext.questions?.forEach((q, i) => {
+    if (document.getElementById(`ag-q-${i}`)?.checked) selectedQuestions.push(q);
+  });
+  
+  const payload = {
+    idea: document.getElementById('ag-idea').value.trim(),
+    category_slug: document.getElementById('ag-category').value,
+    search_phrases: document.getElementById('ag-phrases').value.trim().split(',').map(p => p.trim()),
+    focus_keyphrase: document.getElementById('ag-keyphrase').value.trim(),
+    tone: document.getElementById('ag-tone').value,
+    word_count: parseInt(document.getElementById('ag-wordcount').value),
+    language: document.getElementById('ag-language').value,
+    content_type: document.getElementById('ag-type').value,
+    selected_facts: selectedFacts,
+    selected_questions: selectedQuestions
+  };
+  
+  try {
+    const res = await fetch('/articles/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    articleGenJobId = data.job_id;
+    
+    document.getElementById('ag-progress').style.display = 'block';
+    document.getElementById('ag-context').style.display = 'none';
+    pollArticleStatus();
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '✍️ Generate Article';
+  }
+}
+
+async function pollArticleStatus() {
+  if (!articleGenJobId) return;
+  
+  try {
+    const res = await fetch(`/articles/status/${articleGenJobId}`);
+    const data = await res.json();
+    
+    const bar = document.getElementById('ag-progress-bar');
+    const txt = document.getElementById('ag-progress-text');
+    
+    const stages = ['gathering_context', 'generating_title', 'creating_structure', 'writing_article', 'refining_article', 'seo_optimization', 'completed', 'failed'];
+    const progress = (stages.indexOf(data.status) / 6) * 100;
+    bar.style.width = `${Math.min(progress, 100)}%`;
+    txt.textContent = data.message || data.status;
+    
+    if (data.status === 'completed' && data.result) {
+      document.getElementById('ag-progress').style.display = 'none';
+      showArticleResult(data.result);
+      loadGeneratedArticles();
+    } else if (data.status === 'failed') {
+      document.getElementById('ag-progress').style.display = 'none';
+      alert('Generation failed: ' + data.message);
+      document.getElementById('ag-context').style.display = 'block';
+    } else {
+      setTimeout(pollArticleStatus, 1000);
+    }
+  } catch(e) {
+    console.error('Poll error:', e);
+    setTimeout(pollArticleStatus, 2000);
+  }
+}
+
+function showArticleResult(article) {
+  document.getElementById('ag-preview').style.display = 'block';
+  document.getElementById('ag-article-md').value = article.article_text;
+  document.getElementById('ag-article-rendered').innerHTML = marked.parse(article.article_text);
+  
+  document.getElementById('ag-seo-info').innerHTML = `
+    <strong>✅ SEO Score: ${article.seo_score}/100</strong> |
+    Title: "${article.title}" |
+    Keyphrase: "${article.focus_keyphrase}" used ${article.keyphrase_usage_count} times |
+    Slug: ${article.slug}
+  `;
+}
+
+function toggleArticleView(mode) {
+  const rendered = document.getElementById('ag-article-rendered');
+  const md = document.getElementById('ag-article-md');
+  const btnRendered = document.getElementById('ag-view-rendered');
+  const btnMd = document.getElementById('ag-view-md');
+  
+  if (mode === 'rendered') {
+    rendered.style.display = 'block';
+    md.style.display = 'none';
+    btnRendered.style.borderBottom = '2px solid #1a73e8';
+    btnMd.style.borderBottom = 'none';
+  } else {
+    rendered.style.display = 'none';
+    md.style.display = 'block';
+    btnRendered.style.borderBottom = 'none';
+    btnMd.style.borderBottom = '2px solid #1a73e8';
+  }
+}
+
+async function saveArticleToFile() {
+  const md = document.getElementById('ag-article-md').value;
+  const title = gatheredContext?.idea || 'article';
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title.toLowerCase().replace(/\s+/g, '_') + '.md';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function loadGeneratedArticles() {
+  try {
+    const res = await fetch('/articles/list');
+    const data = await res.json();
+    const div = document.getElementById('ag-articles-list');
+    
+    if (!data.articles || !data.articles.length) {
+      div.innerHTML = '<p style="color:#666;">No articles generated yet.</p>';
+      return;
+    }
+    
+    div.innerHTML = data.articles.map(a => `
+      <div class="card" style="border-left:4px solid #1a73e8;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <strong style="font-size:1.1em;">${a.title}</strong>
+            <p style="margin:4px 0;color:#666;font-size:0.9em;">
+              ${a.focus_keyphrase} | ${a.language} | ${a.word_count} words | SEO: ${a.seo_score}/100
+            </p>
+            <p style="margin:0;color:#888;font-size:0.85em;">Saved: ${new Date(a.saved_at).toLocaleString()}</p>
+          </div>
+          <button class="btn btn-grey" onclick="downloadArticle('${a.file_path}')">Download</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('ag-articles-list').innerHTML = '<p style="color:#d93025;">Error loading articles.</p>';
+  }
+}
+
+function downloadArticle(path) {
+  window.open('/articles/download?path=' + encodeURIComponent(path), '_blank');
+}
+
+function resetArticleGen() {
+  gatheredContext = null;
+  articleGenJobId = null;
+  document.getElementById('ag-context').style.display = 'none';
+  document.getElementById('ag-progress').style.display = 'none';
+  document.getElementById('ag-preview').style.display = 'none';
+  document.getElementById('ag-config-status').textContent = '';
+  document.getElementById('ag-facts-list').innerHTML = '<p style="color:#666;font-size:0.9em;">Click "Gather Context" to load facts...</p>';
+  document.getElementById('ag-questions-list').innerHTML = '<p style="color:#666;font-size:0.9em;">Click "Gather Context" to load questions...</p>';
+  document.getElementById('ag-article-md').value = '';
+  document.getElementById('ag-article-rendered').innerHTML = '';
+}
+
+// Hook into showTab to load categories when Article Generator is opened
+const originalShowTab = window.showTab;
+window.showTab = function(tabId, el) {
+  if (originalShowTab) originalShowTab(tabId, el);
+  if (tabId === 'articlegen') {
+    loadArticleGenCategories();
+    loadGeneratedArticles();
+  }
+};
 </script>
 </body>
 </html>
