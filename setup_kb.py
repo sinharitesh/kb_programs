@@ -147,4 +147,4 @@ if __name__ == "__main__":
             id INTEGER PRIMARY KEY,
     setup_indexes()
     setup_duckdb()
-    print("✅ Knowledge base initialized at", KB_ROOT)
+    print("OK: Knowledge base initialized at", KB_ROOT)
