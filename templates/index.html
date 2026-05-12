@@ -2019,9 +2019,9 @@ async function gatherArticleContext() {
   
   const payload = {
     idea,
-    category_slug: category,
+    category: category,
     search_phrases: phrases ? phrases.split(',').map(p => p.trim()) : [],
-    top_n: 15
+    fact_limit: 15
   };
   
   try {
@@ -2092,7 +2092,7 @@ async function generateArticle() {
   
   const payload = {
     idea: document.getElementById('ag-idea').value.trim(),
-    category_slug: document.getElementById('ag-category').value,
+    category: document.getElementById('ag-category').value,
     search_phrases: document.getElementById('ag-phrases').value.trim().split(',').map(p => p.trim()),
     focus_keyphrase: document.getElementById('ag-keyphrase').value.trim(),
     tone: document.getElementById('ag-tone').value,

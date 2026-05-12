@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, Request, Form, Query
+from pydantic import BaseModel
 from typing import List
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -682,23 +683,25 @@ async def api_cleanup_orphans():
     result = cleanup_orphans()
     return JSONResponse(result)
 
+
+class GatherContextRequest(BaseModel):
+    idea: str
+    category: str = ""
+    search_phrases: List[str] = []
+    fact_limit: int = 7
+    question_limit: int = 7
+
+
 # ── Article Generation ────────────────────────────────────────────────────────
 from article_generator import gather_all_context, generate_article
 import hashlib
-
 article_jobs = {}  # job_id → result
 
 @app.post("/articles/gather-context")
-async def api_gather_context(
-    idea: str = Form(...),
-    category: str = Form(""),
-    search_phrases: str = Form(""),
-    fact_limit: int = Form(7),
-    question_limit: int = Form(7)
-):
+async def api_gather_context(req: GatherContextRequest):
     """Gather facts, questions, and wiki context for article generation."""
-    phrases = [p.strip() for p in search_phrases.split(",") if p.strip()] if search_phrases else None
-    context = gather_all_context(idea, category, phrases, fact_limit, question_limit)
+    phrases = req.search_phrases if req.search_phrases else None
+    context = gather_all_context(req.idea, req.category, phrases, req.fact_limit, req.question_limit)
     return JSONResponse(context)
 
 @app.post("/articles/generate")
@@ -745,7 +748,6 @@ async def api_generate_article(
             article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
         except Exception as e:
             article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "error": str(e)}
-    
     background_tasks.add_task(run_generation)
     return JSONResponse({"job_id": job_id, "status": "generating"})
 
