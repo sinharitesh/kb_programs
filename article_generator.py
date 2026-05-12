@@ -458,20 +458,5 @@ generated_at: {datetime.now().isoformat()}
     filepath.write_text(frontmatter + article_md, encoding="utf-8")
     logger.info(f"Article saved: {filepath}")
     return str(filepath)
-        q["answer_source"] = ans["source"]
-        q["answer_found"] = ans["found"]
-
-    # Gather wiki context
-    wiki_context = gather_wiki_context(category, search_phrases)
-
-    logger.info(f"Context ready: {len(facts)} facts, {len(questions)} questions, {len(wiki_context)} wiki excerpts")
-
-    return {
-        "idea": idea,
-        "category": category,
-        "search_phrases": search_phrases or [],
-        "facts": facts,
-        "questions": questions,
-        "wiki_context": wiki_context,
         "gathered_at": datetime.now().isoformat()
     }
