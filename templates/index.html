@@ -1993,7 +1993,7 @@ async function loadArticleGenCategories() {
   const data = await res.json();
   const sel = document.getElementById('ag-category');
   sel.innerHTML = '<option value="">Select category...</option>';
-  data.forEach(c => {
+  (data.categories || data).forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.slug;
     opt.textContent = c.name;
