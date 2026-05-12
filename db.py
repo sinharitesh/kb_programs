@@ -26,18 +26,10 @@ def register_url(url: str, title: str, domain: str, quality_score: int,
     now = datetime.now()
     existing = con.execute("SELECT id FROM url_registry WHERE url = ?", [url]).fetchone()
     if existing:
-        # Only update discovery_source if not already set (preserve first discovery method)
-        if discovery_source:
-            # Note: discovery_source column not in url_registry table yet
-            con.execute("""
-                UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
-                word_count=?, raw_file=?, status=?, refresh_requested=FALSE WHERE url=?
-            """, [title, now, quality_score, word_count, raw_file, status, url])
-        else:
-            con.execute("""
-                UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
-                word_count=?, raw_file=?, status=?, refresh_requested=FALSE WHERE url=?
-            """, [title, now, quality_score, word_count, raw_file, status, url])
+        con.execute("""
+            UPDATE url_registry SET title=?, last_downloaded=?, quality_score=?,
+            word_count=?, raw_file=?, status=?, refresh_requested=FALSE WHERE url=?
+        """, [title, now, quality_score, word_count, raw_file, status, url])
         url_id = existing[0]
     else:
         next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM url_registry").fetchone()[0]
