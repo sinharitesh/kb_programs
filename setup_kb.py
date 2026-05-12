@@ -103,11 +103,48 @@ def setup_duckdb():
             analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+con.execute("""
+        CREATE TABLE IF NOT EXISTS input_history (
+            id INTEGER PRIMARY KEY,
+            topic TEXT NOT NULL,
+            focus_keyphrase TEXT,
+            search_phrases TEXT,
+            category TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            use_count INTEGER DEFAULT 1,
+            UNIQUE(topic, focus_keyphrase, search_phrases)
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS prompt_templates (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            topic TEXT,
+            category TEXT,
+            optimized_prompt TEXT NOT NULL,
+            base_inputs TEXT,
+            usage_count INTEGER DEFAULT 0,
+            success_score INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_used TIMESTAMP
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS article_prompts (
+            article_path TEXT PRIMARY KEY,
+            prompt_id INTEGER,
+            final_prompt TEXT,
+            inputs_snapshot TEXT,
+            generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prompt_id) REFERENCES prompt_templates(id)
+        )
+    """)
     con.close()
 
 if __name__ == "__main__":
-    setup_folders()
-    setup_config()
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS input_history (
+            id INTEGER PRIMARY KEY,
     setup_indexes()
     setup_duckdb()
     print("✅ Knowledge base initialized at", KB_ROOT)

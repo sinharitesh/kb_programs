@@ -691,7 +691,32 @@ class GatherContextRequest(BaseModel):
     fact_limit: int = 7
     question_limit: int = 7
 
+class GenerateArticleRequest(BaseModel):
+    idea: str
+    category: str = ""
+    search_phrases: List[str] = []
+    focus_keyphrase: str = ""
+    tone: str = "informative and engaging"
+    word_count: int = 1200
+    language: str = "en"
+    content_type: str = "Blog Post"
+    selected_facts: list = []
+    selected_questions: list = []
 
+
+class CacheInputRequest(BaseModel):
+    topic: str
+    focus_keyphrase: str = ""
+    search_phrases: str = ""  # comma-separated
+    category: str = ""
+
+class OptimizePromptRequest(BaseModel):
+    topic: str
+    category: str = ""
+    focus_keyphrase: str = ""
+    search_phrases: List[str] = []
+    tone: str = "informative and engaging"
+    content_type: str = "Blog Post"
 # ── Article Generation ────────────────────────────────────────────────────────
 from article_generator import gather_all_context, generate_article
 import hashlib
@@ -707,41 +732,37 @@ async def api_gather_context(req: GatherContextRequest):
 @app.post("/articles/generate")
 async def api_generate_article(
     background_tasks: BackgroundTasks,
-    context: str = Form(...),
-    title: str = Form(""),
-    keywords: str = Form(""),
-    focus_keyphrase: str = Form(""),
-    tone: str = Form("informative and engaging"),
-    word_count: int = Form(1200),
-    language: str = Form("en"),
-    content_type: str = Form("Blog Post"),
-    selected_fact_ids: str = Form(""),
-    selected_question_ids: str = Form("")
+    req: GenerateArticleRequest
 ):
     """Start async article generation with selected context."""
-    ctx = json.loads(context)
-    
-    # Filter to selected facts/questions
-    if selected_fact_ids:
-        sel_ids = [int(x) for x in selected_fact_ids.split(",") if x.strip()]
-        ctx["selected_facts"] = [f for f in ctx["facts"] if f["id"] in sel_ids]
-    if selected_question_ids:
-        sel_ids = [int(x) for x in selected_question_ids.split(",") if x.strip()]
-        ctx["selected_questions"] = [q for q in ctx["questions"] if q["id"] in sel_ids]
-    
-    settings = {
-        "title": title or ctx["idea"],
-        "keywords": keywords or ctx["idea"],
-        "focus_keyphrase": focus_keyphrase or keywords or ctx["idea"],
-        "tone": tone,
-        "word_count": word_count,
-        "language": language,
-        "content_type": content_type
+    # Build context object from request
+    ctx = {
+        "idea": req.idea,
+        "facts": req.selected_facts,
+        "questions": req.selected_questions
     }
     
-    job_id = hashlib.md5(f"{ctx['idea']}{datetime.now()}".encode()).hexdigest()[:8]
+    settings = {
+        "title": req.idea,
+        "keywords": req.idea,
+        "focus_keyphrase": req.focus_keyphrase or req.idea,
+        "tone": req.tone,
+        "word_count": req.word_count,
+        "language": req.language,
+        "content_type": req.content_type
+    }
+    
+    job_id = hashlib.md5(f"{req.idea}{datetime.now()}".encode()).hexdigest()[:8]
     article_jobs[job_id] = {"status": "generating", "started_at": datetime.now().isoformat()}
     
+    def run_generation():
+        try:
+            result = generate_article(ctx, settings)
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
+        except Exception as e:
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "error": str(e)}
+    background_tasks.add_task(run_generation)
+    return JSONResponse({"job_id": job_id, "status": "generating"})
     def run_generation():
         try:
             result = generate_article(ctx, settings)
@@ -789,3 +810,93 @@ async def api_list_articles():
             continue
     articles.sort(key=lambda x: x.get("generated_at", ""), reverse=True)
     return JSONResponse({"articles": articles})
+
+@app.post("/articles/cache-input")
+async def api_cache_input(req: CacheInputRequest):
+    """Cache Central Idea, Keyphrases, and Search Phrases for future use."""
+    con = get_con()
+    try:
+        con.execute("""
+            INSERT INTO input_history (topic, focus_keyphrase, search_phrases, category)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(topic, focus_keyphrase, search_phrases)
+            DO UPDATE SET use_count = use_count + 1, created_at = CURRENT_TIMESTAMP
+        """, [req.topic, req.focus_keyphrase, req.search_phrases, req.category])
+        return JSONResponse({"status": "cached"})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.get("/articles/input-history")
+async def api_input_history(limit: int = 20, category: str = ""):
+    """Get cached input combinations sorted by use count and recency."""
+    con = get_con()
+    where = "WHERE category ILIKE ?" if category else ""
+    params = [f"%{category}%"] if category else []
+    rows = con.execute(f"""
+        SELECT id, topic, focus_keyphrase, search_phrases, category, use_count, created_at
+        FROM input_history
+        {where}
+        ORDER BY use_count DESC, created_at DESC
+        LIMIT ?
+    """, params + [limit]).fetchall()
+    return JSONResponse({"history": [
+        {"id": r[0], "topic": r[1], "focus_keyphrase": r[2], "search_phrases": r[3],
+         "category": r[4], "use_count": r[5], "created_at": str(r[6])}
+        for r in rows
+    ]})
+
+@app.post("/articles/optimize-prompt")
+async def api_optimize_prompt(req: OptimizePromptRequest):
+    """Generate optimized prompt based on inputs using LLM."""
+    from article_generator import ollama_generate
+    
+    base_prompt = f"""Create a highly optimized SEO content brief for:
+
+Topic: {req.topic}
+Category: {req.category}
+Focus Keyphrase: {req.focus_keyphrase}
+Search Phrases: {', '.join(req.search_phrases)}
+Tone: {req.tone}
+Content Type: {req.content_type}
+
+Generate a comprehensive prompt that will guide an AI to write:
+1. An engaging {req.content_type.lower()} optimized for SEO
+2. Natural integration of keyphrase: "{req.focus_keyphrase}" (1.5-2% density)
+3. Clear structure with H2/H3 headers
+4. Answering implicit questions behind: {', '.join(req.search_phrases[:3])}
+5. Meta description and 3-5 recommended internal links
+
+Output ONLY the optimized prompt text, ready to use."""
+    
+    optimized = ollama_generate(base_prompt, temperature=0.3)
+    
+    con = get_con()
+    con.execute("""
+        INSERT INTO prompt_templates (topic, category, optimized_prompt, base_inputs)
+        VALUES (?, ?, ?, ?)
+    """, [req.topic, req.category, optimized, json.dumps({
+        "topic": req.topic, "focus_keyphrase": req.focus_keyphrase,
+        "search_phrases": req.search_phrases, "tone": req.tone
+    })])
+    
+    return JSONResponse({"optimized_prompt": optimized, "status": "generated"})
+
+@app.get("/articles/prompts")
+async def api_list_prompts(topic: str = "", limit: int = 20):
+    """List saved prompt templates sorted by usage and success score."""
+    con = get_con()
+    where = "WHERE topic ILIKE ?" if topic else ""
+    params = [f"%{topic}%"] if topic else []
+    rows = con.execute(f"""
+        SELECT id, name, topic, category, optimized_prompt, usage_count, success_score, created_at
+        FROM prompt_templates
+        {where}
+        ORDER BY usage_count DESC, success_score DESC, created_at DESC
+        LIMIT ?
+    """, params + [limit]).fetchall()
+    return JSONResponse({"prompts": [
+        {"id": r[0], "name": r[1], "topic": r[2], "category": r[3],
+         "optimized_prompt": r[4][:500] + "..." if len(r[4]) > 500 else r[4],
+         "usage_count": r[5], "success_score": r[6], "created_at": str(r[7])}
+        for r in rows
+    ]})
