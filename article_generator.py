@@ -458,5 +458,3 @@ generated_at: {datetime.now().isoformat()}
     filepath.write_text(frontmatter + article_md, encoding="utf-8")
     logger.info(f"Article saved: {filepath}")
     return str(filepath)
-        "gathered_at": datetime.now().isoformat()
-    }
