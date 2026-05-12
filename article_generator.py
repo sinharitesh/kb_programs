@@ -232,7 +232,10 @@ def gather_all_context(idea: str, category: str, search_phrases: list = None,
         ans = find_answer(q["question"], category)
         q["answer"] = ans["answer"]
     
-    return {"idea": idea, "facts": facts, "questions": questions}
+    # Gather wiki context
+    wiki_context = gather_wiki_context(category, search_phrases)
+    
+    return {"idea": idea, "facts": facts, "questions": questions, "wiki_context": wiki_context}
 
 
 # ── LLM Helpers ───────────────────────────────────────────────────────────────
