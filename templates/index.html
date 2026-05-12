@@ -2364,6 +2364,11 @@ function setupAutocomplete(inputId, fieldsToFill) {
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#' + inputId)) {
       const existing = document.getElementById(inputId + '-autocomplete');
+      if (existing) existing.remove();
+    }
+  });
+}
+
 // OPTIMIZE PROMPT function
 async function optimizePrompt() {
   const btn = document.getElementById('ag-optimize-btn');
