@@ -214,3 +214,6 @@ def save_questions(category: str, keyphrase: str, questions: list):
     con.executemany("INSERT INTO questions_research (category, keyphrase, question, source, notes) VALUES (?,?,?,?,?)", rows)
     con.close()
     print(f"[Questions] Saved {len(rows)} questions")
+
+# Alias for backward compatibility
+save_keyword_report = save_to_duckdb
