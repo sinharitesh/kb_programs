@@ -791,9 +791,9 @@ async def api_article_status(job_id: str):
 async def api_list_articles():
     """List all generated articles from wiki."""
     from pathlib import Path
-    wiki_root = Path(r"C:\knowledge-base") / "wiki"
+    gen_root = Path(r"C:\knowledge-base") / "generated_articles"
     articles = []
-    for md_file in wiki_root.rglob("articles/*.md"):
+    for md_file in gen_root.rglob("*.md"):
         try:
             content = md_file.read_text(encoding="utf-8", errors="ignore")
             # Parse frontmatter
@@ -806,7 +806,7 @@ async def api_list_articles():
                         k, v = line.split(":", 1)
                         meta[k.strip()] = v.strip().strip('"')
                 articles.append({
-                    "file": str(md_file.relative_to(wiki_root)),
+                    "file": str(md_file.relative_to(gen_root)),
                     "title": meta.get("title", md_file.stem),
                     "category": meta.get("category", ""),
                     "seo_score": int(meta.get("seo_score", 0)),

@@ -445,7 +445,7 @@ def save_article(article_md: str, context: dict, settings: dict, seo_data: dict)
     if not slug:
         slug = re.sub(r'[^a-z0-9]+', '-', context["idea"].lower())[:40].strip('-')
 
-    wiki_dir = KB_ROOT / "wiki" / category / "articles"
+    wiki_dir = KB_ROOT / "generated_articles" / category
     wiki_dir.mkdir(parents=True, exist_ok=True)
     filepath = wiki_dir / f"{slug}.md"
 

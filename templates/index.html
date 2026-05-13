@@ -2148,11 +2148,11 @@ async function pollArticleStatus() {
     bar.style.width = `${Math.min(progress, 100)}%`;
     txt.textContent = data.message || data.status;
     
-    if (data.status === 'completed' && data.result) {
+    if (data.status === 'done' && data.article_md) {
       document.getElementById('ag-progress').style.display = 'none';
-      showArticleResult(data.result);
+      showArticleResult(data);
       loadGeneratedArticles();
-    } else if (data.status === 'failed') {
+    } else if (data.status === 'error') {
       document.getElementById('ag-progress').style.display = 'none';
       alert('Generation failed: ' + data.message);
       document.getElementById('ag-context').style.display = 'block';
@@ -2165,16 +2165,18 @@ async function pollArticleStatus() {
   }
 }
 
-function showArticleResult(article) {
+function showArticleResult(data) {
   document.getElementById('ag-preview').style.display = 'block';
-  document.getElementById('ag-article-md').value = article.article_text;
-  document.getElementById('ag-article-rendered').innerHTML = marked.parse(article.article_text);
+  document.getElementById('ag-article-md').value = data.article_md;
+  document.getElementById('ag-article-rendered').innerHTML = marked.parse(data.article_md);
   
+  const seo = data.seo || {};
   document.getElementById('ag-seo-info').innerHTML = `
-    <strong>✅ SEO Score: ${article.seo_score}/100</strong> |
-    Title: "${article.title}" |
-    Keyphrase: "${article.focus_keyphrase}" used ${article.keyphrase_usage_count} times |
-    Slug: ${article.slug}
+    <strong>SEO Score: ${seo.seo_score || 'N/A'}/100</strong> |
+    Title: "${seo.seo_title || 'N/A'}" |
+    Slug: ${seo.slug || 'N/A'} |
+    Words: ${data.word_count || 'N/A'} |
+    Saved: ${data.saved_to || 'N/A'}
   `;
 }
 

@@ -103,7 +103,7 @@ def setup_duckdb():
             analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-con.execute("""
+    con.execute("""
         CREATE TABLE IF NOT EXISTS input_history (
             id INTEGER PRIMARY KEY,
             topic TEXT NOT NULL,
@@ -117,7 +117,7 @@ con.execute("""
     """)
     con.execute("""
         CREATE TABLE IF NOT EXISTS prompt_templates (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             topic TEXT,
             category TEXT,
@@ -142,9 +142,8 @@ con.execute("""
     con.close()
 
 if __name__ == "__main__":
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS input_history (
-            id INTEGER PRIMARY KEY,
+    setup_folders()
+    setup_config()
     setup_indexes()
     setup_duckdb()
     print("OK: Knowledge base initialized at", KB_ROOT)
