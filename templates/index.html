@@ -2178,6 +2178,16 @@ function showArticleResult(data) {
     Words: ${data.word_count || 'N/A'} |
     Saved: ${data.saved_to || 'N/A'}
   `;
+  
+  // Show downloaded images
+  if (data.images && data.images.length > 0) {
+    let imgHtml = '<div class="image-gallery"><h4>Downloaded Images</h4>';
+    data.images.forEach(img => {
+      imgHtml += `<div class="img-thumb"><img src="${img.local_path}" alt="${img.alt}" style="max-width:200px;max-height:150px;margin:5px;"/></div>`;
+    });
+    imgHtml += '</div>';
+    document.getElementById('ag-seo-info').innerHTML += imgHtml;
+  }
 }
 
 function toggleArticleView(mode) {

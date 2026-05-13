@@ -5,6 +5,7 @@ import os, re, json, logging
 from pathlib import Path
 from datetime import datetime
 from db import get_con
+from image_search import get_article_images
 
 KB_ROOT = Path(r"C:\knowledge-base")
 OLLAMA_MODEL = "llama3.1"
