@@ -2,6 +2,8 @@
 import json
 import httpx
 import re
+import os
+import logging
 from pathlib import Path
 from datetime import datetime
 
@@ -10,9 +12,17 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5:14b"
 MAX_CHUNK_WORDS = 2000
 
-# Logging helper with timestamp
+# Configure logging
+LOG_LEVEL = logging.DEBUG if os.environ.get('KB_DEBUG') else logging.INFO
+logger = logging.getLogger("kb.enricher")
+logger.setLevel(LOG_LEVEL)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s', '%H:%M:%S'))
+    logger.addHandler(handler)
+
 def log(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+    logger.info(msg)
 # ── Prompt Templates ───────────────────────────────────────────
 CHUNK_PROMPT = """You are a knowledge base assistant. Extract structured information from this section of an article.
 

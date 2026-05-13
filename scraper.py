@@ -4,11 +4,22 @@ import json
 import hashlib
 import asyncio
 import re
+import os
+import logging
 from pathlib import Path
 from bs4 import BeautifulSoup
 from datetime import datetime
 from queue import Queue
 from threading import Thread
+
+# Configure logging
+LOG_LEVEL = logging.DEBUG if os.environ.get('KB_DEBUG') else logging.INFO
+logger = logging.getLogger("kb.scraper")
+logger.setLevel(LOG_LEVEL)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s', '%H:%M:%S'))
+    logger.addHandler(handler)
 
 KB_ROOT = Path(r"C:\knowledge-base")
 RAW_ROOT = KB_ROOT / "raw"
@@ -16,7 +27,7 @@ CONFIG = KB_ROOT / "config"
 
 # Logging helper with timestamp
 def log(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+    logger.info(msg)
 
 # ── Domain config ──────────────────────────────────────────────
 def load_domains():
@@ -155,8 +166,10 @@ def background_worker():
 from db import is_url_registered
 
 def enqueue_scrape(url: str, category_path: str, keywords: str = "", force_refresh: bool = False, discovery_source: str = None) -> str:
+    logger.info(f"ENQUEUE called: url={url[:80]}... category={category_path} force={force_refresh} source={discovery_source}")
     existing = is_url_registered(url)
     if existing and not existing["refresh_requested"] and not force_refresh:
+        logger.info(f"ENQUEUE SKIP: url_id={existing['id']} (already registered)")
         return f"SKIP:{existing['id']}"  # already downloaded
     job_id = hashlib.md5(f"{url}{datetime.now()}".encode()).hexdigest()[:8]
     results_store[job_id] = {
@@ -165,6 +178,7 @@ def enqueue_scrape(url: str, category_path: str, keywords: str = "", force_refre
         "discovery_source": discovery_source
     }
     scrape_queue.put({"id": job_id, "url": url, "category_path": category_path, "discovery_source": discovery_source})
+    logger.info(f"ENQUEUE QUEUED: job_id={job_id}")
     return job_id
 
 

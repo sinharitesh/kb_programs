@@ -1,6 +1,8 @@
 # keyword_intelligence.py
 import httpx
 import json
+import os
+import logging
 from pathlib import Path
 from db import get_con
 from datetime import datetime
@@ -8,9 +10,17 @@ from ddgs import DDGS
 
 KB_ROOT = Path(r"C:\knowledge-base")
 
-# Logging helper with timestamp
+# Configure logging
+LOG_LEVEL = logging.DEBUG if os.environ.get('KB_DEBUG') else logging.INFO
+logger = logging.getLogger("kb.keywords")
+logger.setLevel(LOG_LEVEL)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s', '%H:%M:%S'))
+    logger.addHandler(handler)
+
 def log(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+    logger.info(msg)
 
 import re
 
@@ -144,17 +154,12 @@ def save_to_duckdb(topic: str, category: str, data: dict):
     # Auto-queue discovered URLs for scraping with their discovery source
     from scraper import enqueue_scrape
     queued = 0
-    for row in rows:
-        source, url = row[2], row[5]  # source, notes (URL)
-        if url and url.startswith("http"):
-            job_id = enqueue_scrape(url, category, discovery_source=source)
-            if not job_id.startswith("SKIP"):
-                queued += 1
-    print(f"[KW] Queued {queued} URLs for scraping")
-
-
-
-def save_keyword_report(topic: str, category_path: str, data: dict):
+    
+    # URLs are discovered but NOT auto-queued - user decides via manual selection
+    discovered_urls = [(row[2], row[5]) for row in rows if row[5] and row[5].startswith("http")]
+    if discovered_urls:
+        print(f"[KW] Discovered {len(discovered_urls)} URLs (manual selection required)")
+        # URLs stored in keyword_intelligence table for user to review and select
     path = KB_ROOT / "wiki" / category_path
     path.mkdir(parents=True, exist_ok=True)
     filepath = path / "keyword_intelligence.md"

@@ -1,5 +1,6 @@
 """DuckDuckGo image search and download for article generation."""
 
+import os
 import requests
 import re
 import json
@@ -7,7 +8,11 @@ from pathlib import Path
 from urllib.parse import quote
 from typing import List, Dict, Optional
 
-KB_ROOT = Path(r"C:\knowledge-base")
+# Detect OS for portable paths
+if os.name == 'nt':  # Windows
+    KB_ROOT = Path(r"C:\knowledge-base")
+else:  # Linux/Mac
+    KB_ROOT = Path("/app/data/kb")
 
 def search_duckduckgo_images(query: str, max_results: int = 5) -> List[Dict]:
     """Search DuckDuckGo for images related to query."""

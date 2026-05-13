@@ -241,7 +241,7 @@ def gather_all_context(idea: str, category: str, search_phrases: list = None,
 
 # ── LLM Helpers ───────────────────────────────────────────────────────────────
 
-def ollama_generate(prompt, temperature=0.2):
+def ollama_generate(prompt, temperature=0.0):
     """Call Ollama API for text generation."""
     import requests
     response = requests.post(
@@ -377,21 +377,30 @@ Output ONLY the article markdown — nothing before the first heading.
 
 
 def build_seo_prompt(article_md: str, keywords: str) -> str:
-    """Build SEO analysis prompt."""
-    return f"""Analyze this article for SEO. Target keyword: "{keywords}"
+    """Build Yoast-style SEO analysis prompt."""
+    return f"""Analyze this article for Yoast-style SEO. Target keyword: "{keywords}"
 
 Article excerpt:
 {article_md[:1500]}
 
 Return ONLY a valid JSON object with these keys:
-- seo_title (max 60 chars)
-- meta_description (max 155 chars)
+- seo_title (max 60 chars, click-worthy)
+- meta_description (max 155 chars, compelling)
 - focus_keyphrases (list of 3-5 terms)
 - central_keyword (single most important keyword)
 - tags (list of 5-8 tags)
 - slug (URL-friendly, lowercase, hyphens only)
 - readability (Easy / Medium / Hard)
 - seo_score (integer 0-100)
+- og_title (OpenGraph title, max 60 chars)
+- og_description (OpenGraph description, max 200 chars)
+- twitter_title (Twitter card title, max 70 chars)
+- twitter_description (Twitter card description, max 200 chars)
+- canonical_url (suggested canonical path)
+- schema_type (Schema.org type: Article, BlogPosting, FAQPage, etc.)
+- keyphrase_density (percentage as string, e.g. "1.5%")
+- internal_links (list of 3-5 suggested internal link anchor texts)
+- outbound_links (list of 2-3 suggested external reference topics)
 
 Do not include any explanation, markdown, or code fences. Just the raw JSON object."""
 
@@ -406,7 +415,7 @@ def generate_article(context: dict, settings: dict) -> dict:
     prompt = build_article_prompt(context, settings)
     logger.info(f"Prompt built ({len(prompt)} chars), calling Ollama...")
     
-    raw_article = ollama_generate(prompt, temperature=0.55)
+    raw_article = ollama_generate(prompt, temperature=0.0)
     article_md = clean_article(raw_article)
     logger.info(f"Generated ~{len(article_md.split())} words")
 
@@ -416,7 +425,7 @@ def generate_article(context: dict, settings: dict) -> dict:
     seo_prompt = build_seo_prompt(article_md, keywords)
     seo_data = {}
     try:
-        raw_seo = ollama_generate(seo_prompt, temperature=0.1)
+        raw_seo = ollama_generate(seo_prompt, temperature=0.0)
         cleaned = raw_seo.strip()
         cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r'\s*```$', '', cleaned)
@@ -450,13 +459,27 @@ def save_article(article_md: str, context: dict, settings: dict, seo_data: dict)
     wiki_dir.mkdir(parents=True, exist_ok=True)
     filepath = wiki_dir / f"{slug}.md"
 
-    # Add frontmatter
+    # Add Yoast-style frontmatter
     frontmatter = f"""---
 title: "{settings.get('title', context['idea'])}"
 slug: {slug}
 category: {category}
 seo_score: {seo_data.get('seo_score', 0)}
 tags: {json.dumps(seo_data.get('tags', []))}
+seo_title: "{seo_data.get('seo_title', '')}"
+meta_description: "{seo_data.get('meta_description', '')}"
+central_keyword: "{seo_data.get('central_keyword', '')}"
+focus_keyphrases: {json.dumps(seo_data.get('focus_keyphrases', []))}
+og_title: "{seo_data.get('og_title', '')}"
+og_description: "{seo_data.get('og_description', '')}"
+twitter_title: "{seo_data.get('twitter_title', '')}"
+twitter_description: "{seo_data.get('twitter_description', '')}"
+canonical_url: "{seo_data.get('canonical_url', '')}"
+schema_type: "{seo_data.get('schema_type', 'Article')}"
+keyphrase_density: "{seo_data.get('keyphrase_density', '0%')}"
+internal_links: {json.dumps(seo_data.get('internal_links', []))}
+outbound_links: {json.dumps(seo_data.get('outbound_links', []))}
+readability: "{seo_data.get('readability', 'Medium')}"
 generated_at: {datetime.now().isoformat()}
 ---
 

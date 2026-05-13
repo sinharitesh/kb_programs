@@ -1,6 +1,8 @@
 # app.py
 import json
 import time
+import os
+import logging
 from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI, BackgroundTasks, Request, Form, Query
@@ -12,9 +14,18 @@ from scraper import enqueue_scrape, get_job_status, results_store
 from llm_enricher import process_scrape_result, update_indexes
 from keyword_intelligence import run_keyword_intelligence, save_keyword_report
 
-# Logging helper with timestamp
+# Configure logging - set KB_DEBUG=1 env var to enable debug
+LOG_LEVEL = logging.DEBUG if os.environ.get('KB_DEBUG') else logging.INFO
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("kb")
+
+# Legacy logging helper with timestamp
 def log(msg):
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+    logger.info(msg)
 
 KB_ROOT = Path(r"C:\knowledge-base")
 CONFIG = KB_ROOT / "config"
@@ -66,13 +77,17 @@ async def ingest(
     keywords: str = Form(""),
     force_refresh: bool = Form(False)
 ):
+    logger.info(f"INGEST endpoint called: url={url[:80]}... category={category} force={force_refresh}")
+    logger.debug(f"INGEST full request: keywords={keywords}")
     job_id = enqueue_scrape(url, category, keywords, force_refresh)
     if job_id.startswith("SKIP:"):
+        logger.info(f"INGEST skipped (exists): url_id={job_id.split(':')[1]}")
         return JSONResponse({
             "status": "skipped",
             "message": "URL already downloaded. Enable Force Refresh to re-download.",
             "url_id": job_id.split(":")[1]
         })
+    logger.info(f"INGEST queued: job_id={job_id}")
     return JSONResponse({"job_id": job_id, "status": "queued"})
 
 
@@ -823,6 +838,34 @@ async def api_cache_input(req: CacheInputRequest):
     """Cache Central Idea, Keyphrases, and Search Phrases for future use."""
     con = get_con()
     try:
+@app.get("/api/facts/search")
+async def api_search_facts(q: str = Query(...), limit: int = 20):
+    """Search facts across all categories by phrase."""
+    con = get_con()
+    results = []
+    
+    # Search in facts table
+    rows = con.execute("""
+        SELECT f.id, f.fact, f.verified, f.source, f.category,
+               r.title as source_title, r.url as source_url
+        FROM facts f
+        JOIN url_registry r ON r.id = f.url_id
+        WHERE f.fact ILIKE ?
+        ORDER BY f.verified DESC, f.id DESC
+        LIMIT ?
+    """, [f"%{q}%", limit]).fetchall()
+    
+    for r in rows:
+        results.append({
+            "id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
+            "category": r[4], "source_title": r[5], "source_url": r[6]
+        })
+    
+    con.close()
+    return JSONResponse({"facts": results, "query": q})
+
+
+
         con.execute("""
             INSERT INTO input_history (topic, focus_keyphrase, search_phrases, category)
             VALUES (?, ?, ?, ?)
