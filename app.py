@@ -879,15 +879,6 @@ async def api_search_facts(q: str = Query(...), limit: int = 20):
 
 
 
-        con.execute("""
-            INSERT INTO input_history (topic, focus_keyphrase, search_phrases, category)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(topic, focus_keyphrase, search_phrases)
-            DO UPDATE SET use_count = use_count + 1, created_at = CURRENT_TIMESTAMP
-        """, [req.topic, req.focus_keyphrase, req.search_phrases, req.category])
-        return JSONResponse({"status": "cached"})
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 @app.get("/articles/input-history")
 async def api_input_history(limit: int = 20, category: str = ""):
