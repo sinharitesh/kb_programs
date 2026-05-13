@@ -836,8 +836,21 @@ async def api_list_articles():
 @app.post("/articles/cache-input")
 async def api_cache_input(req: CacheInputRequest):
     """Cache Central Idea, Keyphrases, and Search Phrases for future use."""
-    con = get_con()
     try:
+        cache_file = KB_ROOT / "input_cache.json"
+        cache_data = json.loads(cache_file.read_text()) if cache_file.exists() else []
+        cache_data.append({
+            "idea": req.central_idea,
+            "keyphrases": req.keyphrases,
+            "search_phrases": req.search_phrases,
+            "timestamp": datetime.now().isoformat()
+        })
+        cache_file.write_text(json.dumps(cache_data, indent=2))
+        return JSONResponse({"status": "cached", "count": len(cache_data)})
+    except Exception as e:
+        logger.error(f"Cache input error: {e}")
+        return JSONResponse({"status": "error", "message": str(e)})
+
 @app.get("/api/facts/search")
 async def api_search_facts(q: str = Query(...), limit: int = 20):
     """Search facts across all categories by phrase."""
