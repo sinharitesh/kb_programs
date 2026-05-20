@@ -462,7 +462,7 @@ async def analyze_keywords_data(search: str = ""):
 
 @app.get("/analysis/keywords/high-potential")
 async def get_high_potential_keywords(
-    min_sources: int = 2,
+    min_sources: int = 1,
     category: str = "",
     search: str = ""
 ):
