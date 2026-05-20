@@ -359,17 +359,32 @@
           <input type="text" id="wiki-search" placeholder="🔍 Search wiki files..." oninput="searchWiki()">
           <button class="btn btn-grey" onclick="loadWikiList()">↺ Reset</button>
         </div>
-        <div id="wiki-file-list" style="max-height:260px;overflow-y:auto;margin-bottom:16px;"></div>
-        <div class="toggle-bar">
-          <button class="btn btn-grey" onclick="showRendered()">📄 Rendered</button>
-          <button class="btn btn-grey" onclick="showRaw()">✏️ Edit Raw</button>
-          <button id="save-btn" class="btn btn-blue" style="display:none" onclick="saveWiki()">💾 Save</button>
+        <div id="wiki-file-list"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px;" id="wiki-pagination">
+          <button class="btn btn-grey" id="wiki-prev-btn" onclick="wikiPrevPage()" disabled>← Prev</button>
+          <span id="wiki-page-info" style="font-size:0.88em;color:#666;"></span>
+          <button class="btn btn-grey" id="wiki-next-btn" onclick="wikiNextPage()">Next →</button>
         </div>
-        <div id="wiki-rendered" class="wiki-rendered">Select a file to view...</div>
-        <textarea id="wiki-raw" style="display:none"></textarea>
       </div>
     </div>
   </div>
+
+<!-- WIKI FILE VIEWER MODAL -->
+<div class="modal-overlay" id="wiki-file-modal" style="display:none;" onclick="if(event.target===this)closeWikiModal()">
+  <div class="modal" style="max-width:860px;width:92%;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:1em;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:600px;" id="wiki-modal-title">📄 File</h3>
+      <button class="btn btn-grey" onclick="closeWikiModal()" style="flex-shrink:0;">✕ Close</button>
+    </div>
+    <div class="toggle-bar" style="margin-bottom:10px;">
+      <button class="btn btn-grey" id="wiki-modal-rendered-btn" onclick="wikiModalShowRendered()">📄 Rendered</button>
+      <button class="btn btn-grey" id="wiki-modal-raw-btn" onclick="wikiModalShowRaw()">✏️ Edit Raw</button>
+      <button id="wiki-modal-save-btn" class="btn btn-blue" style="display:none;" onclick="saveWikiModal()">💾 Save</button>
+    </div>
+    <div id="wiki-modal-rendered" class="wiki-rendered" style="flex:1;overflow-y:auto;"></div>
+    <textarea id="wiki-modal-raw" style="display:none;flex:1;height:100%;min-height:400px;resize:vertical;font-family:monospace;font-size:0.88em;"></textarea>
+  </div>
+</div>
 
   <!-- KEYWORD FINDER -->
   <div id="keywords" class="section">
@@ -1168,11 +1183,18 @@ let currentWikiPath = null;
 let allWikiFiles = [];
 let currentWikiCatFilter = '';
 
+// ── Wiki Browse (paginated + modal) ──
+let wikiCurrentPage = 0;
+const WIKI_PAGE_SIZE = 20;
+let wikiFilteredFiles = [];
+
 async function loadWikiList() {
   const res = await fetch('/wiki');
   const data = await res.json();
   allWikiFiles = data.files;
-  renderWikiFileList(allWikiFiles);
+  wikiFilteredFiles = allWikiFiles;
+  wikiCurrentPage = 0;
+  renderWikiFileList(wikiFilteredFiles);
   buildWikiCatTree(allWikiFiles);
 }
 
@@ -1188,59 +1210,115 @@ function filterWikiByPath(path, el) {
   document.querySelectorAll('#wiki-cat-tree .cat-tree-item').forEach(i => i.classList.remove('selected'));
   el.classList.add('selected');
   currentWikiCatFilter = path;
-  const filtered = path ? allWikiFiles.filter(f => f.startsWith(path)) : allWikiFiles;
-  renderWikiFileList(filtered);
+  wikiFilteredFiles = path ? allWikiFiles.filter(f => f.startsWith(path)) : allWikiFiles;
+  wikiCurrentPage = 0;
+  renderWikiFileList(wikiFilteredFiles);
 }
 
 function searchWiki() {
   const q = document.getElementById('wiki-search').value.toLowerCase();
-  const filtered = allWikiFiles.filter(f =>
+  wikiFilteredFiles = allWikiFiles.filter(f =>
     f.toLowerCase().includes(q) && (!currentWikiCatFilter || f.startsWith(currentWikiCatFilter))
   );
-  renderWikiFileList(filtered);
+  wikiCurrentPage = 0;
+  renderWikiFileList(wikiFilteredFiles);
 }
 
 function renderWikiFileList(files) {
   const div = document.getElementById('wiki-file-list');
-  if (!files.length) { div.innerHTML = '<p style="color:#666">No files found.</p>'; return; }
-  div.innerHTML = files.map(f =>
-    `<div class="url-card" style="padding:10px 14px;cursor:pointer" onclick="loadWikiFile('${f.replace(/\\/g, '/')}')">
-      📄 <span style="font-size:0.9em">${f}</span>
-    </div>`
-  ).join('');
+  if (!files.length) {
+    div.innerHTML = '<p style="color:#666">No files found.</p>';
+    document.getElementById('wiki-pagination').style.display = 'none';
+    return;
+  }
+
+  const totalPages = Math.ceil(files.length / WIKI_PAGE_SIZE);
+  const start = wikiCurrentPage * WIKI_PAGE_SIZE;
+  const pageFiles = files.slice(start, start + WIKI_PAGE_SIZE);
+
+  div.innerHTML = pageFiles.map(f => {
+    const safePath = f.replace(/\\/g, '/');
+    const parts = safePath.split('/');
+    const fname = parts.pop();
+    const folder = parts.join('/');
+    return `<div class="url-card" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;" onclick="loadWikiFile('${safePath}')">
+      <span style="font-size:1.1em;">📄</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:500;font-size:0.95em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fname}</div>
+        ${folder ? `<div style="font-size:0.78em;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${folder}</div>` : ''}
+      </div>
+      <button class="btn btn-grey" style="padding:4px 10px;font-size:0.8em;flex-shrink:0;" onclick="event.stopPropagation();loadWikiFile('${safePath}')">View</button>
+    </div>`;
+  }).join('');
+
+  // Pagination controls
+  document.getElementById('wiki-pagination').style.display = 'flex';
+  document.getElementById('wiki-page-info').textContent =
+    `Page ${wikiCurrentPage + 1} of ${totalPages}  (${files.length} files)`;
+  document.getElementById('wiki-prev-btn').disabled = wikiCurrentPage === 0;
+  document.getElementById('wiki-next-btn').disabled = wikiCurrentPage >= totalPages - 1;
 }
 
+function wikiPrevPage() {
+  if (wikiCurrentPage > 0) { wikiCurrentPage--; renderWikiFileList(wikiFilteredFiles); }
+}
+
+function wikiNextPage() {
+  const totalPages = Math.ceil(wikiFilteredFiles.length / WIKI_PAGE_SIZE);
+  if (wikiCurrentPage < totalPages - 1) { wikiCurrentPage++; renderWikiFileList(wikiFilteredFiles); }
+}
+
+// ── Wiki File Modal ──
 async function loadWikiFile(path) {
   currentWikiPath = path;
+  document.getElementById('wiki-modal-title').textContent = '📄 ' + path;
+  document.getElementById('wiki-modal-rendered').innerHTML = '<p style="color:#999;padding:20px;">Loading...</p>';
+  document.getElementById('wiki-modal-raw').value = '';
+  document.getElementById('wiki-file-modal').style.display = 'flex';
+  wikiModalShowRendered();
+
   const res = await fetch(`/wiki/file?path=${encodeURIComponent(path)}`);
   const data = await res.json();
-  document.getElementById('wiki-raw').value = data.content || '';
-  document.getElementById('wiki-rendered').innerHTML = marked.parse(data.content || '');
-  showRendered();
+  const content = data.content || '';
+  document.getElementById('wiki-modal-raw').value = content;
+  document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(content);
 }
 
-function showRendered() {
-  document.getElementById('wiki-rendered').style.display = 'block';
-  document.getElementById('wiki-raw').style.display = 'none';
-  document.getElementById('save-btn').style.display = 'none';
+function closeWikiModal() {
+  document.getElementById('wiki-file-modal').style.display = 'none';
 }
 
-function showRaw() {
-  document.getElementById('wiki-rendered').style.display = 'none';
-  document.getElementById('wiki-raw').style.display = 'block';
-  document.getElementById('save-btn').style.display = 'inline-block';
+function wikiModalShowRendered() {
+  document.getElementById('wiki-modal-rendered').style.display = 'block';
+  document.getElementById('wiki-modal-raw').style.display = 'none';
+  document.getElementById('wiki-modal-save-btn').style.display = 'none';
+  document.getElementById('wiki-modal-rendered-btn').style.borderBottom = '2px solid #1a73e8';
+  document.getElementById('wiki-modal-raw-btn').style.borderBottom = 'none';
 }
 
-async function saveWiki() {
-  const content = document.getElementById('wiki-raw').value;
+function wikiModalShowRaw() {
+  document.getElementById('wiki-modal-rendered').style.display = 'none';
+  document.getElementById('wiki-modal-raw').style.display = 'block';
+  document.getElementById('wiki-modal-save-btn').style.display = 'inline-block';
+  document.getElementById('wiki-modal-rendered-btn').style.borderBottom = 'none';
+  document.getElementById('wiki-modal-raw-btn').style.borderBottom = '2px solid #1a73e8';
+}
+
+async function saveWikiModal() {
+  const content = document.getElementById('wiki-modal-raw').value;
   const fd = new FormData();
   fd.append('path', currentWikiPath.replace(/\\/g, '/'));
   fd.append('content', content);
   await fetch('/wiki/save', {method: 'POST', body: fd});
-  document.getElementById('wiki-rendered').innerHTML = marked.parse(content);
-  showRendered();
+  document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(content);
+  wikiModalShowRendered();
   alert('✅ Saved!');
 }
+
+// Legacy stubs (no longer used but kept for safety)
+function showRendered() { wikiModalShowRendered(); }
+function showRaw() { wikiModalShowRaw(); }
+async function saveWiki() { await saveWikiModal(); }
 
 // ── Keyword Finder ──
 async function analyzeKeywords() {
