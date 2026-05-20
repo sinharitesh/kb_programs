@@ -556,6 +556,151 @@ async def get_keyword_detail(keyword: str):
     })
 
 
+# ── Discovered URLs endpoints ──
+
+@app.get("/analysis/urls/discovered")
+async def get_discovered_urls(search: str = "", status: str = ""):
+    """Return URLs discovered from keyword intelligence with optional filters."""
+    from db import get_con
+    con = get_con()
+
+    where_clauses = ["ki.notes LIKE 'http%'"]
+    if search:
+        where_clauses.append(f"ki.keyword ILIKE '%{search}%'")
+    if status:
+        where_clauses.append(f"COALESCE(u.status, 'pending') = '{status}'")
+
+    where_sql = " AND ".join(where_clauses)
+
+    rows = con.execute(f"""
+        SELECT DISTINCT ki.keyword, ki.source, ki.notes as url, ki.topic, ki.category,
+               ki.analyzed_at, COALESCE(u.status, 'pending') as status
+        FROM keyword_intelligence ki
+        LEFT JOIN url_registry u ON ki.notes = u.url
+        WHERE {where_sql}
+        ORDER BY ki.analyzed_at DESC
+        LIMIT 200
+    """).fetchall()
+
+    con.close()
+
+    urls = [{
+        "keyword": r[0],
+        "source": r[1],
+        "url": r[2],
+        "topic": r[3],
+        "category": r[4],
+        "discovered_at": r[5].isoformat() if r[5] else None,
+        "status": r[6]
+    } for r in rows]
+
+    return JSONResponse({"urls": urls, "total": len(urls)})
+
+
+@app.post("/api/schedule-urls")
+async def schedule_urls(request: Request):
+    """Schedule discovered URLs for ingestion."""
+    data = await request.json()
+    urls = data.get("urls", [])
+
+    if not urls:
+        return JSONResponse({"status": "error", "message": "No URLs provided"}, status_code=400)
+
+    scheduled = 0
+    for url in urls:
+        try:
+            # Add to URL registry with pending status
+            from db import get_con
+            con = get_con()
+            # Check if URL already exists
+            existing = con.execute("SELECT id FROM url_registry WHERE url = ?", [url]).fetchone()
+            if not existing:
+                con.execute("""
+                    INSERT INTO url_registry (url, source, status, added_at)
+                    VALUES (?, 'discovered_from_keyword', 'pending', CURRENT_TIMESTAMP)
+                """, [url])
+                scheduled += 1
+            con.close()
+        except Exception as e:
+            logger.error(f"Failed to schedule URL {url}: {e}")
+
+    return JSONResponse({"status": "ok", "scheduled": scheduled, "total": len(urls)})
+
+
+# ── Keyword TODO endpoints ──
+
+class SynthesizeRequest(BaseModel):
+    keywords: List[str]
+    auto_generate: bool = False
+
+@app.post("/api/synthesize-keywords")
+async def synthesize_keywords(req: SynthesizeRequest):
+    """Mark keywords for synthesis and add to TODO list."""
+    from db import get_con
+    con = get_con()
+
+    added = 0
+    for keyword in req.keywords:
+        try:
+            # Check if already in TODO
+            existing = con.execute(
+                "SELECT keyword FROM keyword_todo WHERE keyword = ?",
+                [keyword]
+            ).fetchone()
+
+            if not existing:
+                con.execute("""
+                    INSERT INTO keyword_todo (keyword, status, added_at, synthesized_at)
+                    VALUES (?, 'pending', CURRENT_TIMESTAMP, NULL)
+                """, [keyword])
+                added += 1
+        except Exception as e:
+            logger.error(f"Failed to add keyword {keyword} to TODO: {e}")
+
+    con.close()
+    return JSONResponse({"status": "ok", "added": added, "total": len(req.keywords)})
+
+
+@app.get("/api/keyword-todo")
+async def get_keyword_todo():
+    """Get all keywords in TODO list."""
+    from db import get_con
+    con = get_con()
+
+    rows = con.execute("""
+        SELECT keyword, status, added_at, synthesized_at
+        FROM keyword_todo
+        ORDER BY added_at DESC
+    """).fetchall()
+
+    con.close()
+
+    items = [{
+        "keyword": r[0],
+        "status": r[1],
+        "added_at": r[2].isoformat() if r[2] else None,
+        "synthesized_at": r[3].isoformat() if r[3] else None
+    } for r in rows]
+
+    return JSONResponse({"items": items, "total": len(items)})
+
+
+@app.post("/api/keyword-todo/remove")
+async def remove_from_todo(request: Request):
+    """Remove a keyword from TODO list."""
+    data = await request.json()
+    keyword = data.get("keyword")
+
+    if not keyword:
+        return JSONResponse({"status": "error", "message": "No keyword provided"}, status_code=400)
+
+    from db import get_con
+    con = get_con()
+    con.execute("DELETE FROM keyword_todo WHERE keyword = ?", [keyword])
+    con.close()
+
+    return JSONResponse({"status": "ok", "removed": keyword})
+
 
 @app.get("/index/facts")
 async def index_facts(url_id: int = None):

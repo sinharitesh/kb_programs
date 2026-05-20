@@ -232,6 +232,9 @@
   <div class="nav-item" onclick="showTab('kwanalysis', this)">
     <span class="nav-icon">📊</span> Keyword Analysis
   </div>
+  <div class="nav-item" onclick="showTab('discovered', this)">
+    <span class="nav-icon">🔗</span> Discovered URLs
+  </div>
   <div class="nav-item" onclick="showTab('facts', this)">
     <span class="nav-icon">🔎</span> Facts Explorer
   </div>
@@ -426,10 +429,6 @@
             {% endfor %}
           </select>
         </div>
-        <div style="min-width:120px;">
-          <label>Min Sources: <span id="ka-min-src-val">2</span></label>
-          <input type="range" id="ka-min-sources" min="1" max="4" value="2" oninput="document.getElementById('ka-min-src-val').textContent=this.value;loadHighPotentialKeywords()" style="width:100%">
-        </div>
         <div>
           <button class="btn btn-green" onclick="loadHighPotentialKeywords()">🔄 Refresh</button>
         </div>
@@ -438,20 +437,32 @@
 
     <!-- HIGH POTENTIAL KEYWORDS -->
     <div class="card" style="margin-bottom:16px;">
-      <h3>🔥 High Potential Keywords <span id="ka-hp-count" style="font-size:0.7em;color:#666;font-weight:normal;"></span></h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
+        <h3 style="margin:0;">🔥 High Potential Keywords <span id="ka-hp-count" style="font-size:0.7em;color:#666;font-weight:normal;"></span></h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.9em;cursor:pointer;">
+            <input type="checkbox" id="ka-select-all" onchange="toggleSelectAllKeywords()"> Select All
+          </label>
+          <button class="btn btn-green" onclick="synthesizeSelectedKeywords()">✨ Synthesize Selected</button>
+        </div>
+      </div>
       <div id="ka-high-potential" style="max-height:400px;overflow-y:auto;">
         <p style="color:#666;padding:20px;text-align:center;">Click Refresh to load high-potential keywords</p>
       </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="card-grid" id="kw-summary-cards">
-      <div class="stat-card"><h3 id="ka-total">0</h3><p>Total Keywords</p></div>
-      <div class="stat-card"><h3 id="ka-topics">0</h3><p>Topics Analyzed</p></div>
-      <div class="stat-card"><h3 id="ka-urls">0</h3><p>URLs Discovered</p></div>
+    <!-- Topics Filter -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <label style="margin:0;flex-shrink:0;">📚 Topics Filter:</label>
+        <select id="ka-topic-filter" onchange="loadHighPotentialKeywords()" style="flex:1;min-width:200px;">
+          <option value="">All Topics</option>
+        </select>
+        <span id="ka-topic-count" style="font-size:0.85em;color:#666;flex-shrink:0;">0 topics</span>
+      </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
       <!-- Source Breakdown -->
       <div class="card">
         <h3>📈 By Source</h3>
@@ -461,23 +472,22 @@
         </table>
       </div>
 
-      <!-- Topics List -->
+      <!-- Keyword TODO List -->
       <div class="card">
-        <h3>📚 Topics Analyzed</h3>
-        <div id="ka-topics-list" style="max-height:300px;overflow-y:auto;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;">📝 Keyword TODO</h3>
+          <button class="btn btn-green" onclick="generateArticlesFromTODO()">✍️ Generate</button>
+        </div>
+        <div id="keyword-todo-list" style="max-height:300px;overflow-y:auto;">
+          <p style="color:#666;text-align:center;padding:20px;">Select and synthesize keywords to add them here.</p>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e0e0e0;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.9em;">
+            <input type="checkbox" id="todo-auto-generate">
+            <span>Auto-generate articles on synthesize</span>
+          </label>
+        </div>
       </div>
-    </div>
-
-    <!-- URLs Discovered -->
-    <div class="card" style="margin-top:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h3>🔗 Recently Discovered URLs</h3>
-        <input type="text" id="ka-url-search" placeholder="Search phrase..." oninput="analyzeKeywordsWithSearch()" style="width:200px;padding:6px 10px;border:1px solid #dadce0;border-radius:6px;">
-      </div>
-      <table class="data-table" id="ka-urls-table">
-        <thead><tr><th>Keyword</th><th>Source</th><th>URL</th><th>Topic</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody></tbody>
-      </table>
     </div>
   </div>
 
@@ -517,6 +527,51 @@
     </div>
   </div>
 
+  <!-- DISCOVERED URLS -->
+  <div id="discovered" class="section">
+    <h2>🔗 Discovered URLs</h2>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:200px;">
+          <label>🔍 Search Keyword</label>
+          <input type="text" id="discovered-search" placeholder="Filter by keyword..." oninput="loadDiscoveredURLs()">
+        </div>
+        <div style="min-width:150px;">
+          <label>Status</label>
+          <select id="discovered-status" onchange="loadDiscoveredURLs()">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="ingested">Ingested</option>
+            <option value="scheduled">Scheduled</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn btn-green" onclick="scheduleSelectedURLs()">🗓️ Schedule Selected</button>
+        </div>
+        <div>
+          <button class="btn" onclick="loadDiscoveredURLs()">🔄 Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="discovered-count" style="margin-bottom:12px;font-size:0.9em;color:#666;">0 URLs found</div>
+      <table class="data-table" id="discovered-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="discovered-select-all" onchange="toggleSelectAllDiscovered()"></th>
+            <th>Keyword</th>
+            <th>Source</th>
+            <th>URL</th>
+            <th>Topic</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
 
   <!-- FACTS EXPLORER -->
   <div id="facts" class="section">
@@ -944,12 +999,12 @@
 async function loadHighPotentialKeywords() {
   const search = document.getElementById('ka-search')?.value || '';
   const category = document.getElementById('ka-category')?.value || '';
-  const minSources = document.getElementById('ka-min-sources')?.value || 2;
-  
+  const topic = document.getElementById('ka-topic-filter')?.value || '';
+
   const params = new URLSearchParams();
   if (search) params.append('search', search);
   if (category) params.append('category', category);
-  params.append('min_sources', minSources);
+  if (topic) params.append('topic', topic);
   
   const resp = await fetch('/analysis/keywords/high-potential?' + params.toString());
   const data = await resp.json();
@@ -967,18 +1022,21 @@ function renderHighPotentialKeywords(data) {
   }
   
   container.innerHTML = data.keywords.map(kw => `
-    <div class="kw-card" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')">
+    <div class="kw-card" data-keyword="${encodeURIComponent(kw.keyword)}">
       <div class="kw-header">
-        <span class="kw-title">${kw.keyword}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" class="kw-select-cb" data-keyword="${encodeURIComponent(kw.keyword)}" onclick="event.stopPropagation()">
+          <span class="kw-title" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')" style="cursor:pointer;">${kw.keyword}</span>
+        </div>
         <span class="kw-score ${kw.potential}">${kw.potential === 'hot' ? '🔥' : kw.potential === 'warm' ? '⚡' : '❄️'} ${kw.score}/100</span>
       </div>
-      <div class="kw-meta">
+      <div class="kw-meta" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')" style="cursor:pointer;">
         <span>📊 ${kw.source_count} sources</span>
         <span>🔗 ${kw.url_count} URLs</span>
         <span>🔄 ${kw.total_mentions} mentions</span>
         <span>🗕️ ${kw.last_analyzed?.slice(0, 10) || 'N/A'}</span>
       </div>
-      <div class="kw-sources">
+      <div class="kw-sources" onclick="showKeywordDetail('${encodeURIComponent(kw.keyword)}')" style="cursor:pointer;">
         ${kw.sources.map(s => `<span class="kw-src-badge">${s}</span>`).join('')}
       </div>
     </div>
@@ -997,7 +1055,8 @@ function showTab(name, el) {
   if (name === 'urlmanager') { loadCatTree(); loadURLs(); }
   if (name === 'facts') loadFacts();
   if (name === 'questions') loadQuestions();
-  if (name === 'kwanalysis') loadKeywordAnalysis();
+  if (name === 'kwanalysis') { loadKeywordAnalysis(); loadKeywordTODO(); }
+  if (name === 'discovered') loadDiscoveredURLs();
   if (name === 'indexrebuild') loadIndexSummary();
 }
 
@@ -1942,15 +2001,21 @@ async function analyzeKeywordsWithSearch() {
 
 
 function renderKeywordAnalysis(data) {
-  // Summary cards
-  const totalKws = data.by_source.reduce((sum, s) => sum + s.count, 0);
-  const totalTopics = new Set(data.by_topic.map(t => t.topic)).size;
-  const totalUrls = data.urls_discovered.length;
-  
-  document.getElementById('ka-total').textContent = totalKws.toLocaleString();
-  document.getElementById('ka-topics').textContent = totalTopics.toLocaleString();
-  document.getElementById('ka-urls').textContent = totalUrls.toLocaleString();
-  
+  // Populate topics filter dropdown
+  const topicSelect = document.getElementById('ka-topic-filter');
+  const currentTopic = topicSelect.value;
+  const uniqueTopics = [...new Set(data.by_topic.map(t => t.topic).filter(Boolean))].sort();
+
+  topicSelect.innerHTML = '<option value="">All Topics</option>' +
+    uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  // Restore selection if still valid
+  if (currentTopic && uniqueTopics.includes(currentTopic)) {
+    topicSelect.value = currentTopic;
+  }
+
+  document.getElementById('ka-topic-count').textContent = `${uniqueTopics.length} topics`;
+
   // Source breakdown table
   const sourceTbody = document.querySelector('#ka-source-table tbody');
   sourceTbody.innerHTML = data.by_source.map(s => `
@@ -1959,19 +2024,6 @@ function renderKeywordAnalysis(data) {
       <td>${s.count.toLocaleString()}</td>
       <td>${s.topics}</td>
       <td>${s.categories}</td>
-    </tr>
-  `).join('');
-  
-  // Recently Discovered URLs table
-  const urlsTbody = document.querySelector('#ka-urls-table tbody');
-  urlsTbody.innerHTML = (data.urls_discovered || []).map(u => `
-    <tr>
-      <td>${u.keyword.slice(0, 50)}${u.keyword.length > 50 ? '...' : ''}</td>
-      <td><span class="tag">${u.source}</span></td>
-      <td><a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 40)}...</a></td>
-      <td>${u.topic || '-'}</td>
-      <td>${u.status || 'pending'}</td>
-      <td><button class="btn" onclick="openMiniIngest('${u.url}')">Ingest</button></td>
     </tr>
   `).join('');
 }
@@ -2028,6 +2080,156 @@ function openMiniIngest(url) {
 
 function closeMiniIngest() {
   document.getElementById('mini-ingest-modal').style.display = 'none';
+}
+
+// ── Discovered URLs ──
+async function loadDiscoveredURLs() {
+  const search = document.getElementById('discovered-search')?.value || '';
+  const status = document.getElementById('discovered-status')?.value || '';
+
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (status) params.append('status', status);
+
+  const resp = await fetch('/analysis/urls/discovered?' + params.toString());
+  const data = await resp.json();
+
+  const tbody = document.querySelector('#discovered-table tbody');
+  document.getElementById('discovered-count').textContent = `${data.urls?.length || 0} URLs found`;
+
+  if (!data.urls || data.urls.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;padding:20px;">No URLs found matching your filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.urls.map(u => `
+    <tr>
+      <td><input type="checkbox" class="discovered-cb" data-url="${encodeURIComponent(u.url)}"></td>
+      <td>${u.keyword.slice(0, 40)}${u.keyword.length > 40 ? '...' : ''}</td>
+      <td><span class="tag">${u.source}</span></td>
+      <td><a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 50)}${u.url.length > 50 ? '...' : ''}</a></td>
+      <td>${u.topic || '-'}</td>
+      <td>${u.status || 'pending'}</td>
+      <td><button class="btn" onclick="openMiniIngest('${u.url}')">Ingest</button></td>
+    </tr>
+  `).join('');
+}
+
+function toggleSelectAllDiscovered() {
+  const allCb = document.getElementById('discovered-select-all');
+  const cbs = document.querySelectorAll('.discovered-cb');
+  cbs.forEach(cb => cb.checked = allCb.checked);
+}
+
+async function scheduleSelectedURLs() {
+  const selected = [...document.querySelectorAll('.discovered-cb:checked')].map(cb => decodeURIComponent(cb.dataset.url));
+  if (selected.length === 0) {
+    alert('Please select at least one URL to schedule.');
+    return;
+  }
+
+  const resp = await fetch('/api/schedule-urls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls: selected })
+  });
+
+  if (resp.ok) {
+    alert(`Scheduled ${selected.length} URLs for ingestion.`);
+    loadDiscoveredURLs();
+  } else {
+    alert('Failed to schedule URLs.');
+  }
+}
+
+// ── High Potential Keywords Selection ──
+function toggleSelectAllKeywords() {
+  const allCb = document.getElementById('ka-select-all');
+  const cbs = document.querySelectorAll('.kw-select-cb');
+  cbs.forEach(cb => cb.checked = allCb.checked);
+}
+
+async function synthesizeSelectedKeywords() {
+  const selected = [...document.querySelectorAll('.kw-select-cb:checked')].map(cb => decodeURIComponent(cb.dataset.keyword));
+  if (selected.length === 0) {
+    alert('Please select at least one keyword to synthesize.');
+    return;
+  }
+
+  const autoGenerate = document.getElementById('todo-auto-generate')?.checked;
+
+  const resp = await fetch('/api/synthesize-keywords', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords: selected, auto_generate: autoGenerate })
+  });
+
+  if (resp.ok) {
+    const result = await resp.json();
+    alert(`Synthesized ${selected.length} keywords. ${result.added} added to TODO list.`);
+    // Uncheck all
+    document.querySelectorAll('.kw-select-cb').forEach(cb => cb.checked = false);
+    document.getElementById('ka-select-all').checked = false;
+    // Refresh lists
+    loadHighPotentialKeywords();
+    loadKeywordTODO();
+  } else {
+    alert('Failed to synthesize keywords.');
+  }
+}
+
+// ── Keyword TODO List ──
+async function loadKeywordTODO() {
+  const resp = await fetch('/api/keyword-todo');
+  const data = await resp.json();
+
+  const container = document.getElementById('keyword-todo-list');
+  if (!data.items || data.items.length === 0) {
+    container.innerHTML = '<p style="color:#666;text-align:center;padding:20px;">Select and synthesize keywords to add them here.</p>';
+    return;
+  }
+
+  container.innerHTML = data.items.map(item => `
+    <div class="todo-item" style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #e0e0e0;">
+      <input type="checkbox" class="todo-cb" data-keyword="${encodeURIComponent(item.keyword)}" ${item.status === 'generated' ? 'checked disabled' : ''}>
+      <div style="flex:1;${item.status === 'generated' ? 'opacity:0.6;text-decoration:line-through;' : ''}">
+        <div style="font-weight:500;">${item.keyword}</div>
+        <div style="font-size:0.8em;color:#666;">${item.status} · ${item.added_at?.slice(0, 10) || 'N/A'}</div>
+      </div>
+      ${item.status === 'pending' ? `<button class="btn" onclick="removeFromTODO('${encodeURIComponent(item.keyword)}')">✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+async function removeFromTODO(keyword) {
+  const resp = await fetch('/api/keyword-todo/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword: decodeURIComponent(keyword) })
+  });
+  if (resp.ok) loadKeywordTODO();
+}
+
+async function generateArticlesFromTODO() {
+  const selected = [...document.querySelectorAll('.todo-cb:checked:not(:disabled)')].map(cb => decodeURIComponent(cb.dataset.keyword));
+  if (selected.length === 0) {
+    alert('Please select at least one pending keyword to generate.');
+    return;
+  }
+
+  const resp = await fetch('/api/generate-articles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords: selected })
+  });
+
+  if (resp.ok) {
+    const result = await resp.json();
+    alert(`Started generating ${result.started} articles. Check the Ingest Queue for progress.`);
+    loadKeywordTODO();
+  } else {
+    alert('Failed to start article generation.');
+  }
 }
 
 async function submitMiniIngest() {
