@@ -2147,10 +2147,17 @@ function closeKeywordDetail() {
 }
 
 // Mini Ingest Modal functions for discovered URLs
-function openMiniIngest(url) {
+async function openMiniIngest(url) {
   document.getElementById('mini-ingest-url').value = url;
   document.getElementById('mini-ingest-keywords').value = '';
   document.getElementById('mini-ingest-force').checked = false;
+  
+  // Fetch fresh categories like the Categories tab does
+  const res = await fetch('/categories');
+  const cats = await res.json();
+  const select = document.getElementById('mini-ingest-category');
+  select.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  
   document.getElementById('mini-ingest-modal').style.display = 'block';
 }
 
