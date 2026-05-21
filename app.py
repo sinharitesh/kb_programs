@@ -633,32 +633,193 @@ class SynthesizeRequest(BaseModel):
     keywords: List[str]
     auto_generate: bool = False
 
+# In-memory store for synthesis jobs
+synthesis_jobs: dict = {}
+
 @app.post("/api/synthesize-keywords")
-async def synthesize_keywords(req: SynthesizeRequest):
-    """Mark keywords for synthesis and add to TODO list."""
+async def synthesize_keywords(req: SynthesizeRequest, background_tasks: BackgroundTasks):
+    """
+    For each keyword:
+      1. Find its URLs in keyword_intelligence
+      2. Queue them for download+enrichment (force_refresh=True)
+      3. Run LLM SEO keyword prompt on enriched facts
+      4. Return suggested keywords alongside originals for review
+    """
+    import hashlib
     from db import get_con
+
+    job_id = hashlib.md5(f"{'_'.join(req.keywords)}{datetime.now()}".encode()).hexdigest()[:8]
+    synthesis_jobs[job_id] = {
+        "status": "queued",
+        "keywords": req.keywords,
+        "queued_urls": [],
+        "results": [],
+        "started_at": datetime.now().isoformat()
+    }
+
+    background_tasks.add_task(_run_synthesis, job_id, req.keywords)
+    return JSONResponse({"status": "queued", "job_id": job_id, "keywords": req.keywords})
+
+
+async def _run_synthesis(job_id: str, keywords: List[str]):
+    """Background task: scrape URLs, enrich, then run LLM SEO keyword extraction."""
+    import asyncio
+    from db import get_con
+    from llm_enricher import call_ollama
+
+    synthesis_jobs[job_id]["status"] = "scraping"
+
     con = get_con()
 
-    added = 0
-    for keyword in req.keywords:
-        try:
-            # Check if already in TODO
-            existing = con.execute(
-                "SELECT keyword FROM keyword_todo WHERE keyword = ?",
-                [keyword]
-            ).fetchone()
+    # Step 1: collect URLs for each keyword
+    all_urls = []
+    for keyword in keywords:
+        rows = con.execute("""
+            SELECT DISTINCT ki.notes as url, ki.category, ki.topic
+            FROM keyword_intelligence ki
+            WHERE ki.keyword = ? AND ki.notes LIKE 'http%'
+            LIMIT 5
+        """, [keyword]).fetchall()
+        for r in rows:
+            all_urls.append({"url": r[0], "category": r[1] or "general", "keyword": keyword})
 
+    synthesis_jobs[job_id]["queued_urls"] = [u["url"] for u in all_urls]
+    logger.info(f"[Synthesis {job_id}] Found {len(all_urls)} URLs for {len(keywords)} keywords")
+
+    # Step 2: queue each URL for scraping with force_refresh
+    job_ids = {}
+    for item in all_urls:
+        scrape_job_id = enqueue_scrape(
+            url=item["url"],
+            category_path=item["category"],
+            keywords=item["keyword"],
+            force_refresh=True,
+            discovery_source="synthesis"
+        )
+        job_ids[scrape_job_id] = item
+
+    # Step 3: wait for all scrape jobs to complete (max 5 min)
+    synthesis_jobs[job_id]["status"] = "enriching"
+    max_wait = 300
+    elapsed = 0
+    import time
+    while elapsed < max_wait:
+        all_done = all(
+            results_store.get(jid, {}).get("status") in ("done", "error")
+            for jid in job_ids
+        )
+        if all_done:
+            break
+        time.sleep(5)
+        elapsed += 5
+
+    logger.info(f"[Synthesis {job_id}] Scraping done after {elapsed}s")
+
+    # Step 4: gather enriched facts from DB for each keyword
+    synthesis_jobs[job_id]["status"] = "analyzing"
+    results = []
+
+    for keyword in keywords:
+        # Get facts extracted from keyword URLs
+        facts_rows = con.execute("""
+            SELECT f.fact, r.title, r.url
+            FROM facts f
+            JOIN url_registry r ON r.id = f.url_id
+            WHERE r.url IN (
+                SELECT notes FROM keyword_intelligence
+                WHERE keyword = ? AND notes LIKE 'http%'
+            )
+            ORDER BY f.verified DESC
+            LIMIT 20
+        """, [keyword]).fetchall()
+
+        if not facts_rows:
+            logger.warning(f"[Synthesis {job_id}] No facts found for keyword: {keyword}")
+            results.append({"keyword": keyword, "suggested": [], "error": "No enriched content found"})
+            continue
+
+        facts_text = "\n".join([f"- {r[0]} (from: {r[1]})" for r in facts_rows])
+
+        # Step 5: LLM SEO keyword prompt
+        prompt = f"""You are an SEO expert. Based on the following facts about the topic "{keyword}", suggest 10 high-value SEO keywords.
+
+Facts:
+{facts_text}
+
+Generate keywords that include:
+1. Long-tail keyword variations (3-5 words)
+2. Search intent keywords (informational, navigational, transactional)
+3. Related semantic/LSI terms
+4. Question-based keywords (what, how, why, best, top)
+5. High commercial intent terms
+
+Return ONLY valid JSON in this format:
+{{
+  "suggested_keywords": [
+    {{"keyword": "example long tail keyword", "intent": "informational", "rationale": "why this works"}},
+    ...
+  ]
+}}"""
+
+        raw = call_ollama(prompt)
+
+        try:
+            import re as _re
+            match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+            parsed = json.loads(match.group()) if match else {}
+            suggested = parsed.get("suggested_keywords", [])
+        except Exception as e:
+            logger.error(f"[Synthesis {job_id}] LLM parse error for {keyword}: {e}")
+            suggested = []
+
+        results.append({
+            "keyword": keyword,
+            "suggested": suggested,
+            "facts_count": len(facts_rows)
+        })
+
+    con.close()
+
+    synthesis_jobs[job_id]["status"] = "done"
+    synthesis_jobs[job_id]["results"] = results
+    synthesis_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+    logger.info(f"[Synthesis {job_id}] Complete. {len(results)} keywords analyzed.")
+
+
+@app.get("/api/synthesize-keywords/status/{job_id}")
+async def get_synthesis_status(job_id: str):
+    """Poll synthesis job status and results."""
+    job = synthesis_jobs.get(job_id)
+    if not job:
+        return JSONResponse({"status": "not_found"}, status_code=404)
+    return JSONResponse(job)
+
+
+@app.post("/api/synthesize-keywords/approve")
+async def approve_synthesized_keywords(request: Request):
+    """Add user-approved synthesized keywords to the TODO list."""
+    data = await request.json()
+    keywords = data.get("keywords", [])   # list of keyword strings approved by user
+
+    if not keywords:
+        return JSONResponse({"status": "error", "message": "No keywords provided"}, status_code=400)
+
+    from db import get_con
+    con = get_con()
+    added = 0
+    for keyword in keywords:
+        try:
+            existing = con.execute("SELECT keyword FROM keyword_todo WHERE keyword = ?", [keyword]).fetchone()
             if not existing:
                 con.execute("""
                     INSERT INTO keyword_todo (keyword, status, added_at, synthesized_at)
-                    VALUES (?, 'pending', CURRENT_TIMESTAMP, NULL)
+                    VALUES (?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, [keyword])
                 added += 1
         except Exception as e:
-            logger.error(f"Failed to add keyword {keyword} to TODO: {e}")
-
+            logger.error(f"Failed to add approved keyword {keyword}: {e}")
     con.close()
-    return JSONResponse({"status": "ok", "added": added, "total": len(req.keywords)})
+    return JSONResponse({"status": "ok", "added": added})
 
 
 @app.get("/api/keyword-todo")

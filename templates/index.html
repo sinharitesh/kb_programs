@@ -97,6 +97,7 @@
     .modal h3 { margin-bottom: 16px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
     .filter-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+    @keyframes progress-pulse { 0%{width:20%} 50%{width:80%} 100%{width:20%} }
 
 
     .tag {
@@ -487,6 +488,36 @@
             <span>Auto-generate articles on synthesize</span>
           </label>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYNTHESIS REVIEW MODAL -->
+  <div class="modal-overlay" id="synth-modal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal" style="max-width:760px;width:92%;max-height:88vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">✨ Keyword Synthesis Review</h3>
+        <button class="btn btn-grey" onclick="document.getElementById('synth-modal').style.display='none'">✕ Close</button>
+      </div>
+
+      <!-- Progress -->
+      <div id="synth-progress" style="text-align:center;padding:30px;">
+        <div style="font-size:1.1em;margin-bottom:12px;" id="synth-status-text">Starting...</div>
+        <div style="width:100%;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden;">
+          <div style="height:100%;background:#1a73e8;border-radius:3px;animation:progress-pulse 1.5s infinite;"></div>
+        </div>
+        <p style="color:#666;font-size:0.85em;margin-top:10px;">This may take a few minutes while URLs are downloaded and enriched.</p>
+      </div>
+
+      <!-- Results -->
+      <div id="synth-results" style="display:none;flex:1;overflow-y:auto;">
+        <p style="color:#666;font-size:0.88em;margin-bottom:12px;">Review suggested SEO keywords below. All are pre-selected — uncheck any you don't want, then click <strong>Add to TODO</strong>.</p>
+        <div id="synth-results-body"></div>
+      </div>
+
+      <div id="synth-approve-bar" style="display:flex;justify-content:flex-end;gap:10px;padding-top:12px;border-top:1px solid #e0e0e0;margin-top:12px;">
+        <button class="btn btn-grey" onclick="document.getElementById('synth-modal').style.display='none'">Cancel</button>
+        <button class="btn btn-green" onclick="approveSynthesizedKeywords()">📝 Add Selected to TODO</button>
       </div>
     </div>
   </div>
@@ -2156,25 +2187,109 @@ async function synthesizeSelectedKeywords() {
     return;
   }
 
-  const autoGenerate = document.getElementById('todo-auto-generate')?.checked;
+  // Show progress modal immediately
+  document.getElementById('synth-modal').style.display = 'flex';
+  document.getElementById('synth-progress').style.display = 'block';
+  document.getElementById('synth-results').style.display = 'none';
+  document.getElementById('synth-status-text').textContent = `Starting synthesis for ${selected.length} keyword(s)...`;
 
   const resp = await fetch('/api/synthesize-keywords', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords: selected, auto_generate: autoGenerate })
+    body: JSON.stringify({ keywords: selected })
+  });
+
+  if (!resp.ok) {
+    document.getElementById('synth-status-text').textContent = 'Failed to start synthesis.';
+    return;
+  }
+
+  const { job_id } = await resp.json();
+  pollSynthesisStatus(job_id);
+}
+
+async function pollSynthesisStatus(job_id) {
+  const statusLabels = {
+    queued: 'Queued...',
+    scraping: '🔄 Downloading URLs...',
+    enriching: '🧠 Enriching content...',
+    analyzing: '✨ Running LLM SEO analysis...',
+    done: '✅ Analysis complete!',
+  };
+
+  const resp = await fetch(`/api/synthesize-keywords/status/${job_id}`);
+  const data = await resp.json();
+
+  document.getElementById('synth-status-text').textContent = statusLabels[data.status] || data.status;
+
+  if (data.status === 'done') {
+    renderSynthesisResults(data.results);
+    return;
+  }
+
+  if (data.status !== 'not_found') {
+    setTimeout(() => pollSynthesisStatus(job_id), 3000);
+  }
+}
+
+function renderSynthesisResults(results) {
+  document.getElementById('synth-progress').style.display = 'none';
+  document.getElementById('synth-results').style.display = 'block';
+
+  let html = '';
+  results.forEach(r => {
+    html += `<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e0e0e0;">
+      <div style="font-weight:600;margin-bottom:6px;">📌 Original: <span style="color:#1a73e8;">${r.keyword}</span>
+        <span style="font-size:0.8em;color:#666;font-weight:normal;margin-left:8px;">${r.facts_count || 0} facts found</span>
+      </div>`;
+
+    if (r.error) {
+      html += `<p style="color:#d93025;font-size:0.9em;">${r.error}</p>`;
+    } else if (r.suggested && r.suggested.length > 0) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+      r.suggested.forEach((s, i) => {
+        const kw = typeof s === 'string' ? s : s.keyword;
+        const intent = typeof s === 'object' ? s.intent : '';
+        const rationale = typeof s === 'object' ? s.rationale : '';
+        html += `<label style="display:flex;align-items:center;gap:4px;background:#f1f8ff;border:1px solid #c8e6c9;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:0.88em;" title="${rationale}">
+          <input type="checkbox" class="synth-kw-cb" value="${encodeURIComponent(kw)}" checked>
+          ${kw} ${intent ? `<span style="color:#888;font-size:0.8em;">(${intent})</span>` : ''}
+        </label>`;
+      });
+      html += `</div>`;
+    } else {
+      html += `<p style="color:#666;font-size:0.9em;">No suggestions generated.</p>`;
+    }
+    html += `</div>`;
+  });
+
+  document.getElementById('synth-results-body').innerHTML = html;
+
+  // Uncheck original selected keywords
+  document.querySelectorAll('.kw-select-cb').forEach(cb => cb.checked = false);
+  document.getElementById('ka-select-all').checked = false;
+}
+
+async function approveSynthesizedKeywords() {
+  const selected = [...document.querySelectorAll('.synth-kw-cb:checked')].map(cb => decodeURIComponent(cb.value));
+  if (selected.length === 0) {
+    alert('Please select at least one keyword to add to TODO.');
+    return;
+  }
+
+  const resp = await fetch('/api/synthesize-keywords/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords: selected })
   });
 
   if (resp.ok) {
     const result = await resp.json();
-    alert(`Synthesized ${selected.length} keywords. ${result.added} added to TODO list.`);
-    // Uncheck all
-    document.querySelectorAll('.kw-select-cb').forEach(cb => cb.checked = false);
-    document.getElementById('ka-select-all').checked = false;
-    // Refresh lists
-    loadHighPotentialKeywords();
+    alert(`✅ Added ${result.added} keywords to TODO list.`);
+    document.getElementById('synth-modal').style.display = 'none';
     loadKeywordTODO();
   } else {
-    alert('Failed to synthesize keywords.');
+    alert('Failed to add keywords to TODO.');
   }
 }
 
