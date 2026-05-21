@@ -614,24 +614,9 @@
       <label>Category</label>
       <select id="queue-modal-category">
         <option value="">Select category...</option>
-        <option value="Hinduism">Hinduism</option>
-        <option value="Jainism">Jainism</option>
-        <option value="Buddhism">Buddhism</option>
-        <option value="Sikhism">Sikhism</option>
-        <option value="General">General</option>
-        <option value="Scripts">Scripts</option>
-        <option value="Temples">Temples</option>
-        <option value="Festivals">Festivals</option>
-        <option value="Epics">Epics</option>
-        <option value="Philosophy">Philosophy</option>
-        <option value="Deities">Deities</option>
-        <option value="Rituals">Rituals</option>
-        <option value="History">History</option>
-        <option value="Culture">Culture</option>
       </select>
 
       <label>Keywords (comma-separated)</label>
-      <input type="text" id="queue-modal-keywords" placeholder="e.g. Shiva, meditation, spiritual">
 
       <label>Priority</label>
       <select id="queue-modal-priority">
@@ -2256,6 +2241,14 @@ async function openQueueModal(encodedUrl) {
   const url = decodeURIComponent(encodedUrl);
   currentQueueUrl = url;
   document.getElementById('queue-modal-url').textContent = url;
+  
+  // Load fresh categories like other modals do
+  const res = await fetch('/categories');
+  const data = await res.json();
+  const select = document.getElementById('queue-modal-category');
+  select.innerHTML = '<option value="">Select category...</option>' + 
+    data.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  
   document.getElementById('queue-modal-overlay').style.display = 'flex';
   document.getElementById('queue-modal-status').textContent = '';
 
