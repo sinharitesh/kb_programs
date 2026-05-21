@@ -597,10 +597,55 @@
             <th>Topic</th>
             <th>Sources</th>
             <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- QUEUE MODAL FOR DISCOVERED URLs -->
+  <div id="queue-modal-overlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeQueueModal()">
+    <div class="modal" style="max-width:600px;">
+      <h3>📋 Queue URL for Processing</h3>
+      <p id="queue-modal-url" style="font-size:0.85em;color:#666;word-break:break-all;margin-bottom:16px;"></p>
+
+      <label>Category</label>
+      <select id="queue-modal-category">
+        <option value="">Select category...</option>
+        <option value="Hinduism">Hinduism</option>
+        <option value="Jainism">Jainism</option>
+        <option value="Buddhism">Buddhism</option>
+        <option value="Sikhism">Sikhism</option>
+        <option value="General">General</option>
+        <option value="Scripts">Scripts</option>
+        <option value="Temples">Temples</option>
+        <option value="Festivals">Festivals</option>
+        <option value="Epics">Epics</option>
+        <option value="Philosophy">Philosophy</option>
+        <option value="Deities">Deities</option>
+        <option value="Rituals">Rituals</option>
+        <option value="History">History</option>
+        <option value="Culture">Culture</option>
+      </select>
+
+      <label>Keywords (comma-separated)</label>
+      <input type="text" id="queue-modal-keywords" placeholder="e.g. Shiva, meditation, spiritual">
+
+      <label>Priority</label>
+      <select id="queue-modal-priority">
+        <option value="10">Normal (10)</option>
+        <option value="20">High (20)</option>
+        <option value="30">Urgent (30)</option>
+        <option value="5">Low (5)</option>
+      </select>
+
+      <div class="modal-actions">
+        <button class="btn btn-green" onclick="submitQueueModal()">📅 Add to Queue</button>
+        <button class="btn btn-grey" onclick="closeQueueModal()">Cancel</button>
+      </div>
+      <div id="queue-modal-status" style="margin-top:12px;font-size:0.9em;"></div>
     </div>
   </div>
 
@@ -2136,15 +2181,20 @@ async function loadDiscoveredURLs() {
   tbody.innerHTML = data.urls.map(u => {
     const potentialIcon = u.potential === 'hot' ? '🔥' : u.potential === 'warm' ? '⚡' : '❄️';
     const statusBadge = u.status === 'done' ? '✅' : u.status === 'processing' ? '🔄' : u.status === 'error' ? '❌' : '⏳';
+    const encodedUrl = encodeURIComponent(u.url);
     return `
     <tr>
-      <td><input type="checkbox" class="discovered-cb" data-url="${encodeURIComponent(u.url)}" data-category="${encodeURIComponent(u.category || 'general')}"></td>
+      <td><input type="checkbox" class="discovered-cb" data-url="${encodedUrl}" data-category="${encodeURIComponent(u.category || 'general')}"></td>
       <td><span title="Score: ${u.score}/100">${potentialIcon} <strong>${u.score}</strong></span></td>
       <td>${u.keyword.slice(0, 35)}${u.keyword.length > 35 ? '...' : ''}</td>
       <td><a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 45)}${u.url.length > 45 ? '...' : ''}</a></td>
       <td>${u.topic || '-'}</td>
       <td><span class="tag" title="${u.sources?.join(', ') || ''}">${u.source_count || 1} sources</span></td>
       <td>${statusBadge} ${u.status || 'pending'}</td>
+      <td>
+        <button class="btn btn-blue" onclick="openQueueModal('${encodedUrl}')">📋 Queue</button>
+        <button class="btn btn-red" onclick="deleteDiscoveredURL('${encodedUrl}', this)">🗑 Delete</button>
+      </td>
     </tr>
   `}).join('');
 }
@@ -2190,6 +2240,94 @@ async function scheduleSelectedURLs() {
 
   alert(`✅ Queued ${totalQueued} URLs for processing. Check the Ingest Queue for progress.`);
   loadDiscoveredURLs(); // Refresh to show updated status
+}
+
+// Queue Modal Functions for Discovered URLs
+let currentQueueUrl = null;
+
+async function openQueueModal(encodedUrl) {
+  const url = decodeURIComponent(encodedUrl);
+  currentQueueUrl = url;
+  document.getElementById('queue-modal-url').textContent = url;
+  document.getElementById('queue-modal-overlay').style.display = 'flex';
+  document.getElementById('queue-modal-status').textContent = '';
+
+  // Fetch suggestions from backend
+  try {
+    const resp = await fetch('/analysis/urls/' + encodedUrl + '/suggest');
+    const data = await resp.json();
+
+    // Autofill form
+    if (data.category) {
+      document.getElementById('queue-modal-category').value = data.category;
+    }
+    if (data.keywords && data.keywords.length > 0) {
+      document.getElementById('queue-modal-keywords').value = data.keywords.join(', ');
+    }
+  } catch (e) {
+    console.error('Failed to load suggestions:', e);
+  }
+}
+
+function closeQueueModal() {
+  document.getElementById('queue-modal-overlay').style.display = 'none';
+  currentQueueUrl = null;
+}
+
+async function submitQueueModal() {
+  if (!currentQueueUrl) return;
+
+  const category = document.getElementById('queue-modal-category').value;
+  const keywords = document.getElementById('queue-modal-keywords').value;
+  const priority = parseInt(document.getElementById('queue-modal-priority').value);
+
+  if (!category) {
+    document.getElementById('queue-modal-status').innerHTML = '<span style="color:#c0392b">❌ Please select a category</span>';
+    return;
+  }
+
+  document.getElementById('queue-modal-status').textContent = 'Queuing...';
+
+  const resp = await fetch('/api/schedule-urls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      urls: [currentQueueUrl],
+      category: category,
+      keywords: keywords,
+      priority: priority
+    })
+  });
+
+  if (resp.ok) {
+    const data = await resp.json();
+    document.getElementById('queue-modal-status').innerHTML = `<span style="color:#27ae60">✅ Queued! Job ID: ${data.job_ids?.[0] || 'N/A'}</span>`;
+    setTimeout(() => {
+      closeQueueModal();
+      loadDiscoveredURLs(); // Refresh list
+    }, 1000);
+  } else {
+    document.getElementById('queue-modal-status').innerHTML = '<span style="color:#c0392b">❌ Failed to queue URL</span>';
+  }
+}
+
+async function deleteDiscoveredURL(encodedUrl, btnElement) {
+  if (!confirm('Delete this URL from discovered list? This cannot be undone.')) return;
+
+  try {
+    const resp = await fetch('/analysis/urls/discovered/' + encodedUrl, { method: 'DELETE' });
+    if (resp.ok) {
+      // Remove row from table
+      const row = btnElement.closest('tr');
+      row.style.opacity = '0.5';
+      setTimeout(() => row.remove(), 300);
+    } else {
+      alert('❌ Failed to delete URL');
+    }
+  } catch (e) {
+    alert('❌ Error deleting URL');
+    console.error(e);
+  }
 }
 
 // ── High Potential Keywords Selection ──

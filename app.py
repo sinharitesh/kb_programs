@@ -561,6 +561,65 @@ async def get_keyword_detail(keyword: str):
 
 # ── Discovered URLs endpoints ──
 
+@app.get("/analysis/urls/{url:path}/suggest")
+async def suggest_url_params(url: str):
+    """Suggest category and keywords for a URL based on its keyword_intelligence data."""
+    from db import get_con
+    import urllib.parse
+    con = get_con()
+    
+    # Decode URL if needed
+    decoded_url = urllib.parse.unquote(url)
+    
+    # Get keyword data for this URL
+    rows = con.execute("""
+        SELECT keyword, topic, category, COUNT(*) as mention_count
+        FROM keyword_intelligence
+        WHERE notes = ?
+        GROUP BY keyword, topic, category
+        ORDER BY mention_count DESC
+        LIMIT 10
+    """, [decoded_url]).fetchall()
+    
+    if not rows:
+        con.close()
+        return JSONResponse({"category": "", "keywords": [], "topic": ""})
+    
+    # Most common category
+    categories = {}
+    keywords = []
+    topic = rows[0][1] if rows else ""
+    
+    for r in rows:
+        kw, tp, cat, count = r
+        keywords.append(kw)
+        categories[cat] = categories.get(cat, 0) + count
+    
+    suggested_category = max(categories.items(), key=lambda x: x[1])[0] if categories else ""
+    
+    con.close()
+    return JSONResponse({
+        "category": suggested_category,
+        "keywords": list(dict.fromkeys(keywords))[:5],  # Unique, max 5
+        "topic": topic
+    })
+
+@app.delete("/analysis/urls/discovered/{url:path}")
+async def delete_discovered_url(url: str):
+    """Remove a URL from the discovered list (keyword_intelligence table)."""
+    from db import get_con
+    import urllib.parse
+    con = get_con()
+    
+    decoded_url = urllib.parse.unquote(url)
+    
+    # Delete from keyword_intelligence where this URL appears in notes
+    con.execute("DELETE FROM keyword_intelligence WHERE notes = ?", [decoded_url])
+    con.commit()
+    
+    con.close()
+    return JSONResponse({"deleted": True, "url": decoded_url})
+
 @app.get("/analysis/urls/discovered")
 async def get_discovered_urls(search: str = "", status: str = "", min_score: int = 0):
     """Return URLs discovered from keyword intelligence with scores and optional filters."""
