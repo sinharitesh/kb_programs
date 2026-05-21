@@ -2154,9 +2154,9 @@ async function openMiniIngest(url) {
   
   // Fetch fresh categories like the Categories tab does
   const res = await fetch('/categories');
-  const cats = await res.json();
+  const data = await res.json();
   const select = document.getElementById('mini-ingest-category');
-  select.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  select.innerHTML = data.categories.map(c => `<option value="${c}">${c}</option>`).join('');
   
   document.getElementById('mini-ingest-modal').style.display = 'block';
 }
