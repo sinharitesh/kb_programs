@@ -2173,7 +2173,7 @@ async function loadDiscoveredURLs() {
 
   tbody.innerHTML = data.urls.map(u => {
     const potentialIcon = u.potential === 'hot' ? '🔥' : u.potential === 'warm' ? '⚡' : '❄️';
-    const statusBadge = u.status === 'done' ? '✅' : u.status === 'processing' ? '🔄' : u.status === 'error' ? '❌' : '⏳';
+    const statusBadge = u.status === 'enriched' ? '✅' : u.status === 'processing' ? '🔄' : u.status === 'error' ? '❌' : '⏳';
     const encodedUrl = encodeURIComponent(u.url);
     return `
     <tr>

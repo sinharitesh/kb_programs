@@ -471,7 +471,7 @@ async def get_high_potential_keywords(
     con = get_con()
     
     # Base query - only keywords with enriched URLs
-    where_clauses = ["u.status = 'done'"]  # Only downloaded & enriched URLs
+    where_clauses = ["u.status = 'enriched'"]  # Only downloaded & enriched URLs
     if category:
         where_clauses.append(f"ki.category = '{category}'")
     if search:
@@ -491,7 +491,7 @@ async def get_high_potential_keywords(
             GROUP_CONCAT(DISTINCT ki.source) as sources,
             COUNT(DISTINCT u.id) as enriched_url_count
         FROM keyword_intelligence ki
-        JOIN url_registry u ON ki.notes = u.url AND u.status = 'done'
+        JOIN url_registry u ON ki.notes = u.url AND u.status = 'enriched'
         WHERE {where_sql}
         GROUP BY ki.keyword, ki.topic, ki.category
         HAVING COUNT(DISTINCT ki.source) >= {min_sources}

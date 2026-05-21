@@ -306,7 +306,7 @@ def process_scrape_result(scrape_result: dict, user_category: str = None, discov
         quality_score=enriched.get("quality_score", 0),
         word_count=scrape_result.get("word_count", 0),
         raw_file=scrape_result.get("raw_file", ""),
-        status="ok"
+        status="enriched"
     )
     # Fetch DDG web facts
     ddg_facts = fetch_ddg_facts(enriched.get("title", ""))
