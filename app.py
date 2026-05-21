@@ -560,7 +560,7 @@ async def get_keyword_detail(keyword: str):
 
 @app.get("/analysis/urls/discovered")
 async def get_discovered_urls(search: str = "", status: str = ""):
-    """Return URLs discovered from keyword intelligence with optional filters."""
+    """Return URLs discovered from keyword intelligence with scores and optional filters."""
     from db import get_con
     con = get_con()
 
@@ -572,59 +572,88 @@ async def get_discovered_urls(search: str = "", status: str = ""):
 
     where_sql = " AND ".join(where_clauses)
 
+    # Get URLs with keyword aggregation for scoring
     rows = con.execute(f"""
-        SELECT DISTINCT ki.keyword, ki.source, ki.notes as url, ki.topic, ki.category,
-               ki.analyzed_at, COALESCE(u.status, 'pending') as status
+        SELECT DISTINCT
+            ki.notes as url,
+            ki.keyword,
+            ki.topic,
+            ki.category,
+            COALESCE(u.status, 'pending') as url_status,
+            u.id as url_id,
+            ki2.source_count,
+            ki2.total_mentions,
+            ki2.url_count,
+            ki2.sources
         FROM keyword_intelligence ki
         LEFT JOIN url_registry u ON ki.notes = u.url
+        JOIN (
+            SELECT
+                keyword,
+                COUNT(DISTINCT source) as source_count,
+                COUNT(*) as total_mentions,
+                COUNT(DISTINCT CASE WHEN notes LIKE 'http%' THEN notes END) as url_count,
+                GROUP_CONCAT(DISTINCT source) as sources
+            FROM keyword_intelligence
+            GROUP BY keyword
+        ) ki2 ON ki.keyword = ki2.keyword
         WHERE {where_sql}
-        ORDER BY ki.analyzed_at DESC
+        ORDER BY ki2.source_count DESC, ki2.url_count DESC
         LIMIT 200
     """).fetchall()
 
-    con.close()
+    # Calculate score and potential
+    def calc_score(source_count, url_count, total_mentions):
+        return min(100, int(source_count * 30 + url_count * 20 + (total_mentions ** 0.5) * 5))
+
+    def get_potential(score):
+        if score >= 70: return "hot"
+        if score >= 40: return "warm"
+        return "cold"
 
     urls = [{
-        "keyword": r[0],
-        "source": r[1],
-        "url": r[2],
-        "topic": r[3],
-        "category": r[4],
-        "discovered_at": r[5].isoformat() if r[5] else None,
-        "status": r[6]
+        "url": r[0],
+        "keyword": r[1],
+        "topic": r[2],
+        "category": r[3],
+        "status": r[4],
+        "url_id": r[5],
+        "score": calc_score(r[6], r[7], r[8]),
+        "potential": get_potential(calc_score(r[6], r[7], r[8])),
+        "source_count": r[6],
+        "total_mentions": r[8],
+        "sources": r[9].split(',') if r[9] else []
     } for r in rows]
 
+    con.close()
     return JSONResponse({"urls": urls, "total": len(urls)})
 
 
 @app.post("/api/schedule-urls")
 async def schedule_urls(request: Request):
-    """Schedule discovered URLs for ingestion."""
+    """Queue discovered URLs for scraping and enrichment using enqueue_scrape."""
     data = await request.json()
     urls = data.get("urls", [])
+    category = data.get("category", "general")
 
     if not urls:
         return JSONResponse({"status": "error", "message": "No URLs provided"}, status_code=400)
 
-    scheduled = 0
+    job_ids = []
     for url in urls:
         try:
-            # Add to URL registry with pending status
-            from db import get_con
-            con = get_con()
-            # Check if URL already exists
-            existing = con.execute("SELECT id FROM url_registry WHERE url = ?", [url]).fetchone()
-            if not existing:
-                con.execute("""
-                    INSERT INTO url_registry (url, source, status, added_at)
-                    VALUES (?, 'discovered_from_keyword', 'pending', CURRENT_TIMESTAMP)
-                """, [url])
-                scheduled += 1
-            con.close()
+            job_id = enqueue_scrape(url, category, keywords="", force_refresh=False, discovery_source="discovered_urls")
+            job_ids.append(job_id)
+            logger.info(f"Queued URL for scraping: {url} -> job {job_id[:8]}")
         except Exception as e:
-            logger.error(f"Failed to schedule URL {url}: {e}")
+            logger.error(f"Failed to queue URL {url}: {e}")
 
-    return JSONResponse({"status": "ok", "scheduled": scheduled, "total": len(urls)})
+    return JSONResponse({
+        "status": "queued",
+        "job_count": len(job_ids),
+        "job_ids": [j[:8] for j in job_ids],
+        "total": len(urls)
+    })
 
 
 # ── Keyword TODO endpoints ──

@@ -577,7 +577,7 @@
           </select>
         </div>
         <div>
-          <button class="btn btn-green" onclick="scheduleSelectedURLs()">🗓️ Schedule Selected</button>
+          <button class="btn btn-green" onclick="scheduleSelectedURLs()">🔄 Process Selected</button>
         </div>
         <div>
           <button class="btn" onclick="loadDiscoveredURLs()">🔄 Refresh</button>
@@ -591,12 +591,12 @@
         <thead>
           <tr>
             <th><input type="checkbox" id="discovered-select-all" onchange="toggleSelectAllDiscovered()"></th>
+            <th>Score</th>
             <th>Keyword</th>
-            <th>Source</th>
             <th>URL</th>
             <th>Topic</th>
+            <th>Sources</th>
             <th>Status</th>
-            <th>Action</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -2129,21 +2129,24 @@ async function loadDiscoveredURLs() {
   document.getElementById('discovered-count').textContent = `${data.urls?.length || 0} URLs found`;
 
   if (!data.urls || data.urls.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;padding:20px;">No URLs found matching your filters.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;padding:20px;">No URLs found matching your filters.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = data.urls.map(u => `
+  tbody.innerHTML = data.urls.map(u => {
+    const potentialIcon = u.potential === 'hot' ? '🔥' : u.potential === 'warm' ? '⚡' : '❄️';
+    const statusBadge = u.status === 'done' ? '✅' : u.status === 'processing' ? '🔄' : u.status === 'error' ? '❌' : '⏳';
+    return `
     <tr>
-      <td><input type="checkbox" class="discovered-cb" data-url="${encodeURIComponent(u.url)}"></td>
-      <td>${u.keyword.slice(0, 40)}${u.keyword.length > 40 ? '...' : ''}</td>
-      <td><span class="tag">${u.source}</span></td>
-      <td><a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 50)}${u.url.length > 50 ? '...' : ''}</a></td>
+      <td><input type="checkbox" class="discovered-cb" data-url="${encodeURIComponent(u.url)}" data-category="${encodeURIComponent(u.category || 'general')}"></td>
+      <td><span title="Score: ${u.score}/100">${potentialIcon} <strong>${u.score}</strong></span></td>
+      <td>${u.keyword.slice(0, 35)}${u.keyword.length > 35 ? '...' : ''}</td>
+      <td><a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 45)}${u.url.length > 45 ? '...' : ''}</a></td>
       <td>${u.topic || '-'}</td>
-      <td>${u.status || 'pending'}</td>
-      <td><button class="btn" onclick="openMiniIngest('${u.url}')">Ingest</button></td>
+      <td><span class="tag" title="${u.sources?.join(', ') || ''}">${u.source_count || 1} sources</span></td>
+      <td>${statusBadge} ${u.status || 'pending'}</td>
     </tr>
-  `).join('');
+  `}).join('');
 }
 
 function toggleSelectAllDiscovered() {
@@ -2153,24 +2156,40 @@ function toggleSelectAllDiscovered() {
 }
 
 async function scheduleSelectedURLs() {
-  const selected = [...document.querySelectorAll('.discovered-cb:checked')].map(cb => decodeURIComponent(cb.dataset.url));
+  const selected = [...document.querySelectorAll('.discovered-cb:checked')];
   if (selected.length === 0) {
-    alert('Please select at least one URL to schedule.');
+    alert('Please select at least one URL to process.');
     return;
   }
 
-  const resp = await fetch('/api/schedule-urls', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls: selected })
+  // Group by category for efficient queueing
+  const byCategory = {};
+  selected.forEach(cb => {
+    const url = decodeURIComponent(cb.dataset.url);
+    const category = decodeURIComponent(cb.dataset.category || 'general');
+    if (!byCategory[category]) byCategory[category] = [];
+    byCategory[category].push(url);
   });
 
-  if (resp.ok) {
-    alert(`Scheduled ${selected.length} URLs for ingestion.`);
-    loadDiscoveredURLs();
-  } else {
-    alert('Failed to schedule URLs.');
+  let totalQueued = 0;
+  const jobIds = [];
+
+  for (const [category, urls] of Object.entries(byCategory)) {
+    const resp = await fetch('/api/schedule-urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls, category: category })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      totalQueued += data.job_count || 0;
+      if (data.job_ids) jobIds.push(...data.job_ids);
+    }
   }
+
+  alert(`✅ Queued ${totalQueued} URLs for processing. Check the Ingest Queue for progress.`);
+  loadDiscoveredURLs(); // Refresh to show updated status
 }
 
 // ── High Potential Keywords Selection ──
