@@ -466,33 +466,35 @@ async def get_high_potential_keywords(
     category: str = "",
     search: str = ""
 ):
-    """Return keywords scored by multi-source presence and URL yield."""
+    """Return keywords that have at least one downloaded & enriched URL."""
     from db import get_con
     con = get_con()
     
-    # Base query for keyword aggregation
-    where_clauses = ["1=1"]
+    # Base query - only keywords with enriched URLs
+    where_clauses = ["u.status = 'done'"]  # Only downloaded & enriched URLs
     if category:
-        where_clauses.append(f"category = '{category}'")
+        where_clauses.append(f"ki.category = '{category}'")
     if search:
-        where_clauses.append(f"keyword ILIKE '%{search}%'")
+        where_clauses.append(f"ki.keyword ILIKE '%{search}%'")
     where_sql = " AND ".join(where_clauses)
     
-    # Get keyword scores
+    # Get keyword scores from enriched content only
     rows = con.execute(f"""
         SELECT 
-            keyword,
-            topic,
-            category,
-            COUNT(DISTINCT source) as source_count,
+            ki.keyword,
+            ki.topic,
+            ki.category,
+            COUNT(DISTINCT ki.source) as source_count,
             COUNT(*) as total_mentions,
-            COUNT(DISTINCT CASE WHEN notes LIKE 'http%' THEN notes END) as url_count,
-            MAX(analyzed_at) as last_analyzed,
-            GROUP_CONCAT(DISTINCT source) as sources
-        FROM keyword_intelligence
+            COUNT(DISTINCT ki.notes) as url_count,
+            MAX(ki.analyzed_at) as last_analyzed,
+            GROUP_CONCAT(DISTINCT ki.source) as sources,
+            COUNT(DISTINCT u.id) as enriched_url_count
+        FROM keyword_intelligence ki
+        JOIN url_registry u ON ki.notes = u.url AND u.status = 'done'
         WHERE {where_sql}
-        GROUP BY keyword, topic, category
-        HAVING COUNT(DISTINCT source) >= {min_sources}
+        GROUP BY ki.keyword, ki.topic, ki.category
+        HAVING COUNT(DISTINCT ki.source) >= {min_sources}
         ORDER BY source_count DESC, url_count DESC, total_mentions DESC
         LIMIT 100
     """).fetchall()
@@ -514,6 +516,7 @@ async def get_high_potential_keywords(
         "url_count": r[5],
         "last_analyzed": r[6].isoformat() if r[6] else None,
         "sources": r[7].split(',') if r[7] else [],
+        "enriched_count": r[8],
         "score": calc_score(r),
         "potential": "hot" if calc_score(r) >= 70 else "warm" if calc_score(r) >= 40 else "cold"
     } for r in rows]
@@ -559,35 +562,26 @@ async def get_keyword_detail(keyword: str):
 # ── Discovered URLs endpoints ──
 
 @app.get("/analysis/urls/discovered")
-async def get_discovered_urls(search: str = "", status: str = ""):
+async def get_discovered_urls(search: str = "", status: str = "", min_score: int = 0):
     """Return URLs discovered from keyword intelligence with scores and optional filters."""
     from db import get_con
     con = get_con()
 
+    # Build where clause
     where_clauses = ["ki.notes LIKE 'http%'"]
     if search:
         where_clauses.append(f"ki.keyword ILIKE '%{search}%'")
     if status:
-        where_clauses.append(f"COALESCE(u.status, 'pending') = '{status}'")
+        if status == 'pending':
+            where_clauses.append("(u.status IS NULL OR u.status = 'pending')")
+        else:
+            where_clauses.append(f"u.status = '{status}'")
 
     where_sql = " AND ".join(where_clauses)
 
-    # Get URLs with keyword aggregation for scoring
+    # First, get keyword scores in a CTE, then join with URLs
     rows = con.execute(f"""
-        SELECT DISTINCT
-            ki.notes as url,
-            ki.keyword,
-            ki.topic,
-            ki.category,
-            COALESCE(u.status, 'pending') as url_status,
-            u.id as url_id,
-            ki2.source_count,
-            ki2.total_mentions,
-            ki2.url_count,
-            ki2.sources
-        FROM keyword_intelligence ki
-        LEFT JOIN url_registry u ON ki.notes = u.url
-        JOIN (
+        WITH keyword_scores AS (
             SELECT
                 keyword,
                 COUNT(DISTINCT source) as source_count,
@@ -596,9 +590,23 @@ async def get_discovered_urls(search: str = "", status: str = ""):
                 GROUP_CONCAT(DISTINCT source) as sources
             FROM keyword_intelligence
             GROUP BY keyword
-        ) ki2 ON ki.keyword = ki2.keyword
+        )
+        SELECT DISTINCT
+            ki.notes as url,
+            ki.keyword,
+            ki.topic,
+            ki.category,
+            COALESCE(u.status, 'pending') as url_status,
+            u.id as url_id,
+            ks.source_count,
+            ks.total_mentions,
+            ks.url_count,
+            ks.sources
+        FROM keyword_intelligence ki
+        JOIN keyword_scores ks ON ki.keyword = ks.keyword
+        LEFT JOIN url_registry u ON ki.notes = u.url
         WHERE {where_sql}
-        ORDER BY ki2.source_count DESC, ki2.url_count DESC
+        ORDER BY ks.source_count DESC, ks.url_count DESC, ki.keyword
         LIMIT 200
     """).fetchall()
 
@@ -611,19 +619,23 @@ async def get_discovered_urls(search: str = "", status: str = ""):
         if score >= 40: return "warm"
         return "cold"
 
-    urls = [{
-        "url": r[0],
-        "keyword": r[1],
-        "topic": r[2],
-        "category": r[3],
-        "status": r[4],
-        "url_id": r[5],
-        "score": calc_score(r[6], r[7], r[8]),
-        "potential": get_potential(calc_score(r[6], r[7], r[8])),
-        "source_count": r[6],
-        "total_mentions": r[8],
-        "sources": r[9].split(',') if r[9] else []
-    } for r in rows]
+    urls = []
+    for r in rows:
+        score = calc_score(r[6], r[7], r[8])
+        if score >= min_score:
+            urls.append({
+                "url": r[0],
+                "keyword": r[1],
+                "topic": r[2],
+                "category": r[3],
+                "status": r[4],
+                "url_id": r[5],
+                "score": score,
+                "potential": get_potential(score),
+                "source_count": r[6],
+                "total_mentions": r[8],
+                "sources": r[9].split(',') if r[9] else []
+            })
 
     con.close()
     return JSONResponse({"urls": urls, "total": len(urls)})
