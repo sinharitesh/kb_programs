@@ -786,17 +786,28 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
     synthesis_jobs[job_id]["queued_urls"] = [u["url"] for u in all_urls]
     logger.info(f"[Synthesis {job_id}] Found {len(all_urls)} URLs for {len(keywords)} keywords")
 
-    # Step 2: queue each URL for scraping with force_refresh
+    # Step 2: queue each URL for scraping (skip if already enriched)
     job_ids = {}
+    enriched_urls = []  # Track already enriched URLs
     for item in all_urls:
-        scrape_job_id = enqueue_scrape(
-            url=item["url"],
-            category_path=item["category"],
-            keywords=item["keyword"],
-            force_refresh=True,
-            discovery_source="synthesis"
-        )
-        job_ids[scrape_job_id] = item
+        # Check if URL is already enriched
+        existing = con.execute(
+            "SELECT id FROM url_registry WHERE url = ? AND status = 'enriched'",
+            [item["url"]]
+        ).fetchone()
+        
+        if existing:
+            logger.info(f"[Synthesis {job_id}] URL already enriched, skipping: {item['url'][:60]}")
+            enriched_urls.append(item)
+        else:
+            scrape_job_id = enqueue_scrape(
+                url=item["url"],
+                category_path=item["category"],
+                keywords=item["keyword"],
+                force_refresh=False,  # Don't force refresh
+                discovery_source="synthesis"
+            )
+            job_ids[scrape_job_id] = item
 
     # Step 3: wait for all scrape jobs to complete (max 5 min)
     synthesis_jobs[job_id]["status"] = "enriching"
