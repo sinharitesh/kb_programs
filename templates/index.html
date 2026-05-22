@@ -506,12 +506,15 @@
         <div style="width:100%;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden;">
           <div style="height:100%;background:#1a73e8;border-radius:3px;animation:progress-pulse 1.5s infinite;"></div>
         </div>
-        <p style="color:#666;font-size:0.85em;margin-top:10px;">This may take a few minutes while URLs are downloaded and enriched.</p>
+        <p style="color:#666;font-size:0.85em;margin-top:10px;">Already enriched URLs will be skipped. Only new URLs need processing.</p>
       </div>
 
       <!-- Results -->
       <div id="synth-results" style="display:none;flex:1;overflow-y:auto;">
-        <p style="color:#666;font-size:0.88em;margin-bottom:12px;">Review suggested SEO keywords below. All are pre-selected — uncheck any you don't want, then click <strong>Add to TODO</strong>.</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <p style="color:#666;font-size:0.88em;margin:0;">Review suggested SEO keywords below. All are pre-selected — uncheck any you don't want.</p>
+          <button class="btn btn-grey" onclick="uncheckAllSynthesized()" style="font-size:0.85em;padding:6px 12px;">❌ Uncheck All</button>
+        </div>
         <div id="synth-results-body"></div>
       </div>
 
@@ -2369,8 +2372,8 @@ async function synthesizeSelectedKeywords() {
 async function pollSynthesisStatus(job_id) {
   const statusLabels = {
     queued: 'Queued...',
-    scraping: '🔄 Downloading URLs...',
-    enriching: '🧠 Enriching content...',
+    scraping: '🔄 Checking URLs (skipping already enriched)...',
+    enriching: '🧠 Processing new URLs...',
     analyzing: '✨ Running LLM SEO analysis...',
     done: '✅ Analysis complete!',
   };
@@ -2426,6 +2429,10 @@ function renderSynthesisResults(results) {
   // Uncheck original selected keywords
   document.querySelectorAll('.kw-select-cb').forEach(cb => cb.checked = false);
   document.getElementById('ka-select-all').checked = false;
+}
+
+function uncheckAllSynthesized() {
+  document.querySelectorAll('.synth-kw-cb').forEach(cb => cb.checked = false);
 }
 
 async function approveSynthesizedKeywords() {
