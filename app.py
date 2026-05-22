@@ -733,8 +733,8 @@ class SynthesizeRequest(BaseModel):
     keywords: List[str]
     auto_generate: bool = False
 
-# In-memory store for synthesis jobs
-synthesis_jobs: dict = {}
+# Persistent synthesis queue
+from synthesis_queue import synth_queue
 
 @app.post("/api/synthesize-keywords")
 async def synthesize_keywords(req: SynthesizeRequest, background_tasks: BackgroundTasks):
@@ -748,15 +748,9 @@ async def synthesize_keywords(req: SynthesizeRequest, background_tasks: Backgrou
     import hashlib
     from db import get_con
 
-    job_id = hashlib.md5(f"{'_'.join(req.keywords)}{datetime.now()}".encode()).hexdigest()[:8]
-    synthesis_jobs[job_id] = {
-        "status": "queued",
-        "keywords": req.keywords,
-        "queued_urls": [],
-        "results": [],
-        "started_at": datetime.now().isoformat()
-    }
-
+    # Create persistent job in synthesis queue
+    job_id = synth_queue.create_job(req.keywords)
+    
     background_tasks.add_task(_run_synthesis, job_id, req.keywords)
     return JSONResponse({"status": "queued", "job_id": job_id, "keywords": req.keywords})
 
@@ -767,7 +761,7 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
     from db import get_con
     from llm_enricher import call_ollama
 
-    synthesis_jobs[job_id]["status"] = "scraping"
+    synth_queue.update_job(job_id, status="scraping")
 
     con = get_con()
 
@@ -783,7 +777,7 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
         for r in rows:
             all_urls.append({"url": r[0], "category": r[1] or "general", "keyword": keyword})
 
-    synthesis_jobs[job_id]["queued_urls"] = [u["url"] for u in all_urls]
+    synth_queue.update_job(job_id, urls_found=[u["url"] for u in all_urls], urls_skipped=[u["url"] for u in enriched_urls])
     logger.info(f"[Synthesis {job_id}] Found {len(all_urls)} URLs for {len(keywords)} keywords")
 
     # Step 2: queue each URL for scraping (skip if already enriched)
@@ -810,7 +804,7 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
             job_ids[scrape_job_id] = item
 
     # Step 3: wait for all scrape jobs to complete (max 5 min)
-    synthesis_jobs[job_id]["status"] = "enriching"
+    synth_queue.update_job(job_id, status="enriching", urls_processed=[results_store.get(jid, {}).get("url") for jid in job_ids if results_store.get(jid, {}).get("status") == "done"])
     max_wait = 300
     elapsed = 0
     import time
@@ -827,7 +821,7 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
     logger.info(f"[Synthesis {job_id}] Scraping done after {elapsed}s")
 
     # Step 4: gather enriched facts from DB for each keyword
-    synthesis_jobs[job_id]["status"] = "analyzing"
+    synth_queue.update_job(job_id, status="analyzing")
     results = []
 
     for keyword in keywords:
@@ -900,19 +894,31 @@ Return ONLY valid JSON in this format:
 
     con.close()
 
-    synthesis_jobs[job_id]["status"] = "done"
-    synthesis_jobs[job_id]["results"] = results
-    synthesis_jobs[job_id]["completed_at"] = datetime.now().isoformat()
+    synth_queue.update_job(job_id, status="done", results=results, completed_at=datetime.now().isoformat())
     logger.info(f"[Synthesis {job_id}] Complete. {len(results)} keywords analyzed.")
 
 
 @app.get("/api/synthesize-keywords/status/{job_id}")
 async def get_synthesis_status(job_id: str):
     """Poll synthesis job status and results."""
-    job = synthesis_jobs.get(job_id)
+    job = synth_queue.get_job(job_id)
     if not job:
         return JSONResponse({"status": "not_found"}, status_code=404)
     return JSONResponse(job)
+
+@app.get("/api/synthesize-keywords/jobs")
+async def list_synthesis_jobs(limit: int = 50):
+    """List all synthesis jobs."""
+    jobs = synth_queue.list_jobs(limit)
+    return JSONResponse({"jobs": jobs, "total": len(jobs)})
+
+@app.delete("/api/synthesize-keywords/jobs/{job_id}")
+async def delete_synthesis_job(job_id: str):
+    """Delete a synthesis job."""
+    success = synth_queue.delete_job(job_id)
+    if success:
+        return JSONResponse({"status": "deleted", "job_id": job_id})
+    return JSONResponse({"status": "not_found"}, status_code=404)
 
 
 @app.post("/api/synthesize-keywords/approve")

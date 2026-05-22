@@ -236,6 +236,9 @@
   <div class="nav-item" onclick="showTab('kwanalysis', this)">
     <span class="nav-icon">📊</span> Keyword Analysis
   </div>
+  <div class="nav-item" onclick="showTab('kwsynthesis', this)">
+    <span class="nav-icon">✨</span> Synthesis Jobs
+  </div>
   <div class="nav-item" onclick="showTab('facts', this)">
     <span class="nav-icon">🔎</span> Facts Explorer
   </div>
@@ -492,8 +495,24 @@
     </div>
   </div>
 
+  <!-- KEYWORD SYNTHESIS JOBS -->
+  <div id="kwsynthesis" class="section">
+    <h2>✨ Keyword Synthesis Jobs</h2>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div style="font-size:0.9em;color:#666;">
+          <span id="synth-jobs-count">0 jobs</span> | Click on a job to view results
+        </div>
+        <button class="btn btn-red" onclick="clearOldSynthJobs()">🧹 Clear Completed (>24h)</button>
+      </div>
+    </div>
+    <div id="synthesis-jobs-list">
+      <p style="color:#666;text-align:center;padding:40px;">Click “✨ Synthesize Selected” in Keyword Analysis to start a synthesis job.</p>
+    </div>
+  </div>
+
   <!-- SYNTHESIS REVIEW MODAL -->
-  <div class="modal-overlay" id="synth-modal" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-overlay" id="synth-modal" style="display:none;">
     <div class="modal" style="max-width:760px;width:92%;max-height:88vh;display:flex;flex-direction:column;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <h3 style="margin:0;">✨ Keyword Synthesis Review</h3>
@@ -1121,6 +1140,7 @@ function showTab(name, el) {
   if (name === 'facts') loadFacts();
   if (name === 'questions') loadQuestions();
   if (name === 'kwanalysis') { loadKeywordAnalysis(); loadKeywordTODO(); }
+  if (name === 'kwsynthesis') loadSynthesisJobs();
   if (name === 'discovered') loadDiscoveredURLs();
   if (name === 'indexrebuild') loadIndexSummary();
 }
@@ -2464,6 +2484,96 @@ async function approveSynthesizedKeywords() {
   } else {
     alert('Failed to add keywords to TODO.');
   }
+}
+
+// ── Synthesis Jobs ──
+async function loadSynthesisJobs() {
+  const res = await fetch('/api/synthesize-keywords/jobs');
+  const data = await res.json();
+  
+  document.getElementById('synth-jobs-count').textContent = `${data.total} jobs`;
+  const container = document.getElementById('synthesis-jobs-list');
+  
+  if (!data.jobs || data.jobs.length === 0) {
+    container.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">Click "✨ Synthesize Selected" in Keyword Analysis to start a synthesis job.</p>';
+    return;
+  }
+  
+  const statusLabels = {
+    queued: '⏳ Queued',
+    scraping: '🔄 Scraping',
+    enriching: '🧠 Enriching',
+    analyzing: '✨ Analyzing',
+    done: '✅ Complete',
+    error: '❌ Error'
+  };
+  
+  container.innerHTML = data.jobs.map(job => {
+    const created = new Date(job.created_at).toLocaleString();
+    const completed = job.completed_at ? new Date(job.completed_at).toLocaleString() : null;
+    const keywords = job.keywords.join(', ');
+    const resultCount = job.results ? job.results.reduce((acc, r) => acc + (r.suggested ? r.suggested.length : 0), 0) : 0;
+    
+    return `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-weight:600;margin-bottom:4px;">${statusLabels[job.status] || job.status} <span style="font-size:0.8em;color:#666;font-weight:normal;">(${job.id})</span></div>
+          <div style="font-size:0.85em;color:#444;margin-bottom:8px;">${keywords}</div>
+          <div style="font-size:0.8em;color:#666;">
+            🕐 ${created}
+            ${completed ? ` | ✅ ${completed}` : ''}
+            ${job.status === 'done' ? ` | <strong>${resultCount}</strong> keywords suggested` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          ${job.status === 'done' ? 
+            `<button class="btn btn-green" onclick="viewSynthesisResults('${job.id}')" style="font-size:0.85em;padding:6px 12px;">👀 View</button>`
+            : ''}
+          <button class="btn btn-red" onclick="deleteSynthesisJob('${job.id}')" style="font-size:0.85em;padding:6px 12px;">🗑 Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function viewSynthesisResults(jobId) {
+  const res = await fetch(`/api/synthesize-keywords/status/${jobId}`);
+  const job = await res.json();
+  
+  if (!job || !job.results) {
+    alert('Job results not found');
+    return;
+  }
+  
+  // Store in currentSynthesisResults for approveSynthesizedKeywords
+  currentSynthesisResults = job.results;
+  
+  // Show modal with results
+  document.getElementById('synth-modal').style.display = 'flex';
+  document.getElementById('synth-progress').style.display = 'none';
+  document.getElementById('synth-results').style.display = 'block';
+  document.getElementById('synth-status-text').textContent = 'Synthesis Results';
+  
+  renderSynthesisResults(job.results);
+}
+
+async function deleteSynthesisJob(jobId) {
+  if (!confirm('Delete this synthesis job?')) return;
+  
+  const res = await fetch(`/api/synthesize-keywords/jobs/${jobId}`, { method: 'DELETE' });
+  if (res.ok) {
+    loadSynthesisJobs();
+  } else {
+    alert('Failed to delete job');
+  }
+}
+
+async function clearOldSynthJobs() {
+  if (!confirm('Clear all completed jobs older than 24 hours?')) return;
+  
+  // This will be implemented on backend
+  alert('Feature coming soon: auto-clear old jobs');
 }
 
 // ── Keyword TODO List ──
