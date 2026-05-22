@@ -761,7 +761,8 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
     from db import get_con
     from llm_enricher import call_ollama
 
-    synth_queue.update_job(job_id, status="scraping")
+    try:
+        synth_queue.update_job(job_id, status="scraping")
 
     con = get_con()
 
@@ -894,8 +895,11 @@ Return ONLY valid JSON in this format:
 
     con.close()
 
-    synth_queue.update_job(job_id, status="done", results=results, completed_at=datetime.now().isoformat())
-    logger.info(f"[Synthesis {job_id}] Complete. {len(results)} keywords analyzed.")
+        synth_queue.update_job(job_id, status="done", results=results, completed_at=datetime.now().isoformat())
+        logger.info(f"[Synthesis {job_id}] Complete. {len(results)} keywords analyzed.")
+    except Exception as e:
+        logger.error(f"[Synthesis {job_id}] Error: {e}")
+        synth_queue.update_job(job_id, status="error", error=str(e))
 
 
 @app.get("/api/synthesize-keywords/status/{job_id}")

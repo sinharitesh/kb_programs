@@ -2363,30 +2363,19 @@ function toggleSelectAllKeywords() {
 
 async function synthesizeSelectedKeywords() {
   const selected = [...document.querySelectorAll('.kw-select-cb:checked')].map(cb => decodeURIComponent(cb.dataset.keyword));
-  if (selected.length === 0) {
-    alert('Please select at least one keyword to synthesize.');
-    return;
-  }
+  if (selected.length === 0) { alert('Please select at least one keyword to synthesize.'); return; }
 
-  // Show progress modal immediately
-  document.getElementById('synth-modal').style.display = 'flex';
-  document.getElementById('synth-progress').style.display = 'block';
-  document.getElementById('synth-results').style.display = 'none';
-  document.getElementById('synth-status-text').textContent = `Starting synthesis for ${selected.length} keyword(s)...`;
-
+  // Start synthesis in background
   const resp = await fetch('/api/synthesize-keywords', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ keywords: selected })
   });
 
-  if (!resp.ok) {
-    document.getElementById('synth-status-text').textContent = 'Failed to start synthesis.';
-    return;
-  }
+  if (!resp.ok) { alert('Failed to start synthesis.'); return; }
 
   const { job_id } = await resp.json();
-  pollSynthesisStatus(job_id);
+  alert(`✅ Synthesis started! Job ID: ${job_id}\n\nGo to "✨ Synthesis Jobs" tab to view progress and results.`);
 }
 
 async function pollSynthesisStatus(job_id) {
@@ -2501,10 +2490,10 @@ async function loadSynthesisJobs() {
   
   const statusLabels = {
     queued: '⏳ Queued',
-    scraping: '🔄 Scraping',
-    enriching: '🧠 Enriching',
-    analyzing: '✨ Analyzing',
-    done: '✅ Complete',
+    scraping: '🔄 Collecting URLs',
+    enriching: '📚 Enriching content',
+    analyzing: '🧠 AI Synthesizing',
+    done: '✅ Synthesis Complete',
     error: '❌ Error'
   };
   
