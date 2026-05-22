@@ -846,8 +846,16 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
 
         if not facts_rows:
             logger.warning(f"[Synthesis {job_id}] No facts found for keyword: {keyword}")
-            results.append({"keyword": keyword, "suggested": [], "error": "No enriched content found"})
+            results.append({"keyword": keyword, "suggested": [], "error": "No enriched content found", "urls": []})
             continue
+
+        # Collect unique URLs with their titles for display
+        urls_used = []
+        seen_urls = set()
+        for r in facts_rows:
+            if r[2] not in seen_urls:  # r[2] is the URL
+                seen_urls.add(r[2])
+                urls_used.append({"url": r[2], "title": r[1]})
 
         facts_text = "\n".join([f"- {r[0]} (from: {r[1]})" for r in facts_rows])
 
@@ -886,7 +894,8 @@ Return ONLY valid JSON in this format:
         results.append({
             "keyword": keyword,
             "suggested": suggested,
-            "facts_count": len(facts_rows)
+            "facts_count": len(facts_rows),
+            "urls": urls_used
         })
 
     con.close()

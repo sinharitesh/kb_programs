@@ -2404,6 +2404,14 @@ function renderSynthesisResults(results) {
         <span style="font-size:0.8em;color:#666;font-weight:normal;margin-left:8px;">${r.facts_count || 0} facts found</span>
       </div>`;
 
+    // Show URLs used for this keyword
+    if (r.urls && r.urls.length > 0) {
+      html += `<div style="margin:8px 0 12px 0;font-size:0.82em;">
+        <span style="color:#666;">📚 Sources:</span>
+        ${r.urls.map((u, i) => `<a href="${u.url}" target="_blank" style="color:#1a73e8;margin-left:8px;" title="${u.title}">[${i+1}]</a>`).join('')}
+      </div>`;
+    }
+
     if (r.error) {
       html += `<p style="color:#d93025;font-size:0.9em;">${r.error}</p>`;
     } else if (r.suggested && r.suggested.length > 0) {
