@@ -1093,12 +1093,12 @@ async function loadHighPotentialKeywords() {
   const resp = await fetch('/analysis/keywords/high-potential?' + params.toString());
   const data = await resp.json();
   
+  document.getElementById('ka-hp-count').textContent = `(${data.total} found)${category ? ' in ' + category : ''}${search ? ' matching "' + search + '"' : ''}`;
   renderHighPotentialKeywords(data);
 }
 
 function renderHighPotentialKeywords(data) {
   const container = document.getElementById('ka-high-potential');
-  document.getElementById('ka-hp-count').textContent = data.total ? `(${data.total} found)` : '';
   
   if (!data.keywords || data.keywords.length === 0) {
     container.innerHTML = '<p style="color:#666;padding:20px;text-align:center;">No keywords match your filters. Try adjusting minimum sources or search.</p>';
