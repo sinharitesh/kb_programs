@@ -160,7 +160,7 @@ def save_to_duckdb(topic: str, category: str, data: dict):
     if discovered_urls:
         print(f"[KW] Discovered {len(discovered_urls)} URLs (manual selection required)")
         # URLs stored in keyword_intelligence table for user to review and select
-    path = KB_ROOT / "wiki" / category_path
+    path = KB_ROOT / "wiki" / category
     path.mkdir(parents=True, exist_ok=True)
     filepath = path / "keyword_intelligence.md"
 
