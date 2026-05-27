@@ -59,6 +59,22 @@ Return ONLY a valid JSON object:
 }}
 """
 
+def calc_quality(enriched, scrape_result, verified):
+    "Calculate quality score (0-10) from measurable metrics"
+    word_count = scrape_result.get("word_count", 0)
+    facts = len(enriched.get("facts", []))
+    tags = len(enriched.get("tags", []))
+    cross_refs = len(enriched.get("cross_refs", []))
+    entities = len(enriched.get("entities", []))
+    verified_count = sum(1 for v in verified.values() if v.get("verified"))
+    wscore = 0 if word_count < 200 else 0.5 if word_count < 500 else 1 if word_count < 2000 else 2
+    fscore = min(3, facts)
+    tscore = min(2, tags)
+    cscore = min(1, cross_refs)
+    vscore = min(1, verified_count)
+    escore = min(1, entities)
+    return wscore + fscore + tscore + cscore + vscore + escore
+
 # ── Ollama Caller ──────────────────────────────────────────────
 def call_ollama(prompt: str) -> str:
     payload = {
@@ -208,7 +224,7 @@ def enrich(scrape_result: dict, user_category: str = None) -> dict:
         "tags": merged.get("tags", []),
         "entities": merged.get("entities", []),
         "cross_refs": merged.get("cross_refs", []),
-        "quality_score": merged.get("quality_score", 0),
+        "quality_score": calc_quality(merged, scrape_result, verified),
         "sections": section_results,  # keep all section details
         "images": scrape_result.get("images", []),
         "raw_file": scrape_result.get("raw_file", ""),
