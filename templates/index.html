@@ -1472,13 +1472,29 @@ async function analyzeKeywords() {
   if (!topic.trim()) { alert('Please enter a topic first.'); return; }
   status.style.display = 'block';
   status.textContent = `⏳ Analyzing keywords for "${topic}" in [${category}]...`;
+  status.style.color = '#1a73e8';
   const fd = new FormData();
   fd.append('topic', topic);
   fd.append('category', category);
-  const res = await fetch('/keywords/analyze', {method: 'POST', body: fd});
-  const data = await res.json();
-  status.textContent = `✅ Done! Results saved to DuckDB.`;
-  renderKeywords(data);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
+  try {
+    const res = await fetch('/keywords/analyze', {method: 'POST', body: fd, signal: controller.signal});
+    clearTimeout(timeout);
+    const data = await res.json();
+    if (data.error) {
+      status.textContent = `❌ Error: ${data.error}`;
+      status.style.color = '#d93025';
+      return;
+    }
+    status.textContent = `✅ Done! Results saved to DuckDB.`;
+    status.style.color = '#155724';
+    renderKeywords(data);
+  } catch (e) {
+    clearTimeout(timeout);
+    status.textContent = e.name === 'AbortError' ? '❌ Request timed out (60s). Please try a simpler query.' : `❌ Error: ${e.message}`;
+    status.style.color = '#d93025';
+  }
 }
 
 function renderKeywords(data) {
