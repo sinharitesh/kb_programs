@@ -784,7 +784,7 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
         for r in rows:
             all_urls.append({"url": r[0], "category": r[1] or "general", "keyword": keyword})
 
-    synth_queue.update_job(job_id, urls_found=[u["url"] for u in all_urls], urls_skipped=[u["url"] for u in enriched_urls])
+    synth_queue.update_job(job_id, urls_found=[u["url"] for u in all_urls])
     logger.info(f"[Synthesis {job_id}] Found {len(all_urls)} URLs for {len(keywords)} keywords")
 
     # Step 2: queue each URL for scraping (skip if already enriched)
@@ -809,6 +809,8 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
                 discovery_source="synthesis"
             )
             job_ids[scrape_job_id] = item
+
+    synth_queue.update_job(job_id, urls_skipped=[u["url"] for u in enriched_urls])
 
     # Step 3: wait for all scrape jobs to complete (max 5 min)
     synth_queue.update_job(job_id, status="enriching", urls_processed=[results_store.get(jid, {}).get("url") for jid in job_ids if results_store.get(jid, {}).get("status") == "done"])
