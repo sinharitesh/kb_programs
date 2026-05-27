@@ -2381,17 +2381,21 @@ async function synthesizeSelectedKeywords() {
   const selected = [...document.querySelectorAll('.kw-select-cb:checked')].map(cb => decodeURIComponent(cb.dataset.keyword));
   if (selected.length === 0) { alert('Please select at least one keyword to synthesize.'); return; }
 
-  // Start synthesis in background
-  const resp = await fetch('/api/synthesize-keywords', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords: selected })
-  });
+  try {
+    const resp = await fetch('/api/synthesize-keywords', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keywords: selected })
+    });
 
-  if (!resp.ok) { alert('Failed to start synthesis.'); return; }
+    if (!resp.ok) { alert('Failed to start synthesis.'); return; }
 
-  const { job_id } = await resp.json();
-  alert(`✅ Synthesis started! Job ID: ${job_id}\n\nGo to "✨ Synthesis Jobs" tab to view progress and results.`);
+    const { job_id } = await resp.json();
+    alert(`✅ Synthesis started! Job ID: ${job_id}\n\nGo to "✨ Synthesis Jobs" tab to view progress and results.`);
+  } catch (e) {
+    console.error('Synthesis error:', e);
+    alert('❌ Error: ' + e.message);
+  }
 }
 
 async function pollSynthesisStatus(job_id) {
