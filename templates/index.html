@@ -3009,11 +3009,11 @@ async function loadGeneratedArticles() {
           <div>
             <strong style="font-size:1.1em;">${a.title}</strong>
             <p style="margin:4px 0;color:#666;font-size:0.9em;">
-              ${a.focus_keyphrase} | ${a.language} | ${a.word_count} words | SEO: ${a.seo_score}/100
+              ${a.focus_keyphrase ? a.focus_keyphrase + ' | ' : ''}${a.language || ''} | ${a.word_count || 0} words | SEO: ${a.seo_score}/100
             </p>
-            <p style="margin:0;color:#888;font-size:0.85em;">Saved: ${new Date(a.saved_at).toLocaleString()}</p>
+            <p style="margin:0;color:#888;font-size:0.85em;">Generated: ${a.generated_at ? new Date(a.generated_at).toLocaleString() : 'N/A'}</p>
           </div>
-          <button class="btn btn-grey" onclick="downloadArticle('${a.file_path}')">Download</button>
+          <button class="btn btn-grey" onclick="downloadArticle('${a.file}')">Download</button>
         </div>
       </div>
     `).join('');

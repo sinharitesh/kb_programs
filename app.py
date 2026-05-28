@@ -1333,7 +1333,10 @@ async def api_list_articles():
                     "category": meta.get("category", ""),
                     "seo_score": int(meta.get("seo_score", 0)),
                     "generated_at": meta.get("generated_at", ""),
-                    "slug": meta.get("slug", "")
+                    "slug": meta.get("slug", ""),
+                    "language": meta.get("language", ""),
+                    "word_count": int(meta.get("word_count", 0)),
+                    "focus_keyphrase": meta.get("focus_keyphrase", "")
                 })
         except Exception:
             continue

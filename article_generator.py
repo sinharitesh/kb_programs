@@ -458,6 +458,10 @@ title: "{settings.get('title', context['idea'])}"
 slug: {slug}
 category: {category}
 seo_score: {seo_data.get('seo_score', 0)}
+generated_at: "{datetime.now().isoformat()}"
+language: "{settings.get('language', 'en')}"
+word_count: {len(article_md.split())}
+focus_keyphrase: "{settings.get('focus_keyphrase', '')}"
 tags: {json.dumps(seo_data.get('tags', []))}
 seo_title: "{seo_data.get('seo_title', '')}"
 meta_description: "{seo_data.get('meta_description', '')}"
