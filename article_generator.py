@@ -224,11 +224,15 @@ def gather_wiki_context(category: str, search_phrases: list = None, max_chars: i
 def gather_all_context(idea: str, category: str, search_phrases: list = None,
                        fact_limit: int = 7, question_limit: int = 7) -> dict:
     """Master context gathering function."""
+    # Build search phrases from idea + user phrases for relevance filtering
+    idea_words = [w.strip() for w in idea.split() if len(w) > 3]
+    all_phrases = list(idea_words)
+    if search_phrases: all_phrases.extend(search_phrases)
     # Gather facts
-    facts = gather_facts(category, search_phrases, fact_limit)
+    facts = gather_facts(category, all_phrases, fact_limit)
 
     # Gather questions and find answers
-    questions = gather_questions(category, search_phrases, question_limit)
+    questions = gather_questions(category, all_phrases, question_limit)
     for q in questions:
         ans = find_answer(q["question"], category)
         q["answer"] = ans["answer"]
