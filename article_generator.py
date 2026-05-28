@@ -57,7 +57,7 @@ def gather_facts(category: str = "", search_phrases: list = None, limit: int = 7
 
 
 def gather_questions(category: str = "", search_phrases: list = None, limit: int = 7) -> list:
-    """Gather top questions from DuckDB, filtered by text search within category."""
+    """Gather top questions from DuckDB, filtered by text search and category."""
     con = get_con()
     results = []
 
@@ -68,16 +68,32 @@ def gather_questions(category: str = "", search_phrases: list = None, limit: int
             rows = con.execute("""
                 SELECT id, category, keyphrase, question, source
                 FROM questions_research
-                WHERE question ILIKE ? AND category ILIKE ?
+                WHERE question ILIKE ? OR keyphrase ILIKE ?
                 ORDER BY id DESC
                 LIMIT ?
-            """, [f"%{phrase}%", f"%{category}%", max(3, limit // 2)]).fetchall()
+            """, [f"%{phrase}%", f"%{phrase}%", max(5, limit)]).fetchall()
             for r in rows:
                 if not any(x["id"] == r[0] for x in results):
                     results.append({
                         "id": r[0], "category": r[1], "keyphrase": r[2],
                         "question": r[3], "source": r[4], "match": f"search:{phrase}"
                     })
+
+    # Also include category-matched questions
+    if category:
+        rows = con.execute("""
+            SELECT id, category, keyphrase, question, source
+            FROM questions_research
+            WHERE category ILIKE ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, [f"%{category}%", limit]).fetchall()
+        for r in rows:
+            if not any(x["id"] == r[0] for x in results):
+                results.append({
+                    "id": r[0], "category": r[1], "keyphrase": r[2],
+                    "question": r[3], "source": r[4], "match": "category"
+                })
 
     con.close()
     logger.info(f"Gathered {len(results[:limit])} questions (category={category}, phrases={search_phrases})")

@@ -346,12 +346,17 @@ def process_scrape_result(scrape_result: dict, user_category: str = None, discov
             summary=enriched.get("summary", ""),
             tags=", ".join(enriched.get("tags", []))
         )
+        log(f"[Questions] Generating for: {enriched.get('title', '')[:60]}")
         q_raw = call_ollama(q_prompt)
+        log(f"[Questions] LLM response: {q_raw[:120]}")
         q_parsed = extract_json(q_raw)
+        log(f"[Questions] Parsed: {q_parsed}")
         if "questions" in q_parsed and q_parsed["questions"]:
             _save_enrichment_questions(enriched.get("title", ""), user_category or enriched.get("category_path", "uncategorized"), q_parsed["questions"])
-    except Exception: pass
-    
+        else:
+            log(f"[Questions] No questions in response: {q_parsed}")
+    except Exception as e:
+        log(f"[Questions] Error: {e}")
     from db import register_url
     url_id = register_url(
         url=scrape_result["url"],
