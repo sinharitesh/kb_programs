@@ -1328,7 +1328,7 @@ async def api_list_articles():
                         k, v = line.split(":", 1)
                         meta[k.strip()] = v.strip().strip('"')
                 articles.append({
-                    "file": str(md_file.relative_to(gen_root)),
+                    "file": str(md_file.relative_to(gen_root)).replace("\\", "/"),
                     "title": meta.get("title", md_file.stem),
                     "category": meta.get("category", ""),
                     "seo_score": int(meta.get("seo_score", 0)),
@@ -1349,6 +1349,14 @@ async def read_article_file(path: str):
     full_path = Path(r"C:\knowledge-base") / "generated_articles" / path
     if not full_path.exists(): return JSONResponse({"error": "File not found"}, status_code=404)
     return JSONResponse({"content": full_path.read_text(encoding="utf-8")})
+
+@app.get("/articles/download")
+async def download_article_file(path: str):
+    """Download a generated article as raw .md file."""
+    from fastapi.responses import FileResponse
+    full_path = Path(r"C:\knowledge-base") / "generated_articles" / path
+    if not full_path.exists(): return JSONResponse({"error": "File not found"}, status_code=404)
+    return FileResponse(full_path, media_type="text/markdown", filename=full_path.name)
 
 @app.post("/articles/save")
 async def save_article_file(path: str = Form(...), content: str = Form(...)):
