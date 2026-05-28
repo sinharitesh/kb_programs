@@ -2779,20 +2779,28 @@ async function gatherArticleContext() {
       const synthRes = await fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea));
       const synthData = await synthRes.json();
       gatheredContext.synthesized_keywords = synthData.keywords || [];
-      document.getElementById('ag-synthkw-count').textContent = `(${gatheredContext.synthesized_keywords.length})`;
-      if (gatheredContext.synthesized_keywords.length) {
-        let flatIdx = 0, html = '';
-        gatheredContext.synthesized_keywords.forEach((kw, i) => {
-          html += `<div style="margin-bottom:6px;font-size:0.8em;color:#888;">from <strong>${kw.keyword}</strong> (${kw.category||''}):</div>`;
-          (kw.suggested || []).slice(0, 8).forEach(s => {
-            const skw = typeof s === 'string' ? s : s.keyword;
-            const intent = typeof s === 'object' ? s.intent : '';
-            html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;margin-left:8px;font-size:0.88em;cursor:pointer;">
-              <input type="checkbox" id="ag-skw-${flatIdx}" value="${flatIdx}" ${flatIdx < 7 ? 'checked' : ''} style="margin-top:2px;">
-              <span>${skw} ${intent ? `<span style="color:#888;font-size:0.8em;">(${intent})</span>` : ''}</span>
-            </label>`;
-            flatIdx++;
-          });
+      
+      // Score each suggested keyword by keyword match density from idea
+      let ideaWords = idea.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      let flatList = [];
+      (synthData.keywords || []).forEach(kw => {
+        (kw.suggested || []).forEach(s => {
+          let skw = typeof s === 'string' ? s : s.keyword;
+          let score = ideaWords.filter(w => skw.toLowerCase().includes(w)).length;
+          flatList.push({ keyword: skw, intent: typeof s === 'object' ? s.intent : '', sourceKw: kw.keyword, category: kw.category, score });
+        });
+      });
+      flatList.sort((a, b) => b.score - a.score);
+      
+      document.getElementById('ag-synthkw-count').textContent = `(${flatList.length})`;
+      if (flatList.length) {
+        let html = '';
+        flatList.forEach((s, i) => {
+          html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">
+            <input type="checkbox" id="ag-skw-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
+            <span>${s.keyword} ${s.intent ? `<span style="color:#888;font-size:0.8em;">(${s.intent})</span>` : ''}
+            <small style="color:#aaa;"> · from ${s.sourceKw} · score:${s.score}</small></span>
+          </label>`;
         });
         synthDiv.innerHTML = html;
       }
@@ -2829,12 +2837,14 @@ async function generateArticle() {
   gatheredContext.questions?.forEach((q, i) => {
     if (document.getElementById(`ag-q-${i}`)?.checked) selectedQuestions.push(q);
   });
-  gatheredContext.synthesized_keywords?.forEach((kw, i) => {
-    (kw.suggested || []).forEach((s, j) => {
-      const flatIdx = gatheredContext.synthesized_keywords.slice(0, i).reduce((acc, k) => acc + (k.suggested||[]).length, 0) + j;
+  let flatIdx = 0;
+  gatheredContext.synthesized_keywords?.forEach(kw => {
+    (kw.suggested || []).forEach(s => {
+      const skw = typeof s === 'string' ? s : s.keyword;
       if (document.getElementById(`ag-skw-${flatIdx}`)?.checked) {
-        selectedSynthesizedKeywords.push({...kw, selected_suggestion: s});
+        selectedSynthesizedKeywords.push({keyword: skw, source: kw.keyword, category: kw.category});
       }
+      flatIdx++;
     });
   });
   
