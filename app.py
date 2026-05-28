@@ -1217,6 +1217,33 @@ from article_generator import gather_all_context, generate_article
 import hashlib
 article_jobs = {}  # job_id → result
 
+
+# ── Keyword Intelligence for Article Generator ──
+@app.get("/api/keyword-intelligence/for-topic")
+async def get_keyword_intelligence_for_topic(topic: str, limit: int = 30):
+    """Get keyword intelligence items (DDG facts, Google suggestions) relevant to a topic."""
+    from db import get_con
+    con = get_con()
+    words = [w.strip() for w in topic.split() if len(w.strip()) > 2]
+    if not words: return JSONResponse({"items": []})
+    where_sqls = ["keyword ILIKE ?" for _ in words]
+    params = [f"%{w}%" for w in words]
+    rows = con.execute(f"""
+        SELECT DISTINCT keyword, source, notes, topic, category, score, analyzed_at
+        FROM keyword_intelligence
+        WHERE {" OR ".join(where_sqls)}
+        ORDER BY score DESC, analyzed_at DESC
+        LIMIT ?
+    """, params + [limit]).fetchall()
+    con.close()
+    items = []
+    for r in rows:
+        text = r[0]  # keyword
+        if r[1] == 'ddg_facts' and r[2]: text = r[0][:200] + ('...' if len(r[0]) > 200 else '')
+        items.append(dict(text=text[:150], source=r[1], url=r[2] if r[2] and r[2].startswith('http') else None,
+                          topic=r[3], category=r[4], score=r[5]))
+    return JSONResponse({"items": items})
+
 @app.post("/articles/gather-context")
 async def api_gather_context(req: GatherContextRequest):
     """Gather facts, questions, and wiki context for article generation."""
