@@ -27,25 +27,7 @@ def gather_facts(category: str = "", search_phrases: list = None, limit: int = 7
     con = get_con()
     results = []
 
-    # By category
-    if category:
-        rows = con.execute("""
-            SELECT f.id, f.fact, f.verified, f.source,
-                   r.title as source_title, r.url as source_url
-            FROM facts f
-            JOIN url_registry r ON r.id = f.url_id
-            JOIN url_paths p ON p.url_id = r.id
-            WHERE p.path ILIKE ?
-            ORDER BY f.verified DESC, f.id DESC
-            LIMIT ?
-        """, [f"%{category}%", limit * 2]).fetchall()
-        for r in rows:
-            results.append({
-                "id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
-                "source_title": r[4], "source_url": r[5], "match": "category"
-            })
-
-    # By text search, scoped to the same category
+    # By text search, scoped to the category
     if search_phrases:
         for phrase in search_phrases:
             phrase = phrase.strip()
@@ -75,36 +57,21 @@ def gather_facts(category: str = "", search_phrases: list = None, limit: int = 7
 
 
 def gather_questions(category: str = "", search_phrases: list = None, limit: int = 7) -> list:
-    """Gather top questions from DuckDB, filtered by category and/or text search."""
+    """Gather top questions from DuckDB, filtered by text search within category."""
     con = get_con()
     results = []
-
-    if category:
-        rows = con.execute("""
-            SELECT id, category, keyphrase, question, source
-            FROM questions_research
-            WHERE category ILIKE ?
-            ORDER BY id DESC
-            LIMIT ?
-        """, [f"%{category}%", limit * 2]).fetchall()
-        for r in rows:
-            results.append({
-                "id": r[0], "category": r[1], "keyphrase": r[2],
-                "question": r[3], "source": r[4], "match": "category"
-            })
 
     if search_phrases:
         for phrase in search_phrases:
             phrase = phrase.strip()
-            if not phrase:
-                continue
+            if not phrase or len(phrase) < 3: continue
             rows = con.execute("""
                 SELECT id, category, keyphrase, question, source
                 FROM questions_research
-                WHERE question ILIKE ?
+                WHERE question ILIKE ? AND category ILIKE ?
                 ORDER BY id DESC
                 LIMIT ?
-            """, [f"%{phrase}%", limit]).fetchall()
+            """, [f"%{phrase}%", f"%{category}%", max(3, limit // 2)]).fetchall()
             for r in rows:
                 if not any(x["id"] == r[0] for x in results):
                     results.append({
