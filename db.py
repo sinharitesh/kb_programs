@@ -411,12 +411,24 @@ def deduplicate_urls():
     con.close()
     return deleted
 
+def deduplicate_keyword_intelligence():
+    "Remove duplicates from keyword_intelligence (same keyword+source+notes)"
+    con = get_con()
+    deleted = con.execute("""
+        DELETE FROM keyword_intelligence WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM keyword_intelligence GROUP BY keyword, source, notes
+        )
+    """).rowcount
+    con.close()
+    return deleted
+
 def deduplicate_all():
     "Run all deduplication and return counts"
     return dict(
         facts=deduplicate_facts(),
         questions=deduplicate_questions(),
         synthesized_keywords=deduplicate_synthesized_keywords(),
+        keyword_intelligence=deduplicate_keyword_intelligence(),
         urls=deduplicate_urls(),
         orphans=cleanup_orphans()
     )

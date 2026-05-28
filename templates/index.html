@@ -237,7 +237,7 @@
     <span class="nav-icon">📊</span> Keyword Analysis
   </div>
   <div class="nav-item" onclick="showTab('kwsynthesis', this)">
-    <span class="nav-icon">✨</span> Synthesis Jobs
+    <span class="nav-icon">✨</span> Keyword Synthesis History
   </div>
   <div class="nav-item" onclick="showTab('facts', this)">
     <span class="nav-icon">🔎</span> Facts Explorer
@@ -494,7 +494,7 @@
 
   <!-- KEYWORD SYNTHESIS JOBS -->
   <div id="kwsynthesis" class="section">
-    <h2>✨ Keyword Synthesis Jobs</h2>
+    <h2>✨ Keyword Synthesis History</h2>
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <div style="font-size:0.9em;color:#666;">
@@ -1860,7 +1860,7 @@ async function deduplicateAll() {
   if (!confirm('Remove duplicate facts, questions, synthesized keywords, and URLs? This keeps the oldest entry for each.')) return;
   const res = await fetch('/db/deduplicate', {method: 'POST'});
   const d = await res.json();
-  alert(`✅ Deduplication done:\n- Facts: ${d.facts} removed\n- Questions: ${d.questions} removed\n- Synth Keywords: ${d.synthesized_keywords} removed\n- URLs: ${d.urls} removed\n- Orphans: ${d.orphans.orphan_facts_deleted} facts, ${d.orphans.orphan_paths_deleted} paths`);
+  alert(`✅ Deduplication done:\n- Facts: ${d.facts} removed\n- Questions: ${d.questions} removed\n- Synth Keywords: ${d.synthesized_keywords} removed\n- KW Intelligence: ${d.keyword_intelligence} removed\n- URLs: ${d.urls} removed\n- Orphans: ${d.orphans.orphan_facts_deleted} facts, ${d.orphans.orphan_paths_deleted} paths`);
   loadIndexSummary();
 }
 
