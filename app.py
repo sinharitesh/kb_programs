@@ -1343,6 +1343,21 @@ async def api_list_articles():
     articles.sort(key=lambda x: x.get("generated_at", ""), reverse=True)
     return JSONResponse({"articles": articles})
 
+@app.get("/articles/file")
+async def read_article_file(path: str):
+    """Read a generated article .md file."""
+    full_path = Path(r"C:\knowledge-base") / "generated_articles" / path
+    if not full_path.exists(): return JSONResponse({"error": "File not found"}, status_code=404)
+    return JSONResponse({"content": full_path.read_text(encoding="utf-8")})
+
+@app.post("/articles/save")
+async def save_article_file(path: str = Form(...), content: str = Form(...)):
+    """Save content back to a generated article .md file."""
+    full_path = Path(r"C:\knowledge-base") / "generated_articles" / path
+    if not full_path.exists(): return JSONResponse({"error": "File not found"}, status_code=404)
+    full_path.write_text(content, encoding="utf-8")
+    return JSONResponse({"status": "saved"})
+
 @app.post("/articles/cache-input")
 async def api_cache_input(req: CacheInputRequest):
     """Cache Central Idea, Keyphrases, and Search Phrases for future use."""

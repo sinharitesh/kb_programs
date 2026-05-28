@@ -3004,16 +3004,14 @@ async function loadGeneratedArticles() {
     }
     
     div.innerHTML = data.articles.map(a => `
-      <div class="card" style="border-left:4px solid #1a73e8;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <strong style="font-size:1.1em;">${a.title}</strong>
-            <p style="margin:4px 0;color:#666;font-size:0.9em;">
-              ${a.focus_keyphrase ? a.focus_keyphrase + ' | ' : ''}${a.language || ''} | ${a.word_count || 0} words | SEO: ${a.seo_score}/100
-            </p>
-            <p style="margin:0;color:#888;font-size:0.85em;">Generated: ${a.generated_at ? new Date(a.generated_at).toLocaleString() : 'N/A'}</p>
-          </div>
-          <button class="btn btn-grey" onclick="downloadArticle('${a.file}')">Download</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e0e0e0;font-size:0.9em;gap:8px;">
+        <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${a.title}">${a.title}</div>
+        <div style="color:#666;font-size:0.8em;flex-shrink:0;">${a.focus_keyphrase || ''} · ${a.word_count||0}w · SEO ${a.seo_score}/100</div>
+        <div style="color:#888;font-size:0.78em;flex-shrink:0;">${a.generated_at ? new Date(a.generated_at).toLocaleDateString() : ''}</div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticle('${a.file}')">👁 View</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="editArticle('${a.file}')">✏️ Edit</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
         </div>
       </div>
     `).join('');
@@ -3023,7 +3021,40 @@ async function loadGeneratedArticles() {
 }
 
 function downloadArticle(path) {
-  window.open('/articles/download?path=' + encodeURIComponent(path), '_blank');
+  window.open('/articles/file?path=' + encodeURIComponent(path), '_blank');
+}
+
+async function viewArticle(path) {
+  const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+  const data = await res.json();
+  if (data.content) {
+    document.getElementById('wiki-modal-title').textContent = '📄 ' + path;
+    document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(data.content);
+    document.getElementById('wiki-file-modal').style.display = 'flex';
+    wikiModalShowRendered();
+    currentWikiPath = path;
+  }
+}
+
+async function editArticle(path) {
+  const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+  const data = await res.json();
+  if (data.content) {
+    document.getElementById('wiki-modal-title').textContent = '✏️ ' + path;
+    document.getElementById('wiki-modal-raw').value = data.content;
+    document.getElementById('wiki-file-modal').style.display = 'flex';
+    wikiModalShowRaw();
+    currentWikiPath = path;
+    document.getElementById('wiki-modal-save-btn').onclick = async () => {
+      const fd = new FormData();
+      fd.append('path', path);
+      fd.append('content', document.getElementById('wiki-modal-raw').value);
+      await fetch('/articles/save', {method: 'POST', body: fd});
+      alert('✅ Saved');
+      wikiModalShowRendered();
+      loadGeneratedArticles();
+    };
+  }
 }
 
 
