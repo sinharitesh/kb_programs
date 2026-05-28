@@ -41,6 +41,19 @@ Return ONLY a valid JSON object:
 }}
 """
 
+QUESTIONS_PROMPT = """You are a research assistant. Based on this article, generate 5-7 thoughtful questions that a reader might ask.
+
+Title: {title}
+Summary: {summary}
+Tags: {tags}
+
+Return ONLY a valid JSON object:
+{{
+  "questions": ["question 1", "question 2", "question 3", "question 4", "question 5"]
+}}
+"""
+
+
 MERGE_PROMPT = """You are a knowledge base assistant. Below are enriched sections of an article.
 Merge them into one coherent, comprehensive knowledge base entry.
 
@@ -308,12 +321,35 @@ def update_indexes(enriched: dict):
         f.write(xref_entry + "\n")
 
 # ── Full Pipeline ──────────────────────────────────────────────
+def _save_enrichment_questions(title, category, questions):
+    from db import get_con
+    con = get_con()
+    keyphrase = title[:100]
+    rows = [(category, keyphrase, q, "llm_enriched") for q in questions]
+    con.executemany("INSERT OR IGNORE INTO questions_research (category, keyphrase, question, source) VALUES (?,?,?,?)", rows)
+    con.close()
+    log(f"[Questions] Saved {len(rows)} from enrichment: {title[:60]}")
+
 def process_scrape_result(scrape_result: dict, user_category: str = None, discovery_source: str = None):
     enriched = enrich(scrape_result, user_category)
     if "error" in enriched:
         print(f"[Error] {enriched}")
         return enriched
     wiki_path = write_wiki_file(enriched)
+    
+    # Generate & save research questions
+    try:
+        q_prompt = QUESTIONS_PROMPT.format(
+            title=enriched.get("title", ""),
+            summary=enriched.get("summary", ""),
+            tags=", ".join(enriched.get("tags", []))
+        )
+        q_raw = call_ollama(q_prompt)
+        q_parsed = extract_json(q_raw)
+        if "questions" in q_parsed and q_parsed["questions"]:
+            _save_enrichment_questions(enriched.get("title", ""), user_category or enriched.get("category_path", "uncategorized"), q_parsed["questions"])
+    except Exception: pass
+    
     from db import register_url
     url_id = register_url(
         url=scrape_result["url"],
@@ -354,7 +390,6 @@ def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
     except Exception as e:
         log(f"[DDG] Error: {e}")
         return []
-
 
 
 
