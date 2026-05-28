@@ -2772,7 +2772,14 @@ async function loadAdditionalContext(idea) {
     try {
       const synthRes = await fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea));
       const synthData = await synthRes.json();
-      gatheredContext.synthesized_keywords = (synthData.keywords || []).map(kw => ({ keyword: kw.keyword, category: kw.category }));
+      let flatList = [];
+      (synthData.keywords || []).forEach(kw => {
+        (kw.suggested || []).forEach(s => {
+          let skw = typeof s === 'string' ? s : s.keyword;
+          flatList.push({ keyword: skw, intent: typeof s === 'object' ? s.intent : '', sourceKw: kw.keyword, category: kw.category });
+        });
+      });
+      gatheredContext.synthesized_keywords = flatList;
     } catch(e) { gatheredContext.synthesized_keywords = []; }
     try {
       const kwiRes = await fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(idea));
@@ -3039,7 +3046,7 @@ function renderContextTab(tab) {
     let label, subtitle = '';
     if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.source})</span>`; }
     else if (tab === 'questions') { label = item.question; }
-    else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.category||''})</span>`; }
+    else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.intent||item.category||''})</span>`; }
     else if (tab === 'kwintel') { label = item.text || item.keyword; subtitle = item.source ? `<span style="color:#888;font-size:0.8em;">(${item.source})</span>` : ''; }
     let checked = i < 7;
     if (checked) checkedCount++;
