@@ -806,7 +806,7 @@
     <!-- STEP 2: Context Selection -->
     <div class="card" id="ag-context" style="display:none;">
       <h3>Step 2: Select Context</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
         <div>
           <h4 style="margin-bottom:10px;color:#1a73e8;">Facts <span id="ag-fact-count" style="font-weight:normal;color:#666;"></span></h4>
           <div id="ag-facts-list" style="max-height:300px;overflow-y:auto;padding:8px;background:#f8f9fa;border-radius:8px;">
@@ -817,6 +817,12 @@
           <h4 style="margin-bottom:10px;color:#1a73e8;">Questions & Answers <span id="ag-question-count" style="font-weight:normal;color:#666;"></span></h4>
           <div id="ag-questions-list" style="max-height:300px;overflow-y:auto;padding:8px;background:#f8f9fa;border-radius:8px;">
             <p style="color:#666;font-size:0.9em;">Click "Gather Context" to load questions...</p>
+          </div>
+        </div>
+        <div>
+          <h4 style="margin-bottom:10px;color:#1a73e8;">Synthesized Keywords <span id="ag-synthkw-count" style="font-weight:normal;color:#666;"></span></h4>
+          <div id="ag-synthkw-list" style="max-height:300px;overflow-y:auto;padding:8px;background:#f8f9fa;border-radius:8px;">
+            <p style="color:#666;font-size:0.9em;">Click "Gather Context" to load keywords...</p>
           </div>
         </div>
       </div>
@@ -2763,6 +2769,28 @@ async function gatherArticleContext() {
       `).join('');
     } else {
       qsDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No questions found.</p>';
+    }
+    
+    // Fetch synthesized keywords
+    const synthDiv = document.getElementById('ag-synthkw-list');
+    document.getElementById('ag-synthkw-count').textContent = '(...)';
+    synthDiv.innerHTML = '<p style="color:#666;">Loading keywords...</p>';
+    try {
+      const synthRes = await fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea));
+      const synthData = await synthRes.json();
+      gatheredContext.synthesized_keywords = synthData.keywords || [];
+      document.getElementById('ag-synthkw-count').textContent = `(${gatheredContext.synthesized_keywords.length})`;
+      if (gatheredContext.synthesized_keywords.length) synthDiv.innerHTML = gatheredContext.synthesized_keywords.map((kw, i) => {
+        const suggested = (kw.suggested || []).map(s => s.keyword || s).slice(0, 5).join(', ');
+        return `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
+          <input type="checkbox" id="ag-skw-${i}" value="${i}" checked style="margin-top:2px;">
+          <span><strong>${kw.keyword}</strong> <span style="color:#666;font-size:0.85em;">→ ${suggested}</span><br><small style="color:#888;">${kw.category||''} · ${kw.facts_count||0} facts</small></span>
+        </label>`;
+      }).join('');
+      else synthDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No synthesized keywords found for this topic.</p>';
+    } catch (e) {
+      synthDiv.innerHTML = '<p style="color:#d93025;font-size:0.9em;">Failed to load keywords.</p>';
+      console.error('Synthesized keywords fetch error:', e);
     }
     
     document.getElementById('ag-context').style.display = 'block';

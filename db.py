@@ -393,3 +393,52 @@ def get_facts_for_explorer(verified: str = "all", search: str = "", source: str 
     return [{"id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
              "url_id": r[4], "source_title": r[5], "source_url": r[6], "domain": r[7]}
             for r in rows]
+
+# ── Synthesized Keywords Persistence ──────────────────────────
+def save_synthesized_keyword(keyword, suggested, category, urls, facts_count, job_id):
+    "Save synthesized keyword results to DB for future article generation"
+    import json
+    con = get_con()
+    con.execute("""
+        INSERT OR REPLACE INTO synthesized_keywords
+            (keyword, suggested, category, urls, facts_count, job_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    """, [keyword, json.dumps(suggested), category, json.dumps(urls), facts_count, job_id])
+    con.close()
+
+def get_synthesized_keywords(keyword_search="", category="", limit=100):
+    "Retrieve saved synthesized keywords for article generation"
+    import json
+    con = get_con()
+    where = ["1=1"]
+    params = []
+    if keyword_search: where.append("keyword ILIKE ?"); params.append(f"%{keyword_search}%")
+    if category: where.append("category = ?"); params.append(category)
+    where_sql = " AND ".join(where)
+    rows = con.execute(f"""
+        SELECT keyword, suggested, category, urls, facts_count, job_id, created_at
+        FROM synthesized_keywords WHERE {where_sql}
+        ORDER BY created_at DESC LIMIT ?
+    """, params + [limit]).fetchall()
+    con.close()
+    return [dict(
+        keyword=r[0], suggested=json.loads(r[1]), category=r[2],
+        urls=json.loads(r[3]), facts_count=r[4], job_id=r[5],
+        created_at=r[6].isoformat() if r[6] else None
+    ) for r in rows]
+
+def get_synthesized_keywords_for_topic(topic, limit=20):
+    "Get keywords most relevant to a topic for article generation context"
+    import json
+    con = get_con()
+    rows = con.execute("""
+        SELECT keyword, suggested, category, urls, facts_count, created_at
+        FROM synthesized_keywords
+        WHERE keyword ILIKE ? OR category ILIKE ?
+        ORDER BY created_at DESC LIMIT ?
+    """, [f"%{topic}%", f"%{topic}%", limit]).fetchall()
+    con.close()
+    return [dict(
+        keyword=r[0], suggested=json.loads(r[1]), category=r[2],
+        urls=json.loads(r[3]), facts_count=r[4], created_at=r[5].isoformat() if r[5] else None
+    ) for r in rows]

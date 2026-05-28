@@ -898,10 +898,18 @@ Return ONLY valid JSON in this format:
             "keyword": keyword,
             "suggested": suggested,
             "facts_count": len(facts_rows),
-            "urls": urls_used
+            "urls": urls_used,
+            "category": urls_used[0].get("title", "general") if urls_used else "general"
         })
 
     con.close()
+
+    # Persist synthesized keywords to DB for future article generation
+    from db import save_synthesized_keyword
+    for r in results:
+        if r.get("suggested"): save_synthesized_keyword(
+            r["keyword"], r["suggested"], r.get("category", "general"),
+            r.get("urls", []), r["facts_count"], job_id)
 
     synth_queue.update_job(job_id, status="done", results=results, completed_at=datetime.now().isoformat())
     logger.info(f"[Synthesis {job_id}] Complete. {len(results)} keywords analyzed.")
@@ -920,6 +928,19 @@ async def list_synthesis_jobs(limit: int = 50):
     """List all synthesis jobs."""
     jobs = synth_queue.list_jobs(limit)
     return JSONResponse({"jobs": jobs, "total": len(jobs)})
+
+# ── Saved Synthesized Keywords ──
+@app.get("/api/synthesized-keywords")
+async def get_saved_keywords(search: str = "", category: str = "", limit: int = 100):
+    """Get persisted synthesized keywords for article generation."""
+    from db import get_synthesized_keywords
+    return JSONResponse({"keywords": get_synthesized_keywords(search, category, limit), "total": 0})
+
+@app.get("/api/synthesized-keywords/for-topic")
+async def get_keywords_for_topic(topic: str, limit: int = 20):
+    """Get synthesized keywords relevant to a topic."""
+    from db import get_synthesized_keywords_for_topic
+    return JSONResponse({"keywords": get_synthesized_keywords_for_topic(topic, limit)})
 
 @app.delete("/api/synthesize-keywords/jobs/{job_id}")
 async def delete_synthesis_job(job_id: str):
