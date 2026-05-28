@@ -2749,7 +2749,7 @@ async function gatherArticleContext() {
       document.getElementById('ag-fact-count').textContent = `(${data.facts.length})`;
       factsDiv.innerHTML = data.facts.map((f, i) => `
         <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
-          <input type="checkbox" id="ag-fact-${i}" value="${i}" checked style="margin-top:2px;">
+          <input type="checkbox" id="ag-fact-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
           <span>${f.fact} <span style="color:#666;font-size:0.85em;">(${f.source})</span></span>
         </label>
       `).join('');
@@ -2763,7 +2763,7 @@ async function gatherArticleContext() {
       document.getElementById('ag-question-count').textContent = `(${data.questions.length})`;
       qsDiv.innerHTML = data.questions.map((q, i) => `
         <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
-          <input type="checkbox" id="ag-q-${i}" value="${i}" checked style="margin-top:2px;">
+          <input type="checkbox" id="ag-q-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
           <span><strong>${q.question}</strong><br><span style="color:#34a853;font-size:0.85em;">${q.answer || 'No answer yet'}</span></span>
         </label>
       `).join('');
@@ -2788,7 +2788,7 @@ async function gatherArticleContext() {
             const skw = typeof s === 'string' ? s : s.keyword;
             const intent = typeof s === 'object' ? s.intent : '';
             html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;margin-left:8px;font-size:0.88em;cursor:pointer;">
-              <input type="checkbox" id="ag-skw-${flatIdx}" value="${flatIdx}" checked style="margin-top:2px;">
+              <input type="checkbox" id="ag-skw-${flatIdx}" value="${flatIdx}" ${flatIdx < 7 ? 'checked' : ''} style="margin-top:2px;">
               <span>${skw} ${intent ? `<span style="color:#888;font-size:0.8em;">(${intent})</span>` : ''}</span>
             </label>`;
             flatIdx++;

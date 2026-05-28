@@ -230,9 +230,15 @@ def gather_all_context(idea: str, category: str, search_phrases: list = None,
     if search_phrases: all_phrases.extend(search_phrases)
     # Gather facts
     facts = gather_facts(category, all_phrases, fact_limit)
+    # Score by keyword match density and sort top first
+    for f in facts: f["score"] = sum(1 for w in idea_words if w.lower() in f["fact"].lower())
+    facts.sort(key=lambda f: f["score"], reverse=True)
 
     # Gather questions and find answers
     questions = gather_questions(category, all_phrases, question_limit)
+    # Score by keyword match density and sort top first
+    for q in questions: q["score"] = sum(1 for w in idea_words if w.lower() in q["question"].lower())
+    questions.sort(key=lambda q: q["score"], reverse=True)
     for q in questions:
         ans = find_answer(q["question"], category)
         q["answer"] = ans["answer"]
