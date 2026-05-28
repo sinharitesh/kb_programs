@@ -1145,7 +1145,7 @@ function renderHighPotentialKeywords(data) {
 }
 
 // ── Tab switching ──
-function showTab(name, el) {
+function _showTabImpl(name, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
   document.getElementById(name).classList.add('active');
@@ -1162,6 +1162,7 @@ function showTab(name, el) {
   if (name === 'discovered') loadDiscoveredURLs();
   if (name === 'indexrebuild') loadIndexSummary();
 }
+showTab = _showTabImpl;
 
 
 // ── Confirm modal ──
