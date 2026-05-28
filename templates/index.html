@@ -2794,7 +2794,7 @@ async function gatherArticleContext() {
     }
     
     document.getElementById('ag-context').style.display = 'block';
-    document.getElementById('ag-config-status').textContent = `Found ${data.facts?.length||0} facts, ${data.questions?.length||0} questions`;
+    document.getElementById('ag-config-status').textContent = `Found ${data.facts?.length||0} facts, ${data.questions?.length||0} questions, ${gatheredContext.synthesized_keywords?.length||0} synth keywords`;
   } catch(e) {
     alert('Error: ' + e.message);
     document.getElementById('ag-config-status').textContent = 'Error gathering context';
@@ -2811,15 +2811,17 @@ async function generateArticle() {
   btn.disabled = true;
   btn.textContent = '✍️ Starting...';
   
-  // Collect selected facts/questions
-  const selectedFacts = [];
-  const selectedQuestions = [];
+  // Collect selected facts/questions/synthesized keywords
+  const selectedFacts = [], selectedQuestions = [], selectedSynthesizedKeywords = [];
   
   gatheredContext.facts?.forEach((f, i) => {
     if (document.getElementById(`ag-fact-${i}`)?.checked) selectedFacts.push(f);
   });
   gatheredContext.questions?.forEach((q, i) => {
     if (document.getElementById(`ag-q-${i}`)?.checked) selectedQuestions.push(q);
+  });
+  gatheredContext.synthesized_keywords?.forEach((kw, i) => {
+    if (document.getElementById(`ag-skw-${i}`)?.checked) selectedSynthesizedKeywords.push(kw);
   });
   
   const payload = {
@@ -2833,6 +2835,7 @@ async function generateArticle() {
     content_type: document.getElementById('ag-type').value,
     selected_facts: selectedFacts,
     selected_questions: selectedQuestions,
+    selected_synthesized_keywords: selectedSynthesizedKeywords,
     wiki_context: gatheredContext.wiki_context || []
   };
   
@@ -3030,6 +3033,8 @@ function resetArticleGen() {
   document.getElementById('ag-config-status').textContent = '';
   document.getElementById('ag-facts-list').innerHTML = '<p style="color:#666;font-size:0.9em;">Click "Gather Context" to load facts...</p>';
   document.getElementById('ag-questions-list').innerHTML = '<p style="color:#666;font-size:0.9em;">Click "Gather Context" to load questions...</p>';
+  document.getElementById('ag-synthkw-list').innerHTML = '<p style="color:#666;font-size:0.9em;">Click "Gather Context" to load keywords...</p>';
+  document.getElementById('ag-synthkw-count').textContent = '';
   document.getElementById('ag-article-md').value = '';
   document.getElementById('ag-article-rendered').innerHTML = '';
 }
