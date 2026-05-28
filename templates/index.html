@@ -480,16 +480,9 @@
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h3 style="margin:0;">📝 Keyword TODO</h3>
-          <button class="btn btn-green" onclick="generateArticlesFromTODO()">✍️ Generate</button>
         </div>
         <div id="keyword-todo-list" style="max-height:300px;overflow-y:auto;">
           <p style="color:#666;text-align:center;padding:20px;">Select and synthesize keywords to add them here.</p>
-        </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e0e0e0;">
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.9em;">
-            <input type="checkbox" id="todo-auto-generate">
-            <span>Auto-generate articles on synthesize</span>
-          </label>
         </div>
       </div>
     </div>
@@ -2547,24 +2540,30 @@ async function loadSynthesisJobs() {
 }
 
 async function viewSynthesisResults(jobId) {
-  const res = await fetch(`/api/synthesize-keywords/status/${jobId}`);
-  const job = await res.json();
-  
-  if (!job || !job.results) {
-    alert('Job results not found');
-    return;
+  console.log('viewSynthesisResults:', jobId);
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(`/api/synthesize-keywords/status/${jobId}`, {signal: controller.signal});
+    clearTimeout(timeout);
+    const job = await res.json();
+    console.log('Synthesis job:', job?.status, 'results:', job?.results?.length);
+    
+    if (!job || !job.results || !job.results.length) {
+      alert(job?.error || 'Job results not found or empty');
+      return;
+    }
+    
+    document.getElementById('synth-modal').style.display = 'flex';
+    document.getElementById('synth-progress').style.display = 'none';
+    document.getElementById('synth-results').style.display = 'block';
+    document.getElementById('synth-status-text').textContent = 'Synthesis Results';
+    
+    renderSynthesisResults(job.results);
+  } catch (e) {
+    console.error('viewSynthesisResults error:', e);
+    alert('❌ Failed to load results: ' + (e.name === 'AbortError' ? 'Timeout' : e.message));
   }
-  
-  // Store in currentSynthesisResults for approveSynthesizedKeywords
-  currentSynthesisResults = job.results;
-  
-  // Show modal with results
-  document.getElementById('synth-modal').style.display = 'flex';
-  document.getElementById('synth-progress').style.display = 'none';
-  document.getElementById('synth-results').style.display = 'block';
-  document.getElementById('synth-status-text').textContent = 'Synthesis Results';
-  
-  renderSynthesisResults(job.results);
 }
 
 async function deleteSynthesisJob(jobId) {
