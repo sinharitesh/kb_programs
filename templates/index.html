@@ -248,6 +248,9 @@
   <div class="nav-item" onclick="showTab('articlegen', this)">
     <span class="nav-icon">✍️</span> Article Generator
   </div>
+  <div class="nav-item" onclick="showTab('articles', this)">
+    <span class="nav-icon">📄</span> Generated Articles
+  </div>
   <div class="nav-item" onclick="showTab('indexrebuild', this)">
     <span class="nav-icon">🔄</span> Index
   </div>
@@ -846,17 +849,21 @@
       <textarea id="ag-article-md" style="display:none;height:500px;"></textarea>
       <div id="ag-seo-info" style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:8px;font-size:0.9em;"></div>
     </div>
-
-    <!-- Generated Articles List -->
-    <div class="card">
-      <h3>Generated Articles</h3>
-      <button class="btn btn-blue" onclick="loadGeneratedArticles()" style="margin-bottom:12px;">🔄 Refresh List</button>
-      <div id="ag-articles-list">
-        <p style="color:#666;">Click refresh to load articles...</p>
-      </div>
-    </div>
   </div>
 
+  <!-- GENERATED ARTICLES -->
+  <div id="articles" class="section">
+    <h2>📄 Generated Articles</h2>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#666;font-size:0.9em;">View and download articles generated from your TODO keywords.</span>
+        <button class="btn btn-blue" onclick="loadGeneratedArticles()">🔄 Refresh List</button>
+      </div>
+    </div>
+    <div id="ag-articles-list">
+      <p style="color:#666;">Click refresh to load articles...</p>
+    </div>
+  </div>
 
   <!-- INDEX REBUILD -->
   <!-- INDEX MANAGEMENT -->
@@ -1134,6 +1141,7 @@ function showTab(name, el) {
   if (name === 'questions') loadQuestions();
   if (name === 'kwanalysis') { loadKeywordAnalysis(); loadKeywordTODO(); }
   if (name === 'kwsynthesis') loadSynthesisJobs();
+  if (name === 'articles') loadGeneratedArticles();
   if (name === 'discovered') loadDiscoveredURLs();
   if (name === 'indexrebuild') loadIndexSummary();
 }
