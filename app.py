@@ -1358,6 +1358,14 @@ async def download_article_file(path: str):
     if not full_path.exists(): return JSONResponse({"error": "File not found"}, status_code=404)
     return FileResponse(full_path, media_type="text/markdown", filename=full_path.name)
 
+@app.delete("/articles/delete")
+async def delete_article_file(path: str):
+    """Delete a generated article .md file."""
+    full_path = Path(r"C:\knowledge-base") / "generated_articles" / path
+    if not full_path.exists(): return JSONResponse({"error": "File not found"}, status_code=404)
+    full_path.unlink()
+    return JSONResponse({"status": "deleted"})
+
 @app.post("/articles/save")
 async def save_article_file(path: str = Form(...), content: str = Form(...)):
     """Save content back to a generated article .md file."""

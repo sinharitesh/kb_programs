@@ -3011,13 +3011,35 @@ async function loadGeneratedArticles() {
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticle('${a.file}')">👁 View</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="editArticle('${a.file}')">✏️ Edit</button>
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="retryArticle('${a.file}')">🔄 Retry</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="deleteArticleFile('${a.file}')">🗑</button>
         </div>
       </div>
     `).join('');
   } catch(e) {
     document.getElementById('ag-articles-list').innerHTML = '<p style="color:#d93025;">Error loading articles.</p>';
   }
+}
+
+async function deleteArticleFile(path) {
+  if (!confirm('Delete this article?')) return;
+  const res = await fetch('/articles/delete?path=' + encodeURIComponent(path), {method: 'DELETE'});
+  if (res.ok) loadGeneratedArticles();
+  else alert('Failed to delete');
+}
+
+async function retryArticle(path) {
+  const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+  const data = await res.json();
+  if (!data.content) return alert('Could not read article');
+  let idea = path.split('/').pop().replace('.md','').replace(/-/g,' ');
+  let fm = {}, fmMatch = data.content.match(/^---\n([\s\S]*?)\n---/);
+  if (fmMatch) fmMatch[1].split('\n').forEach(line => { let [k,v] = line.split(':',2); if (k && v) fm[k.trim()] = v.trim().replace(/"/g,''); });
+  idea = fm.title || idea;
+  if (fm.focus_keyphrase) document.getElementById('ag-keyphrase').value = fm.focus_keyphrase;
+  if (fm.category) document.getElementById('ag-category').value = fm.category;
+  document.getElementById('ag-idea').value = idea;
+  _showTabImpl('articlegen', document.querySelector('[onclick*="articlegen"]'));
 }
 
 function downloadArticle(path) {
