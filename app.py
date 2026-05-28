@@ -852,6 +852,13 @@ async def _run_synthesis(job_id: str, keywords: List[str]):
             results.append({"keyword": keyword, "suggested": [], "error": "No enriched content found", "urls": []})
             continue
 
+        # Get the actual category for this keyword
+        cat_row = con.execute(
+            "SELECT category FROM keyword_intelligence WHERE keyword = ? LIMIT 1",
+            [keyword]
+        ).fetchone()
+        kw_category = cat_row[0] if cat_row else "general"
+
         # Collect unique URLs with their titles for display
         urls_used = []
         seen_urls = set()
@@ -899,7 +906,7 @@ Return ONLY valid JSON in this format:
             "suggested": suggested,
             "facts_count": len(facts_rows),
             "urls": urls_used,
-            "category": urls_used[0].get("title", "general") if urls_used else "general"
+            "category": kw_category
         })
 
     con.close()
