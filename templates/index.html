@@ -2780,13 +2780,22 @@ async function gatherArticleContext() {
       const synthData = await synthRes.json();
       gatheredContext.synthesized_keywords = synthData.keywords || [];
       document.getElementById('ag-synthkw-count').textContent = `(${gatheredContext.synthesized_keywords.length})`;
-      if (gatheredContext.synthesized_keywords.length) synthDiv.innerHTML = gatheredContext.synthesized_keywords.map((kw, i) => {
-        const suggested = (kw.suggested || []).map(s => s.keyword || s).slice(0, 5).join(', ');
-        return `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
-          <input type="checkbox" id="ag-skw-${i}" value="${i}" checked style="margin-top:2px;">
-          <span><strong>${kw.keyword}</strong> <span style="color:#666;font-size:0.85em;">→ ${suggested}</span><br><small style="color:#888;">${kw.category||''} · ${kw.facts_count||0} facts</small></span>
-        </label>`;
-      }).join('');
+      if (gatheredContext.synthesized_keywords.length) {
+        let flatIdx = 0, html = '';
+        gatheredContext.synthesized_keywords.forEach((kw, i) => {
+          html += `<div style="margin-bottom:6px;font-size:0.8em;color:#888;">from <strong>${kw.keyword}</strong> (${kw.category||''}):</div>`;
+          (kw.suggested || []).slice(0, 8).forEach(s => {
+            const skw = typeof s === 'string' ? s : s.keyword;
+            const intent = typeof s === 'object' ? s.intent : '';
+            html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;margin-left:8px;font-size:0.88em;cursor:pointer;">
+              <input type="checkbox" id="ag-skw-${flatIdx}" value="${flatIdx}" checked style="margin-top:2px;">
+              <span>${skw} ${intent ? `<span style="color:#888;font-size:0.8em;">(${intent})</span>` : ''}</span>
+            </label>`;
+            flatIdx++;
+          });
+        });
+        synthDiv.innerHTML = html;
+      }
       else synthDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No synthesized keywords found for this topic.</p>';
     } catch (e) {
       synthDiv.innerHTML = '<p style="color:#d93025;font-size:0.9em;">Failed to load keywords.</p>';
@@ -2821,7 +2830,12 @@ async function generateArticle() {
     if (document.getElementById(`ag-q-${i}`)?.checked) selectedQuestions.push(q);
   });
   gatheredContext.synthesized_keywords?.forEach((kw, i) => {
-    if (document.getElementById(`ag-skw-${i}`)?.checked) selectedSynthesizedKeywords.push(kw);
+    (kw.suggested || []).forEach((s, j) => {
+      const flatIdx = gatheredContext.synthesized_keywords.slice(0, i).reduce((acc, k) => acc + (k.suggested||[]).length, 0) + j;
+      if (document.getElementById(`ag-skw-${flatIdx}`)?.checked) {
+        selectedSynthesizedKeywords.push({...kw, selected_suggestion: s});
+      }
+    });
   });
   
   const payload = {
