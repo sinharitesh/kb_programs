@@ -429,14 +429,20 @@ def get_synthesized_keywords(keyword_search="", category="", limit=100):
 
 def get_synthesized_keywords_for_topic(topic, limit=20):
     "Get keywords most relevant to a topic for article generation context"
-    import json
+    import json, re
     con = get_con()
-    rows = con.execute("""
+    # Split topic into individual meaningful words and search broadly
+    words = [w.strip() for w in re.split(r'[\s,;]+', topic) if len(w.strip()) > 2]
+    where_sqls = ["keyword ILIKE ?", "category ILIKE ?"]
+    params = []
+    for w in words: where_sqls.append("keyword ILIKE ?"); params.append(f"%{w}%")
+    where_sql = " OR ".join(where_sqls)
+    rows = con.execute(f"""
         SELECT keyword, suggested, category, urls, facts_count, created_at
         FROM synthesized_keywords
-        WHERE keyword ILIKE ? OR category ILIKE ?
+        WHERE {where_sql}
         ORDER BY created_at DESC LIMIT ?
-    """, [f"%{topic}%", f"%{topic}%", limit]).fetchall()
+    """, [f"%{topic}%", f"%{topic}%"] + params + [limit]).fetchall()
     con.close()
     return [dict(
         keyword=r[0], suggested=json.loads(r[1]), category=r[2],
