@@ -325,8 +325,10 @@ def _save_enrichment_questions(title, category, questions):
     from db import get_con
     con = get_con()
     keyphrase = title[:100]
+    # Delete old questions for this keyphrase, then insert fresh ones
+    con.execute("DELETE FROM questions_research WHERE keyphrase = ? AND source = 'llm_enriched'", [keyphrase])
     rows = [(category, keyphrase, q, "llm_enriched") for q in questions]
-    con.executemany("INSERT OR IGNORE INTO questions_research (category, keyphrase, question, source) VALUES (?,?,?,?)", rows)
+    con.executemany("INSERT INTO questions_research (category, keyphrase, question, source) VALUES (?,?,?,?)", rows)
     con.close()
     log(f"[Questions] Saved {len(rows)} from enrichment: {title[:60]}")
 
