@@ -2757,14 +2757,21 @@ async function gatherArticleContext() {
       factsDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No facts found.</p>';
     }
     
-    // Show questions
+    // Show questions (deduplicated, just the text)
     const qsDiv = document.getElementById('ag-questions-list');
     if (data.questions && data.questions.length) {
-      document.getElementById('ag-question-count').textContent = `(${data.questions.length})`;
-      qsDiv.innerHTML = data.questions.map((q, i) => `
+      let seen = new Set();
+      let questions = data.questions.filter((q, i) => {
+        let key = q.question.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      document.getElementById('ag-question-count').textContent = `(${questions.length})`;
+      qsDiv.innerHTML = questions.map((q, i) => `
         <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
           <input type="checkbox" id="ag-q-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
-          <span><strong>${q.question}</strong><br><span style="color:#34a853;font-size:0.85em;">${q.answer || 'No answer yet'}</span></span>
+          <span>${q.question}</span>
         </label>
       `).join('');
     } else {
