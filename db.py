@@ -367,6 +367,60 @@ def cleanup_orphans():
     con.close()
     return {"orphan_facts_deleted": facts_del, "orphan_paths_deleted": paths_del}
 
+def deduplicate_facts():
+    "Remove duplicate facts (same fact text for the same url_id)"
+    con = get_con()
+    deleted = con.execute("""
+        DELETE FROM facts WHERE id NOT IN (
+            SELECT MIN(id) FROM facts GROUP BY fact, url_id
+        )
+    """).rowcount
+    con.close()
+    return deleted
+
+def deduplicate_questions():
+    "Remove duplicate questions (same question text for the same keyphrase)"
+    con = get_con()
+    deleted = con.execute("""
+        DELETE FROM questions_research WHERE id NOT IN (
+            SELECT MIN(id) FROM questions_research GROUP BY question, keyphrase
+        )
+    """).rowcount
+    con.close()
+    return deleted
+
+def deduplicate_synthesized_keywords():
+    "Remove duplicate synthesized keywords (same keyword+job_id)"
+    con = get_con()
+    deleted = con.execute("""
+        DELETE FROM synthesized_keywords WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM synthesized_keywords GROUP BY keyword, job_id
+        )
+    """).rowcount
+    con.close()
+    return deleted
+
+def deduplicate_urls():
+    "Remove duplicate URLs keeping the oldest entry"
+    con = get_con()
+    deleted = con.execute("""
+        DELETE FROM url_registry WHERE id NOT IN (
+            SELECT MIN(id) FROM url_registry GROUP BY url
+        )
+    """).rowcount
+    con.close()
+    return deleted
+
+def deduplicate_all():
+    "Run all deduplication and return counts"
+    return dict(
+        facts=deduplicate_facts(),
+        questions=deduplicate_questions(),
+        synthesized_keywords=deduplicate_synthesized_keywords(),
+        urls=deduplicate_urls(),
+        orphans=cleanup_orphans()
+    )
+
 def get_facts_for_explorer(verified: str = "all", search: str = "", source: str = ""):
     """Return facts with source info, optionally filtered by verified status, search, and source."""
     con = get_con()

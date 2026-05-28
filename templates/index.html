@@ -314,6 +314,7 @@
       </div>
       <button class="btn btn-red" onclick="deleteBelowQuality()">Delete Low Quality</button>
       <button class="btn btn-grey" onclick="cleanupOrphans()">🧹 Cleanup Orphans</button>
+      <button class="btn btn-grey" onclick="deduplicateAll()">🔄 Deduplicate All</button>
     </div>
     <div class="url-manager-layout">
       <div>
@@ -1852,6 +1853,14 @@ async function cleanupOrphans() {
   const res = await fetch('/db/cleanup-orphans', {method: 'POST'});
   const d = await res.json();
   alert(`✅ Cleaned up: ${d.orphan_facts_deleted} orphan facts, ${d.orphan_paths_deleted} orphan paths deleted.`);
+  loadIndexSummary();
+}
+
+async function deduplicateAll() {
+  if (!confirm('Remove duplicate facts, questions, synthesized keywords, and URLs? This keeps the oldest entry for each.')) return;
+  const res = await fetch('/db/deduplicate', {method: 'POST'});
+  const d = await res.json();
+  alert(`✅ Deduplication done:\n- Facts: ${d.facts} removed\n- Questions: ${d.questions} removed\n- Synth Keywords: ${d.synthesized_keywords} removed\n- URLs: ${d.urls} removed\n- Orphans: ${d.orphans.orphan_facts_deleted} facts, ${d.orphans.orphan_paths_deleted} paths`);
   loadIndexSummary();
 }
 

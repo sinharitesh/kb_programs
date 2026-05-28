@@ -1172,6 +1172,12 @@ async def api_cleanup_orphans():
     result = cleanup_orphans()
     return JSONResponse(result)
 
+@app.post("/db/deduplicate")
+async def api_deduplicate():
+    from db import deduplicate_all
+    result = deduplicate_all()
+    return JSONResponse(result)
+
 
 class GatherContextRequest(BaseModel):
     idea: str
