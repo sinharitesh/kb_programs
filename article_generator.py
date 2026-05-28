@@ -167,12 +167,12 @@ def gather_wiki_context(category: str, search_phrases: list = None, max_chars: i
     context_parts = []
     total_chars = 0
 
-    # Search category folder first
+    # Search category folder first, then fall back to all wiki
     search_dirs = []
     if category:
         cat_dir = wiki_root / category
-        if cat_dir.exists():
-            search_dirs.append(cat_dir)
+        if cat_dir.exists(): search_dirs.append(cat_dir)
+    search_dirs.append(wiki_root)  # cross-reference from other categories
 
     keywords = []
     if search_phrases:
@@ -332,6 +332,11 @@ Word Count       : approximately {word_count} words
 
 ━━━ QUESTIONS & ANSWERS ━━━
 {questions_block}
+
+━━━ CROSS-REFERENCE INSTRUCTIONS ━━━
+1. Link facts to KB context when they align — e.g., if a fact says "Thawe temple is 400 years old" and KB context mentions Thawe, connect them naturally.
+2. Weave answers from Q&A into sections where a reader would ask those questions.
+3. If the KB context and facts disagree, note the ambiguity or give the most authoritative version.
 
 ━━━ STRICT WRITING RULES ━━━
 
