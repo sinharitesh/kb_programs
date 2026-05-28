@@ -788,14 +788,8 @@
         </div>
       </div>
         <div>
-          <label>Optimized Prompt (Optional)</label>
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <button class="btn btn-blue" onclick="optimizePrompt()" id="ag-optimize-btn">Optimize Prompt</button>
-            <button class="btn btn-grey" onclick="clearOptimizedPrompt()" style="display:none;" id="ag-clear-prompt-btn">Clear</button>
-          </div>
-          <textarea id="ag-optimized-prompt" placeholder="Click 'Optimize Prompt' to generate an AI-optimized content brief based on your inputs above..." style="height:120px;font-size:0.85em;"></textarea>
-          <input type="hidden" id="ag-prompt-id" value="">
-          <p id="ag-prompt-status" style="margin-top:4px;font-size:0.8em;color:#666;"></p>
+          <label>Article Notes / Freeform Instructions</label>
+          <textarea id="ag-freeform-notes" placeholder="Write any specific instructions, angles, or notes for the article..." style="height:120px;font-size:0.85em;"></textarea>
         </div>
       <div style="margin-top:16px;">
         <button class="btn btn-green" onclick="gatherArticleContext()">🔍 Gather Context</button>
@@ -2796,8 +2790,8 @@ async function generateArticle() {
   btn.disabled = true;
   btn.textContent = '✍️ Starting...';
   
-  // Collect selected facts/questions/synthesized keywords
-  const selectedFacts = [], selectedQuestions = [], selectedSynthesizedKeywords = [];
+  // Collect selected facts/questions/synthesized keywords/keyword intelligence
+  const selectedFacts = [], selectedQuestions = [], selectedSynthesizedKeywords = [], selectedKeywordIntelligence = [];
   
   gatheredContext.facts?.forEach((f, i) => {
     if (document.getElementById(`ag-fact-${i}`)?.checked) selectedFacts.push(f);
@@ -2805,15 +2799,11 @@ async function generateArticle() {
   gatheredContext.questions?.forEach((q, i) => {
     if (document.getElementById(`ag-q-${i}`)?.checked) selectedQuestions.push(q);
   });
-  let flatIdx = 0;
-  gatheredContext.synthesized_keywords?.forEach(kw => {
-    (kw.suggested || []).forEach(s => {
-      const skw = typeof s === 'string' ? s : s.keyword;
-      if (document.getElementById(`ag-skw-${flatIdx}`)?.checked) {
-        selectedSynthesizedKeywords.push({keyword: skw, source: kw.keyword, category: kw.category});
-      }
-      flatIdx++;
-    });
+  gatheredContext.synthesized_keywords?.forEach((kw, i) => {
+    if (document.getElementById(`ag-skw-${i}`)?.checked) selectedSynthesizedKeywords.push(kw);
+  });
+  gatheredContext.keyword_intelligence?.forEach((kw, i) => {
+    if (document.getElementById(`ag-kwi-${i}`)?.checked) selectedKeywordIntelligence.push(kw);
   });
   
   const payload = {
@@ -2829,6 +2819,7 @@ async function generateArticle() {
     selected_questions: selectedQuestions,
     selected_synthesized_keywords: selectedSynthesizedKeywords,
     selected_keyword_intelligence: selectedKeywordIntelligence,
+    freeform_notes: document.getElementById('ag-freeform-notes').value.trim(),
     wiki_context: gatheredContext.wiki_context || []
   };
   
@@ -3210,10 +3201,7 @@ async function optimizePrompt() {
 }
 
 function clearOptimizedPrompt() {
-  document.getElementById('ag-optimized-prompt').value = '';
-  document.getElementById('ag-prompt-id').value = '';
-  document.getElementById('ag-clear-prompt-btn').style.display = 'none';
-  document.getElementById('ag-prompt-status').textContent = '';
+  document.getElementById('ag-freeform-notes').value = '';
 }
 
 // Initialize autocomplete
