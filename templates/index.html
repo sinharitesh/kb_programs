@@ -3217,7 +3217,7 @@ loadCachedInputs();
 setupAutocomplete('ag-idea', {idea: 'ag-idea', keyphrase: 'ag-keyphrase', phrases: 'ag-phrases', category: 'ag-category'});
 
 window.showTab = function(tabId, el) {
-  showTab(tabId, el);
+  _showTabImpl(tabId, el);
   if (tabId === 'articlegen') {
     loadArticleGenCategories();
     loadGeneratedArticles();
