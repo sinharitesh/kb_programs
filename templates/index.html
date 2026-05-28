@@ -2754,91 +2754,37 @@ async function gatherArticleContext() {
     const data = await res.json();
     gatheredContext = data;
     
-    // Show facts
-    const factsDiv = document.getElementById('ag-facts-list');
-    if (data.facts && data.facts.length) {
-      document.getElementById('ag-fact-count').textContent = `(${data.facts.length})`;
-      factsDiv.innerHTML = data.facts.map((f, i) => `
-        <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
-          <input type="checkbox" id="ag-fact-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
-          <span>${f.fact} <span style="color:#666;font-size:0.85em;">(${f.source})</span></span>
-        </label>
-      `).join('');
-    } else {
-      factsDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No facts found.</p>';
-    }
-    
-    // Show questions (deduplicated, just the text)
-    const qsDiv = document.getElementById('ag-questions-list');
-    if (data.questions && data.questions.length) {
-      let seen = new Set();
-      let questions = data.questions.filter((q, i) => {
-        let key = q.question.trim().toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      document.getElementById('ag-question-count').textContent = `(${questions.length})`;
-      qsDiv.innerHTML = questions.map((q, i) => `
-        <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:0.88em;cursor:pointer;">
-          <input type="checkbox" id="ag-q-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
-          <span>${q.question}</span>
-        </label>
-      `).join('');
-    } else {
-      qsDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No questions found.</p>';
-    }
-    
-    // Fetch synthesized keywords
-    const synthDiv = document.getElementById('ag-synthkw-list');
-    document.getElementById('ag-synthkw-count').textContent = '(...)';
-    synthDiv.innerHTML = '<p style="color:#666;">Loading keywords...</p>';
+
+
+    // Store context for modal-based selection and fetch additional sources
+    gatheredContext.facts = data.facts || [];
+    gatheredContext.questions = data.questions || [];
+    loadAdditionalContext(idea);
+}
+
+async function loadAdditionalContext(idea) {
     try {
       const synthRes = await fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea));
       const synthData = await synthRes.json();
-      gatheredContext.synthesized_keywords = synthData.keywords || [];
-      
-      // Score each suggested keyword by keyword match density from idea
-      let ideaWords = idea.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-      let flatList = [];
-      (synthData.keywords || []).forEach(kw => {
-        (kw.suggested || []).forEach(s => {
-          let skw = typeof s === 'string' ? s : s.keyword;
-          let score = ideaWords.filter(w => skw.toLowerCase().includes(w)).length;
-          flatList.push({ keyword: skw, intent: typeof s === 'object' ? s.intent : '', sourceKw: kw.keyword, category: kw.category, score });
-        });
-      });
-      flatList.sort((a, b) => b.score - a.score);
-      
-      document.getElementById('ag-synthkw-count').textContent = `(${flatList.length})`;
-      if (flatList.length) {
-        let html = '';
-        flatList.forEach((s, i) => {
-          html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">
-            <input type="checkbox" id="ag-skw-${i}" value="${i}" ${i < 7 ? 'checked' : ''} style="margin-top:2px;">
-            <span>${s.keyword} ${s.intent ? `<span style="color:#888;font-size:0.8em;">(${s.intent})</span>` : ''}
-            <small style="color:#aaa;"> · from ${s.sourceKw} · score:${s.score}</small></span>
-          </label>`;
-        });
-        synthDiv.innerHTML = html;
-      }
-      else synthDiv.innerHTML = '<p style="color:#666;font-size:0.9em;">No synthesized keywords found for this topic.</p>';
-    } catch (e) {
-      synthDiv.innerHTML = '<p style="color:#d93025;font-size:0.9em;">Failed to load keywords.</p>';
-      console.error('Synthesized keywords fetch error:', e);
-    }
-    
-    document.getElementById('ag-context').style.display = 'block';
-    document.getElementById('ag-config-status').textContent = `Found ${data.facts?.length||0} facts, ${data.questions?.length||0} questions, ${gatheredContext.synthesized_keywords?.length||0} synth keywords`;
+      gatheredContext.synthesized_keywords = (synthData.keywords || []).map(kw => ({ keyword: kw.keyword, category: kw.category }));
+    } catch(e) { gatheredContext.synthesized_keywords = []; }
+    try {
+      const kwiRes = await fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(idea));
+      const kwiData = await kwiRes.json();
+      gatheredContext.keyword_intelligence = kwiData.items || [];
+    } catch(e) { gatheredContext.keyword_intelligence = []; }
+    document.getElementById('ag-skw-badge').textContent = `(${gatheredContext.synthesized_keywords.length})`;
+    document.getElementById('ag-kwi-badge').textContent = `(${gatheredContext.keyword_intelligence.length})`;
+    document.getElementById('ag-context-summary').textContent = `${gatheredContext.facts.length} facts | ${gatheredContext.questions.length} questions | ${gatheredContext.synthesized_keywords.length} synth kw | ${gatheredContext.keyword_intelligence.length} KW intel`;
+    document.getElementById('ag-progress').style.display = 'block';
+    document.getElementById('ag-context').style.display = 'none';
+    pollArticleStatus();
   } catch(e) {
     alert('Error: ' + e.message);
-    document.getElementById('ag-config-status').textContent = 'Error gathering context';
+    btn.disabled = false;
+    btn.textContent = '✍️ Generate Article';
   }
-  
-  btn.disabled = false;
-  btn.textContent = '🔍 Gather Context';
 }
-
 async function generateArticle() {
   if (!gatheredContext) return;
   
@@ -2899,6 +2845,8 @@ async function generateArticle() {
     btn.textContent = '✍️ Generate Article';
   }
 }
+
+
 
 async function pollArticleStatus() {
   if (!articleGenJobId) return;
@@ -3125,7 +3073,6 @@ function resetArticleGen() {
   document.getElementById('ag-progress').style.display = 'none';
   document.getElementById('ag-preview').style.display = 'none';
   document.getElementById('ag-config-status').textContent = '';
-  document.getElementById('ag-facts-list').innerHTML = '<p style="color:#666;font-size:0.9em;">Click "Gather Context" to load facts...</p>';
   document.getElementById("ag-fact-badge").textContent = "";
   document.getElementById("ag-q-badge").textContent = "";
   document.getElementById("ag-skw-badge").textContent = "";
