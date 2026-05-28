@@ -1,2 +1,10 @@
-# dummy reload trigger — add a comment to restart uvicorn
-# Thu Jan 1 00:00:00 2026
+# dummy reload trigger — use touch() to restart uvicorn
+
+from datetime import datetime
+
+def touch():
+    "Write a timestamp to trigger uvicorn reload"
+    with open(__file__, 'w') as f:
+        f.write(f'# reload {datetime.now().isoformat()}\n')
+
+# reload 2026-05-28T16:12:00
