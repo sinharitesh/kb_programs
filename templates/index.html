@@ -1159,6 +1159,7 @@ function _showTabImpl(name, el) {
   if (name === 'kwanalysis') { loadKeywordAnalysis(); loadKeywordTODO(); }
   if (name === 'kwsynthesis') loadSynthesisJobs();
   if (name === 'articles') loadGeneratedArticles();
+  if (name === 'articlegen') { loadArticleGenCategories(); loadGeneratedArticles(); }
   if (name === 'discovered') loadDiscoveredURLs();
   if (name === 'indexrebuild') loadIndexSummary();
 }
@@ -2760,6 +2761,9 @@ async function gatherArticleContext() {
     // Store context for modal-based selection and fetch additional sources
     gatheredContext.facts = data.facts || [];
     gatheredContext.questions = data.questions || [];
+    document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
+    document.getElementById('ag-q-badge').textContent = `(${gatheredContext.questions.length})`;
+    document.getElementById('ag-context').style.display = 'block';
     loadAdditionalContext(idea);
   } catch(e) {
     document.getElementById('ag-config-status').textContent = 'Error gathering context';
