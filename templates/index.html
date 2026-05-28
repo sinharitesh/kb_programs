@@ -2760,6 +2760,13 @@ async function gatherArticleContext() {
     gatheredContext.facts = data.facts || [];
     gatheredContext.questions = data.questions || [];
     loadAdditionalContext(idea);
+  } catch(e) {
+    document.getElementById('ag-config-status').textContent = 'Error gathering context';
+    console.error('Gather context error:', e);
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '🔍 Gather Context';
 }
 
 async function loadAdditionalContext(idea) {
@@ -2776,14 +2783,6 @@ async function loadAdditionalContext(idea) {
     document.getElementById('ag-skw-badge').textContent = `(${gatheredContext.synthesized_keywords.length})`;
     document.getElementById('ag-kwi-badge').textContent = `(${gatheredContext.keyword_intelligence.length})`;
     document.getElementById('ag-context-summary').textContent = `${gatheredContext.facts.length} facts | ${gatheredContext.questions.length} questions | ${gatheredContext.synthesized_keywords.length} synth kw | ${gatheredContext.keyword_intelligence.length} KW intel`;
-    document.getElementById('ag-progress').style.display = 'block';
-    document.getElementById('ag-context').style.display = 'none';
-    pollArticleStatus();
-  } catch(e) {
-    alert('Error: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = '✍️ Generate Article';
-  }
 }
 async function generateArticle() {
   if (!gatheredContext) return;
@@ -2824,6 +2823,7 @@ async function generateArticle() {
     selected_facts: selectedFacts,
     selected_questions: selectedQuestions,
     selected_synthesized_keywords: selectedSynthesizedKeywords,
+    selected_keyword_intelligence: selectedKeywordIntelligence,
     wiki_context: gatheredContext.wiki_context || []
   };
   
@@ -3063,8 +3063,7 @@ function toggleSelectAllContext() {
   document.getElementById('ctx-select-all-btn').textContent = anyUnchecked ? 'Unselect All' : 'Select All';
 }
 
-function openContextModal(tab) { ctxActiveTab = tab; document.getElementById('context-modal').style.display = 'flex'; switchContextTab(tab); }
-function closeContextModal() { document.getElementById('context-modal').style.display = 'none'; }
+
 
 function resetArticleGen() {
   gatheredContext = null;
@@ -3217,7 +3216,7 @@ loadCachedInputs();
 setupAutocomplete('ag-idea', {idea: 'ag-idea', keyphrase: 'ag-keyphrase', phrases: 'ag-phrases', category: 'ag-category'});
 
 window.showTab = function(tabId, el) {
-  if (originalShowTab) originalShowTab(tabId, el);
+  showTab(tabId, el);
   if (tabId === 'articlegen') {
     loadArticleGenCategories();
     loadGeneratedArticles();
