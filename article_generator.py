@@ -45,23 +45,23 @@ def gather_facts(category: str = "", search_phrases: list = None, limit: int = 7
                 "source_title": r[4], "source_url": r[5], "match": "category"
             })
 
-    # By text search across all categories
+    # By text search, scoped to the same category
     if search_phrases:
         for phrase in search_phrases:
             phrase = phrase.strip()
-            if not phrase:
-                continue
+            if not phrase or len(phrase) < 3: continue
             rows = con.execute("""
                 SELECT f.id, f.fact, f.verified, f.source,
                        r.title as source_title, r.url as source_url
                 FROM facts f
                 JOIN url_registry r ON r.id = f.url_id
-                WHERE f.fact ILIKE ?
+                JOIN url_paths p ON p.url_id = r.id
+                WHERE f.fact ILIKE ? AND p.path ILIKE ?
                 ORDER BY f.verified DESC, f.id DESC
                 LIMIT ?
-            """, [f"%{phrase}%", limit]).fetchall()
+            """, [f"%{phrase}%", f"%{category}%", max(3, limit // 2)]).fetchall()
             for r in rows:
-                if not any(x["id"] == r[0] for x in results):  # deduplicate
+                if not any(x["id"] == r[0] for x in results):
                     results.append({
                         "id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
                         "source_title": r[4], "source_url": r[5], "match": f"search:{phrase}"
