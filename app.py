@@ -755,16 +755,21 @@ async def synthesize_keywords(req: SynthesizeRequest, background_tasks: Backgrou
     return JSONResponse({"status": "queued", "job_id": job_id, "keywords": req.keywords})
 
 # Error-safe wrapper for synthesis background task
-async def _run_synthesis_wrapper(job_id, keywords):
-    try: await _run_synthesis(job_id, keywords)
+def _run_synthesis_wrapper(job_id, keywords):
+    import asyncio, concurrent.futures
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    pool.submit(_run_synthesis_blocking, job_id, keywords)
+
+
+def _run_synthesis_blocking(job_id, keywords):
+    try: _run_synthesis_sync(job_id, keywords)
     except Exception as e:
         logger.error(f"[Synthesis {job_id}] Error: {e}")
         synth_queue.update_job(job_id, status="error", error=str(e))
 
 
-async def _run_synthesis(job_id: str, keywords: List[str]):
+def _run_synthesis_sync(job_id: str, keywords: List[str]):
     """Background task: scrape URLs, enrich, then run LLM SEO keyword extraction."""
-    import asyncio
     from db import get_con
     from llm_enricher import call_ollama
 
