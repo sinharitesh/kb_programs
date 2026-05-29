@@ -1590,6 +1590,8 @@ function renderFacts(facts) {
         <div style="font-size:0.9em;margin-bottom:4px">${f.verified ? '✅' : '❓'} ${f.fact || '(no fact text)'}</div>
         <div style="font-size:0.78em;color:#888">
           <a href="${f.source_url}" target="_blank">${f.source_title||f.domain||''}</a>
+          ${f.category ? `<span class="tag" style="margin-left:8px;">📁 ${f.category}</span>` : ''}
+          ${f.keywords ? `<span style="color:#999;margin-left:8px;" title="${f.keywords}">🔑 ${f.keywords.slice(0,40)}${f.keywords.length>40?'...':''}</span>` : ''}
         </div>
       </div>
       <button class="btn btn-red" style="font-size:0.78em;padding:4px 8px;flex-shrink:0"

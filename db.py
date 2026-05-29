@@ -434,31 +434,28 @@ def deduplicate_all():
     )
 
 def get_facts_for_explorer(verified: str = "all", search: str = "", source: str = ""):
-    """Return facts with source info, optionally filtered by verified status, search, and source."""
+    """Return facts with source info, category, and keywords."""
     con = get_con()
     sql = """
-        SELECT f.id, f.fact, f.verified, f.source, r.id as url_id, r.title, r.url, r.domain
+        SELECT f.id, f.fact, f.verified, f.source, r.id as url_id, r.title, r.url, r.domain,
+               COALESCE(p.path, 'uncategorized') as category,
+               (SELECT GROUP_CONCAT(DISTINCT ki.keyword, ', ') FROM keyword_intelligence ki WHERE ki.notes = r.url) as keywords
         FROM facts f
         JOIN url_registry r ON r.id = f.url_id
+        LEFT JOIN url_paths p ON p.url_id = r.id
         WHERE 1=1
     """
     params = []
-    if verified == "yes":
-        sql += " AND f.verified = TRUE"
-    elif verified == "no":
-        sql += " AND f.verified = FALSE"
-    if search:
-        sql += " AND f.fact ILIKE ?"
-        params.append(f"%{search}%")
-    if source:
-        sql += " AND f.source = ?"
-        params.append(source)
+    if verified == "yes": sql += " AND f.verified = TRUE"; 
+    elif verified == "no": sql += " AND f.verified = FALSE"; 
+    if search: sql += " AND f.fact ILIKE ?"; params.append(f"%{search}%")
+    if source: sql += " AND f.source = ?"; params.append(source)
     sql += " ORDER BY f.verified DESC, f.id DESC LIMIT 500"
     rows = con.execute(sql, params).fetchall()
     con.close()
     return [{"id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
-             "url_id": r[4], "source_title": r[5], "source_url": r[6], "domain": r[7]}
-            for r in rows]
+             "url_id": r[4], "source_title": r[5], "source_url": r[6], "domain": r[7],
+             "category": r[8], "keywords": r[9]} for r in rows]
 
 # ── Synthesized Keywords Persistence ──────────────────────────
 def save_synthesized_keyword(keyword, suggested, category, urls, facts_count, job_id):
