@@ -103,62 +103,35 @@ def migrate_facts_add_discovery_source():
         print("Migrated facts table: added discovery_source column")
     con.close()
 
-def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, reddit_facts: list = None, google_facts: list = None, discovery_source: str = None):
-    """Save LLM-extracted facts, DDG web facts, Reddit facts, Google facts, and Wikipedia-verified entities to DuckDB."""
+def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, wiki_facts: list = None, google_facts: list = None, discovery_source: str = None):
+    """Save LLM-extracted, DDG, Wiki, Google facts, and Wikipedia-verified entities to DuckDB."""
     con = get_con()
     migrate_facts_add_source()  # Ensure source column exists
     migrate_facts_add_discovery_source()  # Ensure discovery_source column exists
     next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
     # LLM-extracted facts — unverified, source='llm'
     for fact in facts:
-        if fact and fact.strip():
-            con.execute(
-                "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
-                [next_id, url_id, fact.strip(), False, 'llm', discovery_source]
-            )
-            next_id += 1
+        if fact and fact.strip(): con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, fact.strip(), False, 'llm', discovery_source]); next_id += 1
     # DDG web-sourced facts — marked verified, source='ddg_facts'
     if ddg_facts:
         for item in ddg_facts:
-            snippet = item.get("snippet", "").strip()
-            source_url = item.get("url", "")
-            if snippet:
-                fact_text = f"{snippet} [src: {source_url}]" if source_url else snippet
-                con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
-                    [next_id, url_id, fact_text[:500], True, 'ddg_facts', discovery_source]
-                )
-                next_id += 1
-    # Reddit facts — marked verified, source='reddit'
-    if reddit_facts:
-        for item in reddit_facts:
-            title = item.get("title", "").strip()
-            if title:
-                con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
-                    [next_id, url_id, title[:500], True, 'reddit', discovery_source]
-                )
-                next_id += 1
+            snippet = item.get("snippet", "").strip(); source_url = item.get("url", "")
+            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'ddg_facts', discovery_source]); next_id += 1
+    # Wiki facts — marked verified, source='wikipedia'
+    if wiki_facts:
+        for item in wiki_facts:
+            snippet = item.get("snippet", "").strip(); source_url = item.get("url", "")
+            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'wikipedia', discovery_source]); next_id += 1
     # Google facts — marked verified, source='google'
     if google_facts:
         for item in google_facts:
-            text = item.get("text", "").strip() if isinstance(item, dict) else str(item).strip()
-            if text:
-                con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?, ?, ?, ?, ?, ?)",
-                    [next_id, url_id, text[:500], True, 'google', discovery_source]
-                )
-                next_id += 1
+            snippet = item.get("snippet", "").strip(); source_url = item.get("url", "")
+            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'google', discovery_source]); next_id += 1
     # Wikipedia-verified entities — marked verified, source='wikipedia'
     if verified_entities:
         for entity, info in verified_entities.items():
             if info.get("verified") and info.get("wiki_summary"):
-                fact_text = f"{entity}: {info['wiki_summary'][:300]}"
-                con.execute(
-                    "INSERT INTO facts (id, url_id, fact, verified, source) VALUES (?, ?, ?, ?, ?)",
-                    [next_id, url_id, fact_text, True, 'wikipedia']
-                )
-                next_id += 1
+                con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{entity}: {info['wiki_summary'][:300]}"[:500], True, 'wikipedia', discovery_source]); next_id += 1
     con.close()
 
 

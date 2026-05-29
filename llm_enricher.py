@@ -369,13 +369,18 @@ def process_scrape_result(scrape_result: dict, user_category: str = None, discov
     )
     # Fetch DDG web facts
     ddg_facts = fetch_ddg_facts(enriched.get("title", ""))
-    # Save facts to DuckDB (LLM-extracted + DDG web facts + Wikipedia-verified entities)
+    # Fetch Wikipedia + Google facts
+    wiki_facts = _fetch_wikipedia_facts(enriched.get("title", ""))
+    google_facts = _fetch_google_facts(enriched.get("title", ""))
+    # Save facts to DuckDB (LLM-extracted + DDG web facts + Wikipedia-verified entities + Google)
     from db import save_facts_to_db
     save_facts_to_db(
         url_id=url_id,
         facts=enriched.get("facts", []),
         verified_entities=enriched.get("verified_entities", {}),
         ddg_facts=ddg_facts,
+        wiki_facts=wiki_facts,
+        google_facts=google_facts,
         discovery_source=discovery_source
     )
     update_indexes(enriched)
@@ -396,6 +401,36 @@ def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
         return [{"snippet": clean_text(r["body"]), "url": r["href"]} for r in results if r.get("body")]
     except Exception as e:
         log(f"[DDG] Error: {e}")
+        return []
+
+def _fetch_wikipedia_facts(query: str) -> list:
+    "Fetch Wikipedia page snippets as verified facts"
+    import httpx, re
+    try:
+        r = httpx.get("https://en.wikipedia.org/w/api.php",
+            params={"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5},
+            headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+        titles = [i["title"] for i in r.json()["query"]["search"]]
+        facts = []
+        for t in titles[:3]:
+            rr = httpx.get("https://en.wikipedia.org/api/rest_v1/page/summary/" + t.replace(" ", "_"), timeout=10)
+            if rr.status_code == 200:
+                d = rr.json()
+                facts.append({"snippet": d.get("extract", "")[:500], "url": d.get("content_urls", {}).get("desktop", {}).get("page", "")})
+        return facts
+    except Exception as e:
+        log(f"[Wiki-facts] Error: {e}")
+        return []
+
+def _fetch_google_facts(query: str) -> list:
+    "Fetch Google search snippets as facts"
+    import httpx
+    try:
+        r = httpx.get("https://suggestqueries.google.com/complete/search?client=firefox&q=" + query.replace(" ", "+"), timeout=10)
+        suggestions = r.json()[1][:10] if len(r.json()) > 1 else []
+        return [{"snippet": s, "url": f"https://www.google.com/search?q={s.replace(' ', '+')}"} for s in suggestions]
+    except Exception as e:
+        log(f"[Google-facts] Error: {e}")
         return []
 
 
