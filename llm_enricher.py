@@ -53,6 +53,22 @@ Return ONLY a valid JSON object:
 }}
 """
 
+FACT_SCORING_PROMPT = """You are an editor evaluating article facts. For each fact, assign an "interest score" (1-10) based on how surprising, useful, or engaging it is for a general reader. Also, for each fact, indicate whether it is likely verifiable via Wikipedia (yes/no) and provide a Wikipedia search phrase.
+
+Article title: {title}
+
+Facts:
+{facts_json}
+
+Return ONLY a valid JSON object:
+{{
+  "scored_facts": [
+    {{"fact": "the fact text", "interest_score": 7, "needs_verification": true, "wiki_search": "search phrase for Wikipedia"}},
+    ...
+  ]
+}}
+"""
+
 
 MERGE_PROMPT = """You are a knowledge base assistant. Below are enriched sections of an article.
 Merge them into one coherent, comprehensive knowledge base entry.
@@ -184,6 +200,28 @@ def verify_via_wikipedia(entity: str) -> dict:
     return {"verified": False}
 
 # ── Main Enrichment ────────────────────────────────────────────
+def score_and_verify_facts(title, facts):
+    "Score each fact for interest (1-10) and verify key facts against Wikipedia"
+    if not facts: return {}
+    try:
+        prompt = FACT_SCORING_PROMPT.format(title=title, facts_json=json.dumps(facts[:30]))
+        raw = call_ollama(prompt)
+        parsed = extract_json(raw)
+        scored = {f["fact"]: {"interest_score": f.get("interest_score", 5), "needs_verification": f.get("needs_verification", False), "wiki_search": f.get("wiki_search", "")} for f in parsed.get("scored_facts", [])}
+        # Verify top-5 facts that need verification
+        for fact_text, info in scored.items():
+            if info["needs_verification"] and info["wiki_search"]:
+                v = verify_via_wikipedia(info["wiki_search"])
+                info["verified"] = v["verified"]
+                info["wiki_summary"] = v.get("wiki_summary", "")
+                info["wiki_url"] = v.get("wiki_url", "")
+            else: info["verified"] = False
+        log(f"[Scoring] Scored {len(scored)} facts")
+        return scored
+    except Exception as e:
+        log(f"[Scoring] Error: {e}")
+        return {}
+
 def enrich(scrape_result: dict, user_category: str = None) -> dict:
     if scrape_result.get("status") != "ok":
         return {"error": "Cannot enrich failed scrape", "details": scrape_result}
@@ -228,20 +266,19 @@ def enrich(scrape_result: dict, user_category: str = None) -> dict:
     for entity in merged.get("entities", [])[:3]:
         verified[entity] = verify_via_wikipedia(entity)
 
+    # Score facts for interest and verify against Wikipedia
+    facts = merged.get("facts", [])
+    fact_ratings = score_and_verify_facts(title, facts)
+
     return {
-        "title": title,
-        "url": url,
-        "category_path": final_path,
-        "summary": merged.get("summary", ""),
-        "facts": merged.get("facts", []),
-        "tags": merged.get("tags", []),
-        "entities": merged.get("entities", []),
+        "title": title, "url": url, "category_path": final_path,
+        "summary": merged.get("summary", ""), "facts": facts,
+        "tags": merged.get("tags", []), "entities": merged.get("entities", []),
         "cross_refs": merged.get("cross_refs", []),
         "quality_score": calc_quality(merged, scrape_result, verified),
-        "sections": section_results,  # keep all section details
-        "images": scrape_result.get("images", []),
+        "sections": section_results, "images": scrape_result.get("images", []),
         "raw_file": scrape_result.get("raw_file", ""),
-        "verified_entities": verified,
+        "verified_entities": verified, "fact_ratings": fact_ratings,
         "enriched_at": datetime.now().isoformat()
     }
 
@@ -381,6 +418,7 @@ def process_scrape_result(scrape_result: dict, user_category: str = None, discov
         ddg_facts=ddg_facts,
         wiki_facts=wiki_facts,
         google_facts=google_facts,
+        fact_ratings=enriched.get("fact_ratings", {}),
         discovery_source=discovery_source
     )
     update_indexes(enriched)

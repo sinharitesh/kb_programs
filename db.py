@@ -103,35 +103,49 @@ def migrate_facts_add_discovery_source():
         print("Migrated facts table: added discovery_source column")
     con.close()
 
-def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, wiki_facts: list = None, google_facts: list = None, discovery_source: str = None):
+def _ensure_fact_scoring_columns(con):
+    "Add interest_score and verification_source columns to facts if missing"
+    try: con.execute("SELECT interest_score FROM facts LIMIT 1")
+    except: con.execute("ALTER TABLE facts ADD COLUMN interest_score INTEGER DEFAULT 5")
+    try: con.execute("SELECT verification_source FROM facts LIMIT 1")
+    except: con.execute("ALTER TABLE facts ADD COLUMN verification_source TEXT")
+
+
+def save_facts_to_db(url_id: int, facts: list[str], verified_entities: dict = None, ddg_facts: list = None, wiki_facts: list = None, google_facts: list = None, fact_ratings: dict = None, discovery_source: str = None):
     """Save LLM-extracted, DDG, Wiki, Google facts, and Wikipedia-verified entities to DuckDB."""
     con = get_con()
-    migrate_facts_add_source()  # Ensure source column exists
-    migrate_facts_add_discovery_source()  # Ensure discovery_source column exists
+    migrate_facts_add_source(); migrate_facts_add_discovery_source()
+    _ensure_fact_scoring_columns(con)
     next_id = con.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM facts").fetchone()[0]
-    # LLM-extracted facts — unverified, source='llm'
+    # LLM-extracted facts — scored for interest and optionally verified
     for fact in facts:
-        if fact and fact.strip(): con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, fact.strip(), False, 'llm', discovery_source]); next_id += 1
-    # DDG web-sourced facts — marked verified, source='ddg_facts'
+        if fact and fact.strip():
+            rating = (fact_ratings or {}).get(fact, {})
+            interest = rating.get("interest_score", 5)
+            ver_src = "wikipedia" if rating.get("verified") else (rating.get("wiki_search")[:80] if rating.get("wiki_search") else None)
+            con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source, interest_score, verification_source) VALUES (?,?,?,?,?,?,?,?)",
+                [next_id, url_id, fact.strip(), rating.get("verified", False), 'llm', discovery_source, interest, ver_src]); next_id += 1
+    # DDG web-sourced facts
     if ddg_facts:
         for item in ddg_facts:
             snippet = item.get("snippet", "").strip(); source_url = item.get("url", "")
-            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'ddg_facts', discovery_source]); next_id += 1
-    # Wiki facts — marked verified, source='wikipedia'
+            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source, interest_score, verification_source) VALUES (?,?,?,?,?,?,?,?)",
+                [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'ddg_facts', discovery_source, 4, 'ddg']); next_id += 1
     if wiki_facts:
         for item in wiki_facts:
             snippet = item.get("snippet", "").strip(); source_url = item.get("url", "")
-            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'wikipedia', discovery_source]); next_id += 1
-    # Google facts — marked verified, source='google'
+            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source, interest_score, verification_source) VALUES (?,?,?,?,?,?,?,?)",
+                [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'wikipedia', discovery_source, 6, 'wikipedia']); next_id += 1
     if google_facts:
         for item in google_facts:
             snippet = item.get("snippet", "").strip(); source_url = item.get("url", "")
-            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'google', discovery_source]); next_id += 1
-    # Wikipedia-verified entities — marked verified, source='wikipedia'
+            if snippet: con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source, interest_score, verification_source) VALUES (?,?,?,?,?,?,?,?)",
+                [next_id, url_id, f"{snippet} [src: {source_url}]"[:500] if source_url else snippet[:500], True, 'google', discovery_source, 3, 'google']); next_id += 1
     if verified_entities:
         for entity, info in verified_entities.items():
             if info.get("verified") and info.get("wiki_summary"):
-                con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source) VALUES (?,?,?,?,?,?)", [next_id, url_id, f"{entity}: {info['wiki_summary'][:300]}"[:500], True, 'wikipedia', discovery_source]); next_id += 1
+                con.execute("INSERT INTO facts (id, url_id, fact, verified, source, discovery_source, interest_score, verification_source) VALUES (?,?,?,?,?,?,?,?)",
+                    [next_id, url_id, f"{entity}: {info['wiki_summary'][:300]}"[:500], True, 'wikipedia', discovery_source, 5, 'wikipedia']); next_id += 1
     con.close()
 
 
@@ -407,12 +421,15 @@ def deduplicate_all():
     )
 
 def get_facts_for_explorer(verified: str = "all", search: str = "", source: str = ""):
-    """Return facts with source info, category, and keywords."""
+    """Return facts with source info, category, keywords, and interest scores."""
     con = get_con()
+    _ensure_fact_scoring_columns(con)
     sql = """
         SELECT f.id, f.fact, f.verified, f.source, r.id as url_id, r.title, r.url, r.domain,
                COALESCE(p.path, 'uncategorized') as category,
-               (SELECT GROUP_CONCAT(DISTINCT ki.keyword, ', ') FROM keyword_intelligence ki WHERE ki.notes = r.url) as keywords
+               (SELECT GROUP_CONCAT(DISTINCT ki.keyword, ', ') FROM keyword_intelligence ki WHERE ki.notes = r.url) as keywords,
+               COALESCE(f.interest_score, 5) as interest_score,
+               COALESCE(f.verification_source, '') as verification_source
         FROM facts f
         JOIN url_registry r ON r.id = f.url_id
         LEFT JOIN url_paths p ON p.url_id = r.id
@@ -428,7 +445,7 @@ def get_facts_for_explorer(verified: str = "all", search: str = "", source: str 
     con.close()
     return [{"id": r[0], "fact": r[1], "verified": r[2], "source": r[3],
              "url_id": r[4], "source_title": r[5], "source_url": r[6], "domain": r[7],
-             "category": r[8], "keywords": r[9]} for r in rows]
+             "category": r[8], "keywords": r[9], "interest_score": r[10], "verification_source": r[11]} for r in rows]
 
 # ── Synthesized Keywords Persistence ──────────────────────────
 def save_synthesized_keyword(keyword, suggested, category, urls, facts_count, job_id):
