@@ -683,18 +683,13 @@ async def get_discovered_urls(search: str = "", status: str = "", min_score: int
         score = calc_score(r[6], r[7], r[8])
         if score >= min_score:
             urls.append({
-                "url": r[0],
-                "keyword": r[1],
-                "topic": r[2],
-                "category": r[3],
-                "status": r[4],
-                "url_id": r[5],
-                "score": score,
-                "potential": get_potential(score),
-                "source_count": r[6],
-                "total_mentions": r[8],
-                "sources": r[9].split(',') if r[9] else []
+                "url": r[0], "keyword": r[1], "topic": r[2], "category": r[3],
+                "status": r[4], "url_id": r[5], "score": score,
+                "potential": get_potential(score), "source_count": r[6],
+                "total_mentions": r[8], "sources": r[9].split(',') if r[9] else []
             })
+
+    urls.sort(key=lambda u: u["score"], reverse=True)
 
     con.close()
     return JSONResponse({"urls": urls, "total": len(urls)})
