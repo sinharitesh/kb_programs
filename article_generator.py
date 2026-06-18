@@ -213,6 +213,12 @@ def gather_all_context(idea: str, category: str, search_phrases: list = None,
     if search_phrases: all_phrases.extend(search_phrases)
     # Gather facts
     facts = gather_facts(category, all_phrases, fact_limit)
+    # If too few facts found, broaden search across all categories
+    if len(facts) < 3:
+        broad_facts = gather_facts("", all_phrases, 5)
+        for f in broad_facts:
+            if not any(x["id"] == f["id"] for x in facts): facts.append(f)
+        logger.info(f"Broadened fact search: {len(facts)} total (was {len([f for f in facts if f.get('match','').startswith('search:')])})")
     # Score by keyword match density and sort top first
     for f in facts: f["score"] = sum(1 for w in idea_words if w.lower() in f["fact"].lower())
     facts.sort(key=lambda f: f["score"], reverse=True)

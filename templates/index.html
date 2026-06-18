@@ -3081,8 +3081,8 @@ function renderContextTab(tab) {
   else if (tab === 'synthkw') { items = gatheredContext.synthesized_keywords; cbPrefix = 'ag-skw'; }
   else if (tab === 'kwintel') { items = gatheredContext.keyword_intelligence; cbPrefix = 'ag-kwi'; }
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; return; }
-  let checkedCount = 0;
-  let html = '';
+  let checkedCount = 0, html = '';
+  if (tab === 'facts' && items.length < 3) html += '<div style="margin-bottom:8px;"><button class="btn btn-blue" onclick="findMoreFacts()" style="font-size:0.8em;padding:4px 10px;">🔍 Search All Categories for More Facts</button></div>';
   items.forEach((item, i) => {
     let label, subtitle = '';
     if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.source})</span>`; }
@@ -3105,6 +3105,28 @@ function toggleSelectAllContext() {
   let anyUnchecked = [...cbs].some(cb => !cb.checked);
   cbs.forEach(cb => cb.checked = anyUnchecked);
   document.getElementById('ctx-select-all-btn').textContent = anyUnchecked ? 'Unselect All' : 'Select All';
+}
+
+async function findMoreFacts() {
+  const idea = document.getElementById('ag-idea').value.trim();
+  if (!idea) return alert('Please enter a central idea first');
+  const btn = event.target; btn.disabled = true; btn.textContent = 'Searching...';
+  try {
+    const res = await fetch('/articles/gather-context', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({idea, category: '', search_phrases: idea.split(/\s+/).filter(w => w.length > 3), fact_limit: 15})
+    });
+    const data = await res.json();
+    if (data.facts) {
+      let existing = new Set((gatheredContext.facts || []).map(f => f.id));
+      data.facts.forEach(f => { if (!existing.has(f.id)) { gatheredContext.facts.push(f); existing.add(f.id); } });
+      gatheredContext.facts.sort((a, b) => (b.interest_score||5) - (a.interest_score||5));
+      document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
+      renderContextTab('facts');
+      document.getElementById('ag-context-summary').textContent = `${gatheredContext.facts.length} facts added (all categories)`;
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+  btn.disabled = false; btn.textContent = '🔍 Search All Categories for More Facts';
 }
 
 
