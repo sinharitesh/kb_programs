@@ -830,7 +830,10 @@
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <span style="font-size:0.85em;color:#666;" id="context-tab-info"></span>
-          <button class="btn btn-grey" onclick="toggleSelectAllContext()" style="font-size:0.8em;padding:4px 10px;" id="ctx-select-all-btn">Select All</button>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="context-tab-search" placeholder="🔍 Search this tab..." style="padding:4px 8px;font-size:0.8em;border:1px solid #dadce0;border-radius:4px;width:180px;" oninput="renderContextTab(ctxActiveTab)">
+            <button class="btn btn-grey" onclick="toggleSelectAllContext()" style="font-size:0.8em;padding:4px 10px;" id="ctx-select-all-btn">Select All</button>
+          </div>
         </div>
         <div id="context-tab-content" style="flex:1;overflow-y:auto;min-height:200px;"></div>
         <div style="margin-top:12px;padding-top:8px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;gap:8px;">
@@ -3066,6 +3069,7 @@ function closeContextModal() { document.getElementById('context-modal').style.di
 
 function switchContextTab(tab) {
   ctxActiveTab = tab;
+  document.getElementById('context-tab-search').value = '';
   document.querySelectorAll('.context-tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('ctx-tab-' + tab).classList.add('active');
   renderContextTab(tab);
@@ -3082,8 +3086,15 @@ function renderContextTab(tab) {
   else if (tab === 'kwintel') { items = gatheredContext.keyword_intelligence; cbPrefix = 'ag-kwi'; }
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; return; }
   let checkedCount = 0, html = '';
+  let search = document.getElementById('context-tab-search').value.toLowerCase().trim();
+  let filtered = search ? items.filter((item, i) => {
+    let label = tab === 'facts' ? item.fact : tab === 'questions' ? item.question : tab === 'synthkw' ? item.keyword : item.text || item.keyword;
+    return (label || '').toLowerCase().includes(search);
+  }) : items;
   if (tab === 'facts' && items.length < 3) html += '<div style="margin-bottom:8px;"><button class="btn btn-blue" onclick="findMoreFacts()" style="font-size:0.8em;padding:4px 10px;">🔍 Search All Categories for More Facts</button></div>';
-  items.forEach((item, i) => {
+  if (search && !filtered.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items match "' + search + '"</p>'; document.getElementById('context-tab-info').textContent = '0 / ' + items.length + ' items'; return; }
+  filtered.forEach(item => {
+    let i = items.indexOf(item);
     let label, subtitle = '';
     if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.source})</span>`; }
     else if (tab === 'questions') { label = item.question; }
@@ -3097,7 +3108,7 @@ function renderContextTab(tab) {
     </label>`;
   });
   div.innerHTML = html;
-  document.getElementById('context-tab-info').textContent = `${items.length} items · ${checkedCount} selected`;
+  document.getElementById('context-tab-info').textContent = `${filtered.length}/${items.length} items · ${checkedCount} selected`;
 }
 
 function toggleSelectAllContext() {
