@@ -257,11 +257,13 @@ def clean_article(text):
 # ── Prompt Building ───────────────────────────────────────────────────────────
 
 def build_facts_block(facts):
-    """Format selected facts for the article prompt."""
+    """Format selected facts for the article prompt, sorting by interest score."""
+    sorted_facts = sorted(facts, key=lambda f: f.get("interest_score", 5), reverse=True)
     lines = []
-    for i, f in enumerate(facts, 1):
+    for i, f in enumerate(sorted_facts, 1):
         source = f.get("source_title", f.get("source", "source"))
-        lines.append(f"[Fact {i} — via {source}]\n{f['fact'].strip()}\n")
+        marker = "★ MOST INTERESTING FACT" if i == 1 else f"Fact {i}"
+        lines.append(f"[{marker} — via {source} | Interest ⭐{f.get('interest_score',5)}/10]\n{f['fact'].strip()}\n")
     return "\n".join(lines)
 
 
@@ -340,34 +342,36 @@ Word Count       : approximately {word_count} words
 
 ━━━ STRICT WRITING RULES ━━━
 
-1. HOOK FIRST — Open with ONE:
-   - A shocking or counter-intuitive fact
-   - A short vivid story or scene (2-3 sentences)
-   - A bold question that addresses the reader personally
-   - A myth immediately challenged
+1. FIRST SENTENCE = the ★ MOST INTERESTING FACT above. State it directly. No setup. No narrative preamble. No "Imagine..." or "As I sit...". Just the fact, delivered like a headline.
 
-2. FACTS — Never dump as bullet points:
+2. FIRST PARAGRAPH (3-4 sentences): Expand the ★ fact with context from KB or other facts. Make the reader think "I need to know more." End with a question or teaser that compels reading further.
+
+3. FACTS — Never dump as bullet points:
    - Weave into narrative like a storyteller
+   - Each fact gets its own section or paragraph
    - Follow each with "So what?" — why does it matter?
 
-3. STRUCTURE:
-   ## [Attention-grabbing opening title]
-   ## [Main concept — story-driven]
-   ## [Surprising lesser-known angle]
-   ## Did You Know?  ← 3 punchy facts as short paragraphs (NOT bullets)
+4. STRUCTURE:
+   ## [Attention-grabbing title that hints at the ★ fact]
+   Lead paragraph expanding the ★ fact
+   ## [Deeper context — how/why/what]  
+   ## [Lesser-known angle or surprising detail]
+   ## Did You Know?  ← 3 punchy facts as short standalone paragraphs (NOT bullets)
    ## Frequently Asked Questions  ← Include answered questions as FAQ
-   ## [Modern relevance]
-   ## [Emotional inspiring conclusion]
+   ## [Modern relevance or takeaway]
+   ## [Conclusion — tie back to the opening fact]
 
-4. LANGUAGE:
-   - Short punchy + richer descriptive sentences mixed
-   - Rhetorical questions throughout
+5. LANGUAGE:
+   - First paragraph: punchy, declarative, zero fluff
+   - Mix short punchy sentences with richer descriptive ones
+   - Rhetorical questions throughout  
    - Vivid imagery and analogies
    - NO filler: "In conclusion", "It is important to note", "In today's world"
+   - NO flowery intros: "As I sit...", "Imagine a world...", "In the annals of..."
 
-5. SEO — use keyphrase and keywords naturally, include unanswered questions in article body
+6. SEO — use keyphrase and keywords naturally, include unanswered questions in article body
 
-6. END with meta description as blockquote:
+7. END with meta description as blockquote:
    > **Meta:** [max 155 chars]
 
 Output ONLY the article markdown — nothing before the first heading.
