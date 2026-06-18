@@ -2863,7 +2863,7 @@ async function pollArticleStatus() {
       loadGeneratedArticles();
     } else if (data.status === 'error') {
       document.getElementById('ag-progress').style.display = 'none';
-      alert('Generation failed: ' + data.message);
+      alert('Generation failed: ' + (data.message || data.error || 'unknown'));
       document.getElementById('ag-context').style.display = 'block';
     } else {
       setTimeout(pollArticleStatus, 1000);

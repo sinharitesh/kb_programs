@@ -1297,7 +1297,7 @@ async def api_generate_article(
             result = generate_article(ctx, settings)
             article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
         except Exception as e:
-            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "error": str(e)}
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": str(e)}
     background_tasks.add_task(run_generation)
     return JSONResponse({"job_id": job_id, "status": "generating"})
     def run_generation():
@@ -1305,7 +1305,7 @@ async def api_generate_article(
             result = generate_article(ctx, settings)
             article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
         except Exception as e:
-            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "error": str(e)}
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": str(e)}
     background_tasks.add_task(run_generation)
     return JSONResponse({"job_id": job_id, "status": "generating"})
 
