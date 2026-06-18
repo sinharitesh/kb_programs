@@ -184,10 +184,10 @@ def chunk_text(text: str) -> list[dict]:
 # ── Fact Verifier ──────────────────────────────────────────────
 def verify_via_wikipedia(entity: str) -> dict:
     try:
-        r = httpx.get(
-            "https://en.wikipedia.org/api/rest_v1/page/summary/" + entity.replace(" ", "_"),
-            timeout=10
-        )
+        import urllib.parse
+        encoded = urllib.parse.quote(entity.replace(" ", "_")[:100])
+        r = httpx.get("https://en.wikipedia.org/api/rest_v1/page/summary/" + encoded,
+            headers={"User-Agent": "KBManager/1.0"}, timeout=10)
         if r.status_code == 200:
             data = r.json()
             return {
@@ -442,7 +442,8 @@ def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
         return []
 
 def verify_unverified_facts(batch_size=10):
-    "Verify unverified facts against Wikipedia in the background"
+    "Verify unverified facts against Wikipedia search API"
+    import urllib.parse
     from db import get_con
     con = get_con()
     facts = con.execute("""
@@ -457,8 +458,22 @@ def verify_unverified_facts(batch_size=10):
     for fid, fact_text in facts:
         try:
             if len(fact_text) < 20: continue
-            wiki_check = verify_via_wikipedia(fact_text)
-            if wiki_check.get("verified"):
+            # Truncate and extract key phrase (first sentence or first 80 chars)
+            search_phrase = fact_text.split('.')[0][:80].strip().rstrip(',')
+            if len(search_phrase) < 10: continue
+            # Search Wikipedia for matching article
+            sr = httpx.get("https://en.wikipedia.org/w/api.php",
+                params={"action": "query", "list": "search", "srsearch": search_phrase, "format": "json", "srlimit": 3},
+                headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+            if sr.status_code != 200: continue
+            results = sr.json().get("query", {}).get("search", [])
+            if not results: continue
+            # Get summary of the top match
+            title = results[0]["title"]
+            encoded = urllib.parse.quote(title.replace(" ", "_"))
+            sm = httpx.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
+                headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+            if sm.status_code == 200:
                 con = get_con()
                 con.execute("UPDATE facts SET verified=TRUE, verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
                 con.close()
