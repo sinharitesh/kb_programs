@@ -684,6 +684,7 @@
         <div style="display:flex;align-items:flex-end;gap:8px">
           <button class="btn btn-grey" onclick="loadFacts()">↺ Reset</button>
           <button class="btn btn-red" onclick="deleteSelectedFacts()">🗑 Delete Selected</button>
+        <button class="btn btn-blue" onclick="verifyFacts()">🔍 Verify Facts</button>
         </div>
       </div>
     </div>
@@ -1613,15 +1614,14 @@ async function deleteOneFact(id, btn) {
   btn.closest('.url-card').remove();
 }
 
-async function deleteSelectedFacts() {
-  const ids = [...document.querySelectorAll('.fact-chk:checked')].map(c => +c.dataset.id);
-  if (!ids.length) { alert('No facts selected.'); return; }
-  if (!confirm(`Delete ${ids.length} facts?`)) return;
-  await fetch('/facts/delete-bulk', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(ids)});
-  await fetchFacts(
-    document.getElementById('facts-topic-search').value,
-    document.getElementById('facts-verified-filter').value
-  );
+async function verifyFacts() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  const res = await fetch('/facts/verify', {method: 'POST'});
+  const d = await res.json();
+  alert(`✅ Verified ${d.verified} facts via Wikipedia`);
+  btn.disabled = false; btn.textContent = '🔍 Verify Facts';
+  loadFacts();
 }
 
 async function confirmFactsCategory() {
@@ -2524,53 +2524,26 @@ async function approveSynthesizedKeywords() {
   }
 }
 
-// ── Synthesis Jobs ──
+// ── Synthesis History ──
 async function loadSynthesisJobs() {
-  const res = await fetch('/api/synthesize-keywords/jobs');
+  const res = await fetch('/api/synthesized-keywords?limit=50');
   const data = await res.json();
-  
-  document.getElementById('synth-jobs-count').textContent = `${data.total} jobs`;
+  const keywords = data.keywords || [];
+
+  document.getElementById('synth-jobs-count').textContent = `${keywords.length} saved`;
   const container = document.getElementById('synthesis-jobs-list');
-  
-  if (!data.jobs || data.jobs.length === 0) {
-    container.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">Click "✨ Synthesize Selected" in Keyword Analysis to start a synthesis job.</p>';
-    return;
-  }
-  
-  const statusLabels = {
-    queued: '⏳ Queued',
-    scraping: '🔄 Collecting URLs',
-    enriching: '📚 Enriching content',
-    analyzing: '🧠 AI Synthesizing',
-    done: '✅ Synthesis Complete',
-    error: '❌ Error'
-  };
-  
-  container.innerHTML = data.jobs.map(job => {
-    const created = new Date(job.created_at).toLocaleString();
-    const completed = job.completed_at ? new Date(job.completed_at).toLocaleString() : null;
-    const keywords = job.keywords.join(', ');
-    const resultCount = job.results ? job.results.reduce((acc, r) => acc + (r.suggested ? r.suggested.length : 0), 0) : 0;
-    
+
+  if (!keywords.length) { container.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">No synthesized keywords yet. Click "✨ Synthesize Selected" in Keyword Analysis to create some.</p>'; return; }
+
+  container.innerHTML = keywords.map((kw, i) => {
+    let suggested = (kw.suggested || []).slice(0, 6).map(s => s.keyword || s).join(', ');
     return `
-    <div class="card" style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div style="flex:1;">
-          <div style="font-weight:600;margin-bottom:4px;">${statusLabels[job.status] || job.status} <span style="font-size:0.8em;color:#666;font-weight:normal;">(${job.id})</span></div>
-          <div style="font-size:0.85em;color:#444;margin-bottom:8px;">${keywords}</div>
-          <div style="font-size:0.8em;color:#666;">
-            🕐 ${created}
-            ${completed ? ` | ✅ ${completed}` : ''}
-            ${job.status === 'done' ? ` | <strong>${resultCount}</strong> keywords suggested` : ''}
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0;">
-          ${job.status === 'done' ? 
-            `<button class="btn btn-green" onclick="viewSynthesisResults('${job.id}')" style="font-size:0.85em;padding:6px 12px;">👀 View</button>`
-            : ''}
-          <button class="btn btn-red" onclick="deleteSynthesisJob('${job.id}')" style="font-size:0.85em;padding:6px 12px;">🗑 Delete</button>
-        </div>
+    <div style="padding:10px 0;border-bottom:1px solid #e8e8e8;font-size:0.9em;">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;">
+        <strong style="color:#1a73e8;">${kw.keyword}</strong>
+        <span style="color:#888;font-size:0.8em;">📁 ${kw.category||'general'} · 📊 ${kw.facts_count||0} facts</span>
       </div>
+      ${suggested ? `<div style="font-size:0.85em;color:#444;margin-bottom:4px;">🔑 ${suggested}</div>` : ''}
     </div>`;
   }).join('');
 }

@@ -1173,6 +1173,19 @@ async def api_deduplicate():
     result = deduplicate_all()
     return JSONResponse(result)
 
+@app.post("/facts/verify")
+async def api_verify_facts():
+    "Manually trigger verification of unverified facts"
+    from llm_enricher import verify_unverified_facts
+    count = verify_unverified_facts(20)
+    return JSONResponse({"verified": count})
+
+# Start background fact verifier on app startup
+@app.on_event("startup")
+async def startup_verifier():
+    from llm_enricher import start_background_verifier
+    start_background_verifier(600)  # every 10 minutes
+
 
 class GatherContextRequest(BaseModel):
     idea: str

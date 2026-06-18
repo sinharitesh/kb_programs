@@ -441,6 +441,45 @@ def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
         log(f"[DDG] Error: {e}")
         return []
 
+def verify_unverified_facts(batch_size=10):
+    "Verify unverified facts against Wikipedia in the background"
+    from db import get_con
+    con = get_con()
+    facts = con.execute("""
+        SELECT f.id, f.fact FROM facts f
+        WHERE (f.verified = FALSE OR f.verified IS NULL) AND f.source = 'llm'
+        AND (f.verification_source IS NULL OR f.verification_source = '')
+        LIMIT ?
+    """, [batch_size]).fetchall()
+    con.close()
+    if not facts: return 0
+    verified_count = 0
+    for fid, fact_text in facts:
+        try:
+            if len(fact_text) < 20: continue
+            wiki_check = verify_via_wikipedia(fact_text)
+            if wiki_check.get("verified"):
+                con = get_con()
+                con.execute("UPDATE facts SET verified=TRUE, verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
+                con.close()
+                verified_count += 1
+        except: pass
+    if verified_count: log(f"[Verify] Verified {verified_count}/{len(facts)} facts via Wikipedia")
+    return verified_count
+
+def start_background_verifier(interval_seconds=300):
+    "Start a daemon thread that periodically verifies unverified facts"
+    import threading, time
+    def verifier_loop():
+        while True:
+            try: verify_unverified_facts(15)
+            except Exception as e: log(f"[Verifier] Error: {e}")
+            time.sleep(interval_seconds)
+    t = threading.Thread(target=verifier_loop, daemon=True)
+    t.start()
+    log(f"[Verifier] Background verifier started (interval: {interval_seconds}s)")
+    return t
+
 def _fetch_wikipedia_facts(query: str) -> list:
     "Fetch Wikipedia page snippets as verified facts"
     import httpx, re
