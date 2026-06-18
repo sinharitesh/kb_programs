@@ -1184,7 +1184,7 @@ async def api_verify_facts():
 @app.on_event("startup")
 async def startup_verifier():
     from llm_enricher import start_background_verifier
-    start_background_verifier(600)  # every 10 minutes
+    start_background_verifier()
 
 
 class GatherContextRequest(BaseModel):

@@ -441,58 +441,56 @@ def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
         log(f"[DDG] Error: {e}")
         return []
 
-def verify_unverified_facts(batch_size=10):
-    "Verify unverified facts against Wikipedia search API"
-    import urllib.parse
+def verify_unverified_facts(batch_size=1000, sleep_between=30):
+    "Verify unverified facts against Wikipedia search API — slow background service"
+    import urllib.parse, time
     from db import get_con
-    con = get_con()
-    facts = con.execute("""
+    con = get_con(); facts = con.execute("""
         SELECT f.id, f.fact FROM facts f
         WHERE (f.verified = FALSE OR f.verified IS NULL) AND f.source = 'llm'
         AND (f.verification_source IS NULL OR f.verification_source = '')
         LIMIT ?
-    """, [batch_size]).fetchall()
-    con.close()
+    """, [batch_size]).fetchall(); con.close()
     if not facts: return 0
     verified_count = 0
     for fid, fact_text in facts:
         try:
             if len(fact_text) < 20: continue
-            # Truncate and extract key phrase (first sentence or first 80 chars)
             search_phrase = fact_text.split('.')[0][:80].strip().rstrip(',')
             if len(search_phrase) < 10: continue
-            # Search Wikipedia for matching article
             sr = httpx.get("https://en.wikipedia.org/w/api.php",
-                params={"action": "query", "list": "search", "srsearch": search_phrase, "format": "json", "srlimit": 3},
-                headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+                params={"action": "query", "list": "search", "srsearch": search_phrase, "format": "json", "srlimit": 1},
+                headers={"User-Agent": "KBManager/1.0"}, timeout=15)
             if sr.status_code != 200: continue
             results = sr.json().get("query", {}).get("search", [])
             if not results: continue
-            # Get summary of the top match
             title = results[0]["title"]
             encoded = urllib.parse.quote(title.replace(" ", "_"))
             sm = httpx.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
-                headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+                headers={"User-Agent": "KBManager/1.0"}, timeout=15)
             if sm.status_code == 200:
                 con = get_con()
                 con.execute("UPDATE facts SET verified=TRUE, verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
                 con.close()
                 verified_count += 1
         except: pass
+        time.sleep(sleep_between)
     if verified_count: log(f"[Verify] Verified {verified_count}/{len(facts)} facts via Wikipedia")
     return verified_count
 
-def start_background_verifier(interval_seconds=300):
-    "Start a daemon thread that periodically verifies unverified facts"
+def start_background_verifier():
+    "Start a daemon thread that continuously verifies facts with 30s+ delays"
     import threading, time
     def verifier_loop():
+        time.sleep(60)
         while True:
-            try: verify_unverified_facts(15)
-            except Exception as e: log(f"[Verifier] Error: {e}")
-            time.sleep(interval_seconds)
-    t = threading.Thread(target=verifier_loop, daemon=True)
-    t.start()
-    log(f"[Verifier] Background verifier started (interval: {interval_seconds}s)")
+            try:
+                remaining = verify_unverified_facts(1000, 35)
+                if remaining == 0: time.sleep(600)  # No more facts, check in 10min
+                else: time.sleep(60)
+            except Exception as e: log(f"[Verifier] Error: {e}"); time.sleep(300)
+    t = threading.Thread(target=verifier_loop, daemon=True); t.start()
+    log("[Verifier] Background service started (35s delay, continuous)")
     return t
 
 def _fetch_wikipedia_facts(query: str) -> list:
