@@ -3090,8 +3090,12 @@ function renderContextTab(tab) {
   let checkedCount = 0, html = '';
   let search = document.getElementById('context-tab-search').value.toLowerCase().trim();
   let filtered = search ? items.filter((item, i) => {
-    let label = tab === 'facts' ? item.fact : tab === 'questions' ? item.question : tab === 'synthkw' ? item.keyword : item.text || item.keyword;
-    return (label || '').toLowerCase().includes(search);
+    let text = '';
+    if (tab === 'facts') text = (item.fact||'') + ' ' + (item.source||'');
+    else if (tab === 'questions') text = (item.question||'');
+    else if (tab === 'synthkw') text = (item.keyword||'') + ' ' + (item.intent||'') + ' ' + (item.category||'');
+    else if (tab === 'kwintel') text = (item.text||'') + ' ' + (item.source||'') + ' ' + (item.topic||'') + ' ' + (item.category||'');
+    return text.toLowerCase().includes(search);
   }) : items;
   if (tab === 'facts' && items.length < 3) html += '<div style="margin-bottom:8px;"><button class="btn btn-blue" onclick="findMoreFacts()" style="font-size:0.8em;padding:4px 10px;">🔍 Search All Categories for More Facts</button></div>';
   if (search && !filtered.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items match "' + search + '"</p>'; document.getElementById('context-tab-info').textContent = '0 / ' + items.length + ' items'; return; }
