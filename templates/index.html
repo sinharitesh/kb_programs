@@ -3098,29 +3098,39 @@ function fetchContextSearch(tab, query, pfx) {
   if (ctxSearchTimer) clearTimeout(ctxSearchTimer);
   ctxSearchTimer = setTimeout(function() {
     var idea = document.getElementById('ag-idea').value.trim();
-    var url;
-    if (tab === 'facts') url = '/facts/explorer?search=' + encodeURIComponent(query);
-    else if (tab === 'questions') url = '/questions/search?q=' + encodeURIComponent(query) + '&limit=30';
-    else if (tab === 'synthkw') url = '/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea || query) + '&limit=30';
-    else url = '/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(idea || query) + '&limit=30';
+    var div = document.getElementById('context-tab-content');
 
-    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
-      var items;
-      if (tab === 'facts') items = (data.facts || []).map(function(f) { return {fact: f.fact, source: f.source, id: f.id}; });
-      else if (tab === 'questions') items = (data.questions || []).map(function(q) { return {question: q.question, id: q.id}; });
-      else if (tab === 'synthkw') items = [];
-      else items = (data.items || []);
-      ctxModalData = items;
-      var div = document.getElementById('context-tab-content');
-      renderContextResults(div, items, tab, pfx);
-      document.getElementById('context-count').textContent = items.length + ' results for "' + query + '"';
-      if (tab === 'facts' && gatheredContext.facts) gatheredContext.facts = items;
-      if (tab === 'questions' && gatheredContext.questions) gatheredContext.questions = items;
-      if (tab === 'synthkw') gatheredContext.synthesized_keywords = items;
-      if (tab === 'kwintel') gatheredContext.keyword_intelligence = items;
-    }).catch(function(e) {
-      document.getElementById('context-tab-content').innerHTML = '<p style="color:#d93025;padding:20px;">Search failed.</p>';
-    });
+    if (tab === 'facts') {
+      var params = new URLSearchParams(); params.append('search', query);
+      fetch('/facts/explorer?' + params.toString()).then(function(r) { return r.json(); }).then(function(d) {
+        ctxModalData = d.facts || [];
+        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
+        if (gatheredContext) gatheredContext.facts = ctxModalData;
+        renderContextResults(div, ctxModalData, tab, pfx);
+      });
+    } else if (tab === 'questions') {
+      var params = new URLSearchParams(); params.append('q', query); params.append('limit', '30');
+      fetch('/questions/search?' + params.toString()).then(function(r) { return r.json(); }).then(function(d) {
+        ctxModalData = d.questions || [];
+        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
+        if (gatheredContext) gatheredContext.questions = ctxModalData;
+        renderContextResults(div, ctxModalData, tab, pfx);
+      });
+    } else if (tab === 'synthkw') {
+      fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(query) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+        ctxModalData = d.keywords || [];
+        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
+        if (gatheredContext) gatheredContext.synthesized_keywords = ctxModalData;
+        renderContextResults(div, ctxModalData, tab, pfx);
+      });
+    } else {
+      fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(query) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+        ctxModalData = d.items || [];
+        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
+        if (gatheredContext) gatheredContext.keyword_intelligence = ctxModalData;
+        renderContextResults(div, ctxModalData, tab, pfx);
+      });
+    }
   }, 400);
 }
 

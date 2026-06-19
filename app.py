@@ -1122,6 +1122,18 @@ async def api_delete_facts_bulk(ids: List[int]):
 async def api_facts_explorer(verified: str = "all", search: str = "", source: str = ""):
     return JSONResponse({"facts": get_facts_for_explorer(verified, search, source)})
 
+@app.get("/questions/search")
+async def api_search_questions(q: str = "", category: str = "", limit: int = 30):
+    from db import get_con
+    con = get_con()
+    rows = con.execute("""
+        SELECT id, question, source, category, keyphrase
+        FROM questions_research WHERE question ILIKE ? OR keyphrase ILIKE ?
+        ORDER BY id DESC LIMIT ?
+    """, [f"%{q}%", f"%{q}%", limit]).fetchall()
+    con.close()
+    return JSONResponse({"questions": [dict(id=r[0], question=r[1], source=r[2], category=r[3], keyphrase=r[4]) for r in rows]})
+
 @app.delete("/keywords/{keyword_id}")
 async def api_delete_keyword(keyword_id: int):
     delete_keyword(keyword_id)
