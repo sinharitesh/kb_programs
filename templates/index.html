@@ -3073,41 +3073,74 @@ function openContextModal(tab) {
 }
 
 function renderCurrentContextModal() {
-  var t = ctxActiveTab, items = ctxModalData, pfx;
-  if (t === 'facts') pfx = 'ag-fact';
-  else if (t === 'questions') pfx = 'ag-q';
-  else if (t === 'synthkw') pfx = 'ag-skw';
+  var tab = ctxActiveTab, items = ctxModalData, pfx, q = (document.getElementById('context-search').value || '').toLowerCase().trim();
+  if (tab === 'facts') pfx = 'ag-fact';
+  else if (tab === 'questions') pfx = 'ag-q';
+  else if (tab === 'synthkw') pfx = 'ag-skw';
   else pfx = 'ag-kwi';
-  var q = (document.getElementById('context-search').value || '').toLowerCase().trim();
-  var filtered = items;
-  if (q) {
-    filtered = items.filter(function(item) {
-      var txt = '';
-      if (t === 'facts') txt = (item.fact||'') + ' ' + (item.source||'');
-      else if (t === 'questions') txt = (item.question||'');
-      else if (t === 'synthkw') txt = (item.keyword||'') + ' ' + (item.intent||'') + ' ' + (item.category||'');
-      else txt = (item.text||'') + ' ' + (item.source||'') + ' ' + (item.topic||'') + ' ' + (item.category||'');
-      return txt.toLowerCase().indexOf(q) >= 0;
-    });
+
+  // Show "Searching..." animation while fetch runs
+  if (q && q.length >= 2) {
+    document.getElementById('context-count').textContent = 'Searching "' + q + '"...\u00a0\u00a0\u2022\u00a0\u2022\u00a0\u2022';
+    document.getElementById('context-tab-content').innerHTML = '<p style="color:#666;padding:20px;">Searching all ' + tab + '...</p>';
+    fetchContextSearch(tab, q, pfx);
+    return;
   }
+
   var div = document.getElementById('context-tab-content');
-  document.getElementById('context-count').textContent = filtered.length + ' / ' + items.length + ' items';
-  if (!filtered.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items match.</p>'; return; }
+  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded. Gather context first.</p>'; document.getElementById('context-count').textContent = '0 items'; return; }
+  document.getElementById('context-count').textContent = items.length + ' items';
+  renderContextResults(div, items, tab, pfx);
+}
+
+var ctxSearchTimer = null;
+function fetchContextSearch(tab, query, pfx) {
+  if (ctxSearchTimer) clearTimeout(ctxSearchTimer);
+  ctxSearchTimer = setTimeout(function() {
+    var idea = document.getElementById('ag-idea').value.trim();
+    var url;
+    if (tab === 'facts') url = '/facts/explorer?search=' + encodeURIComponent(query);
+    else if (tab === 'questions') url = '/questions/search?q=' + encodeURIComponent(query) + '&limit=30';
+    else if (tab === 'synthkw') url = '/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea || query) + '&limit=30';
+    else url = '/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(idea || query) + '&limit=30';
+
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+      var items;
+      if (tab === 'facts') items = (data.facts || []).map(function(f) { return {fact: f.fact, source: f.source, id: f.id}; });
+      else if (tab === 'questions') items = (data.questions || []).map(function(q) { return {question: q.question, id: q.id}; });
+      else if (tab === 'synthkw') items = [];
+      else items = (data.items || []);
+      ctxModalData = items;
+      var div = document.getElementById('context-tab-content');
+      renderContextResults(div, items, tab, pfx);
+      document.getElementById('context-count').textContent = items.length + ' results for "' + query + '"';
+      if (tab === 'facts' && gatheredContext.facts) gatheredContext.facts = items;
+      if (tab === 'questions' && gatheredContext.questions) gatheredContext.questions = items;
+      if (tab === 'synthkw') gatheredContext.synthesized_keywords = items;
+      if (tab === 'kwintel') gatheredContext.keyword_intelligence = items;
+    }).catch(function(e) {
+      document.getElementById('context-tab-content').innerHTML = '<p style="color:#d93025;padding:20px;">Search failed.</p>';
+    });
+  }, 400);
+}
+
+function renderContextResults(div, items, t, pfx) {
+  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; return; }
   var h = [];
-  filtered.forEach(function(item) {
-    var i = items.indexOf(item);
+  items.forEach(function(item, idx) {
     var label = '', sub = '';
     if (t === 'facts') { label = item.fact; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.source||'') + ')</span>'; }
     else if (t === 'questions') { label = item.question; }
     else if (t === 'synthkw') { label = item.keyword; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.intent||item.category||'') + ')</span>'; }
     else { label = item.text || item.keyword; sub = item.source ? '<span style="color:#888;font-size:0.8em;">(' + item.source + ')</span>' : ''; }
-    var chk = i < 7 ? 'checked' : '';
+    var chk = idx < 7 ? 'checked' : '';
     h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
-      + '<input type="checkbox" id="' + pfx + '-' + i + '" ' + chk + ' style="margin-top:2px;">'
+      + '<input type="checkbox" id="' + pfx + '-' + idx + '" ' + chk + ' style="margin-top:2px;">'
       + '<span>' + label + ' ' + sub + '</span></label>');
   });
   div.innerHTML = h.join('');
 }
+
 function toggleAllInModal() {
   let cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
   let anyUnchecked = false;
