@@ -3073,43 +3073,41 @@ function openContextModal(tab) {
 }
 
 function renderCurrentContextModal() {
-  let tab = ctxActiveTab, items = ctxModalData, prefix;
-  if (tab === 'facts') prefix = 'ag-fact';
-  else if (tab === 'questions') prefix = 'ag-q';
-  else if (tab === 'synthkw') prefix = 'ag-skw';
-  else prefix = 'ag-kwi';
-  let search = (document.getElementById('context-search').value || '').toLowerCase().trim();
-  let filtered = items;
-  if (search) {
-    filtered = items.filter(item => {
-      let text = '';
-      if (tab === 'facts') text = (item.fact||'') + ' ' + (item.source||'');
-      else if (tab === 'questions') text = (item.question||'');
-      else if (tab === 'synthkw') text = (item.keyword||'') + ' ' + (item.intent||'') + ' ' + (item.category||'');
-      else text = (item.text||'') + ' ' + (item.source||'') + ' ' + (item.topic||'') + ' ' + (item.category||'');
-      return text.toLowerCase().includes(search);
+  var t = ctxActiveTab, items = ctxModalData, pfx;
+  if (t === 'facts') pfx = 'ag-fact';
+  else if (t === 'questions') pfx = 'ag-q';
+  else if (t === 'synthkw') pfx = 'ag-skw';
+  else pfx = 'ag-kwi';
+  var q = (document.getElementById('context-search').value || '').toLowerCase().trim();
+  var filtered = items;
+  if (q) {
+    filtered = items.filter(function(item) {
+      var txt = '';
+      if (t === 'facts') txt = (item.fact||'') + ' ' + (item.source||'');
+      else if (t === 'questions') txt = (item.question||'');
+      else if (t === 'synthkw') txt = (item.keyword||'') + ' ' + (item.intent||'') + ' ' + (item.category||'');
+      else txt = (item.text||'') + ' ' + (item.source||'') + ' ' + (item.topic||'') + ' ' + (item.category||'');
+      return txt.toLowerCase().indexOf(q) >= 0;
     });
   }
-  let div = document.getElementById('context-tab-content');
+  var div = document.getElementById('context-tab-content');
   document.getElementById('context-count').textContent = filtered.length + ' / ' + items.length + ' items';
   if (!filtered.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items match.</p>'; return; }
-  let html = '';
-  filtered.forEach(item => {
-    let i = items.indexOf(item);
-    let label = '', subtitle = '';
-    if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(` + item.source + `)</span>`; }
-    else if (tab === 'questions') { label = item.question; }
-    else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(` + (item.intent||item.category||'') + `)</span>`; }
-    else { label = item.text || item.keyword; subtitle = item.source ? `<span style="color:#888;font-size:0.8em;">(` + item.source + `)</span>` : ''; }
-    let checked = i < 7;
-    html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">
-      <input type="checkbox" id="` + prefix + `-` + i + `" ` + (checked ? 'checked' : '') + ` style="margin-top:2px;">
-      <span>` + label + ` ` + subtitle + `</span>
-    </label>`;
+  var h = [];
+  filtered.forEach(function(item) {
+    var i = items.indexOf(item);
+    var label = '', sub = '';
+    if (t === 'facts') { label = item.fact; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.source||'') + ')</span>'; }
+    else if (t === 'questions') { label = item.question; }
+    else if (t === 'synthkw') { label = item.keyword; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.intent||item.category||'') + ')</span>'; }
+    else { label = item.text || item.keyword; sub = item.source ? '<span style="color:#888;font-size:0.8em;">(' + item.source + ')</span>' : ''; }
+    var chk = i < 7 ? 'checked' : '';
+    h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
+      + '<input type="checkbox" id="' + pfx + '-' + i + '" ' + chk + ' style="margin-top:2px;">'
+      + '<span>' + label + ' ' + sub + '</span></label>');
   });
-  div.innerHTML = html;
+  div.innerHTML = h.join('');
 }
-
 function toggleAllInModal() {
   let cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
   let anyUnchecked = false;
@@ -3133,7 +3131,8 @@ async function findMoreFacts() {
       data.facts.forEach(f => { if (!existing.has(f.id)) { gatheredContext.facts.push(f); existing.add(f.id); } });
       gatheredContext.facts.sort((a, b) => (b.interest_score||5) - (a.interest_score||5));
       document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
-      renderContextTab('facts');
+      ctxActiveTab = 'facts'; ctxModalData = gatheredContext.facts;
+      openContextModal('facts');
       document.getElementById('ag-context-summary').textContent = `${gatheredContext.facts.length} facts added (all categories)`;
     }
   } catch(e) { alert('Error: ' + e.message); }
