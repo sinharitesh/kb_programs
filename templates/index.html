@@ -831,7 +831,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <span style="font-size:0.85em;color:#666;" id="context-tab-info"></span>
           <div style="display:flex;gap:6px;">
-            <input type="text" id="context-tab-search" placeholder="🔍 Search this tab..." style="padding:4px 8px;font-size:0.8em;border:1px solid #dadce0;border-radius:4px;width:180px;" oninput="renderContextTab(ctxActiveTab)">
+            <input type="text" id="context-tab-search" placeholder="🔍 Search this tab..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;width:240px;" oninput="renderContextTab(window.ctxActiveTab)">
             <button class="btn btn-grey" onclick="toggleSelectAllContext()" style="font-size:0.8em;padding:4px 10px;" id="ctx-select-all-btn">Select All</button>
           </div>
         </div>
@@ -3063,12 +3063,14 @@ async function editArticle(path) {
 
 
 let ctxActiveTab = 'facts';
+window.ctxActiveTab = ctxActiveTab;
 
-function openContextModal(tab) { ctxActiveTab = tab; document.getElementById('context-modal').style.display = 'flex'; switchContextTab(tab); }
+function openContextModal(tab) { ctxActiveTab = tab; window.ctxActiveTab = tab; document.getElementById('context-modal').style.display = 'flex'; switchContextTab(tab); }
 function closeContextModal() { document.getElementById('context-modal').style.display = 'none'; }
 
 function switchContextTab(tab) {
   ctxActiveTab = tab;
+  window.ctxActiveTab = tab;
   document.getElementById('context-tab-search').value = '';
   document.querySelectorAll('.context-tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('ctx-tab-' + tab).classList.add('active');
