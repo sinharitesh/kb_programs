@@ -8,7 +8,7 @@ from db import get_con
 from image_search import get_article_images
 
 KB_ROOT = Path(r"C:\knowledge-base")
-OLLAMA_MODEL = "deepseek-r1:8b"
+OLLAMA_MODEL = "gemma3:12b"
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
 logger = logging.getLogger("article_gen")
@@ -241,16 +241,13 @@ def gather_all_context(idea: str, category: str, search_phrases: list = None,
 # ── LLM Helpers ───────────────────────────────────────────────────────────────
 
 def ollama_generate(prompt, temperature=0.0):
-    """Call Ollama API for text generation."""
-    import requests
-    response = requests.post(
-        OLLAMA_URL,
-        json={'model': OLLAMA_MODEL, 'prompt': prompt, 'stream': False,
-              'options': {'temperature': temperature}},
-        timeout=300
-    )
+    import requests, re
+    response = requests.post(OLLAMA_URL,
+        json={'model': OLLAMA_MODEL, 'prompt': prompt, 'stream': False, 'options': {'temperature': temperature}}, timeout=300)
     response.raise_for_status()
-    return response.json()['response']
+    text = response.json()['response']
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    return text
 
 
 def clean_article(text):
