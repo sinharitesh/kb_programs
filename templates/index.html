@@ -3056,6 +3056,7 @@ let ctxModalData = [];
 
 function openContextModal(tab) {
   ctxActiveTab = tab;
+  ctxChecked = {};
   document.getElementById('context-modal').style.display = 'flex';
   document.getElementById('context-search').value = '';
   let items, title;
@@ -3139,18 +3140,23 @@ function fetchContextSearch(tab, query, pfx) {
   }, 400);
 }
 
+var ctxChecked = {};
+
 function renderContextResults(div, items, t, pfx) {
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; return; }
   var h = [];
   items.forEach(function(item, idx) {
+    var key = pfx + '#' + idx;
     var label = '', sub = '';
     if (t === 'facts') { label = item.fact; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.source||'') + ')</span>'; }
     else if (t === 'questions') { label = item.question; }
     else if (t === 'synthkw') { label = item.keyword; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.intent||item.category||'') + ')</span>'; }
     else { label = item.text || item.keyword; sub = item.source ? '<span style="color:#888;font-size:0.8em;">(' + item.source + ')</span>' : ''; }
     var chk = idx < 7 ? 'checked' : '';
+    if (ctxChecked[key] !== undefined) chk = ctxChecked[key] ? 'checked' : '';
+    else ctxChecked[key] = (idx < 7);
     h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
-      + '<input type="checkbox" id="' + pfx + '-' + idx + '" ' + chk + ' style="margin-top:2px;">'
+      + '<input type="checkbox" id="' + key + '" ' + chk + ' onchange="ctxChecked[\\'' + key + '\\'']=this.checked" style="margin-top:2px;">'
       + '<span>' + label + ' ' + sub + '</span></label>');
   });
   div.innerHTML = h.join('');
