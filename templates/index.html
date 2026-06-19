@@ -3118,9 +3118,14 @@ function fetchContextSearch(tab, query, pfx) {
       });
     } else if (tab === 'synthkw') {
       fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(query) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
-        ctxModalData = d.keywords || [];
-        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
-        if (gatheredContext) gatheredContext.synthesized_keywords = ctxModalData;
+        var flat = []; (d.keywords || []).forEach(function(kw) {
+          (kw.suggested || []).forEach(function(s) {
+            flat.push({keyword: typeof s === 'string' ? s : s.keyword, intent: typeof s === 'object' ? s.intent : '', category: kw.category});
+          });
+        });
+        ctxModalData = flat;
+        document.getElementById('context-count').textContent = ctxModalData.length + ' results';
+        if (gatheredContext) gatheredContext.synthesized_keywords = flat;
         renderContextResults(div, ctxModalData, tab, pfx);
       });
     } else {
