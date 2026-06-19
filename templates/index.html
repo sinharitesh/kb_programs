@@ -3140,6 +3140,8 @@ function fetchContextSearch(tab, query, pfx) {
   }, 400);
 }
 
+function ctxCheckToggle(cb, key) { ctxChecked[key] = cb.checked; }
+
 var ctxChecked = {};
 
 function renderContextResults(div, items, t, pfx) {
@@ -3156,7 +3158,7 @@ function renderContextResults(div, items, t, pfx) {
     if (ctxChecked[key] !== undefined) chk = ctxChecked[key] ? 'checked' : '';
     else ctxChecked[key] = (idx < 7);
     h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
-      + '<input type="checkbox" id="' + key + '" ' + chk + ' onchange="ctxChecked[\\'' + key + '\\'']=this.checked" style="margin-top:2px;">'
+      + '<input type="checkbox" id="' + key + '" ' + chk + ' onchange="ctxCheckToggle(this,'" + key + "')" style="margin-top:2px;">'
       + '<span>' + label + ' ' + sub + '</span></label>');
   });
   div.innerHTML = h.join('');
