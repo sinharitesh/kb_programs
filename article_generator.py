@@ -8,7 +8,7 @@ from db import get_con
 from image_search import get_article_images
 
 KB_ROOT = Path(r"C:\knowledge-base")
-OLLAMA_MODEL = "llama3.1"
+OLLAMA_MODEL = "deepseek-r1:8b"
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
 logger = logging.getLogger("article_gen")
