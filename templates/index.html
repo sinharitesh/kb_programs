@@ -820,25 +820,14 @@
       <div class="modal" style="max-width:700px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h3 style="margin:0;" id="context-modal-title">Select Context</h3>
-          <button class="btn btn-grey" onclick="closeContextModal()">✕ Close</button>
+          <button class="btn btn-grey" onclick="document.getElementById('context-modal').style.display='none'">✕ Close</button>
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-          <button class="btn btn-grey context-tab-btn active" onclick="switchContextTab('facts')" id="ctx-tab-facts">📊 Facts</button>
-          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('questions')" id="ctx-tab-questions">❓ Questions</button>
-          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('synthkw')" id="ctx-tab-synthkw">✨ Synth Keywords</button>
-          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('kwintel')" id="ctx-tab-kwintel">🔑 KW Intelligence</button>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <input type="text" id="context-search" placeholder="🔍 Search..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;flex:1;" oninput="renderCurrentContextModal()">
+          <button class="btn btn-grey" onclick="toggleAllInModal()" style="font-size:0.8em;padding:4px 10px;flex-shrink:0;">Select/Unselect All</button>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:0.85em;color:#666;" id="context-tab-info"></span>
-          <div style="display:flex;gap:6px;">
-            <input type="text" id="context-tab-search" placeholder="🔍 Search this tab..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;width:240px;" oninput="renderContextTab(window.ctxActiveTab)">
-            <button class="btn btn-grey" onclick="toggleSelectAllContext()" style="font-size:0.8em;padding:4px 10px;" id="ctx-select-all-btn">Select All</button>
-          </div>
-        </div>
+        <div style="font-size:0.82em;color:#666;margin-bottom:8px;" id="context-count"></div>
         <div id="context-tab-content" style="flex:1;overflow-y:auto;min-height:200px;"></div>
-        <div style="margin-top:12px;padding-top:8px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;gap:8px;">
-          <button class="btn btn-grey" onclick="closeContextModal()">Done</button>
-        </div>
       </div>
     </div>
 
@@ -3063,66 +3052,71 @@ async function editArticle(path) {
 
 
 let ctxActiveTab = 'facts';
-window.ctxActiveTab = ctxActiveTab;
+let ctxModalData = [];
 
-function openContextModal(tab) { ctxActiveTab = tab; window.ctxActiveTab = tab; document.getElementById('context-modal').style.display = 'flex'; switchContextTab(tab); }
-function closeContextModal() { document.getElementById('context-modal').style.display = 'none'; }
-
-function switchContextTab(tab) {
+function openContextModal(tab) {
   ctxActiveTab = tab;
-  window.ctxActiveTab = tab;
-  document.getElementById('context-tab-search').value = '';
-  document.querySelectorAll('.context-tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('ctx-tab-' + tab).classList.add('active');
-  renderContextTab(tab);
+  document.getElementById('context-modal').style.display = 'flex';
+  document.getElementById('context-search').value = '';
+  let items, title;
+  if (tab === 'facts') { items = gatheredContext.facts; title = '📊 Facts'; }
+  else if (tab === 'questions') { items = gatheredContext.questions; title = '❓ Questions'; }
+  else if (tab === 'synthkw') { items = gatheredContext.synthesized_keywords; title = '✨ Synth Keywords'; }
+  else { items = gatheredContext.keyword_intelligence; title = '🔑 KW Intelligence'; }
+  ctxModalData = items || [];
+  document.getElementById('context-modal-title').textContent = title;
+  document.getElementById('context-tab-content').innerHTML = '';
+  if (tab === 'facts' && ctxModalData.length < 3) {
+    document.getElementById('context-tab-content').innerHTML = '<div style="margin-bottom:8px;"><button class="btn btn-blue" onclick="findMoreFacts()" style="font-size:0.8em;padding:4px 10px;">🔍 Search All Categories for More Facts</button></div>';
+  }
+  renderCurrentContextModal();
 }
 
-function renderContextTab(tab) {
-  const div = document.getElementById('context-tab-content');
-  const titles = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
-  document.getElementById('context-modal-title').textContent = '📋 ' + titles[tab];
-  let items, cbPrefix;
-  if (tab === 'facts') { items = gatheredContext.facts; cbPrefix = 'ag-fact'; }
-  else if (tab === 'questions') { items = gatheredContext.questions; cbPrefix = 'ag-q'; }
-  else if (tab === 'synthkw') { items = gatheredContext.synthesized_keywords; cbPrefix = 'ag-skw'; }
-  else if (tab === 'kwintel') { items = gatheredContext.keyword_intelligence; cbPrefix = 'ag-kwi'; }
-  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; return; }
-  let checkedCount = 0, html = '';
-  let search = document.getElementById('context-tab-search').value.toLowerCase().trim();
-  let filtered = search ? items.filter((item, i) => {
-    let text = '';
-    if (tab === 'facts') text = (item.fact||'') + ' ' + (item.source||'');
-    else if (tab === 'questions') text = (item.question||'');
-    else if (tab === 'synthkw') text = (item.keyword||'') + ' ' + (item.intent||'') + ' ' + (item.category||'');
-    else if (tab === 'kwintel') text = (item.text||'') + ' ' + (item.source||'') + ' ' + (item.topic||'') + ' ' + (item.category||'');
-    return text.toLowerCase().includes(search);
-  }) : items;
-  if (tab === 'facts' && items.length < 3) html += '<div style="margin-bottom:8px;"><button class="btn btn-blue" onclick="findMoreFacts()" style="font-size:0.8em;padding:4px 10px;">🔍 Search All Categories for More Facts</button></div>';
-  if (search && !filtered.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items match "' + search + '"</p>'; document.getElementById('context-tab-info').textContent = '0 / ' + items.length + ' items'; return; }
+function renderCurrentContextModal() {
+  let tab = ctxActiveTab, items = ctxModalData, prefix;
+  if (tab === 'facts') prefix = 'ag-fact';
+  else if (tab === 'questions') prefix = 'ag-q';
+  else if (tab === 'synthkw') prefix = 'ag-skw';
+  else prefix = 'ag-kwi';
+  let search = (document.getElementById('context-search').value || '').toLowerCase().trim();
+  let filtered = items;
+  if (search) {
+    filtered = items.filter(item => {
+      let text = '';
+      if (tab === 'facts') text = (item.fact||'') + ' ' + (item.source||'');
+      else if (tab === 'questions') text = (item.question||'');
+      else if (tab === 'synthkw') text = (item.keyword||'') + ' ' + (item.intent||'') + ' ' + (item.category||'');
+      else text = (item.text||'') + ' ' + (item.source||'') + ' ' + (item.topic||'') + ' ' + (item.category||'');
+      return text.toLowerCase().includes(search);
+    });
+  }
+  let div = document.getElementById('context-tab-content');
+  document.getElementById('context-count').textContent = filtered.length + ' / ' + items.length + ' items';
+  if (!filtered.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items match.</p>'; return; }
+  let html = '';
   filtered.forEach(item => {
     let i = items.indexOf(item);
-    let label, subtitle = '';
-    if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.source})</span>`; }
+    let label = '', subtitle = '';
+    if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(` + item.source + `)</span>`; }
     else if (tab === 'questions') { label = item.question; }
-    else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.intent||item.category||''})</span>`; }
-    else if (tab === 'kwintel') { label = item.text || item.keyword; subtitle = item.source ? `<span style="color:#888;font-size:0.8em;">(${item.source})</span>` : ''; }
+    else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(` + (item.intent||item.category||'') + `)</span>`; }
+    else { label = item.text || item.keyword; subtitle = item.source ? `<span style="color:#888;font-size:0.8em;">(` + item.source + `)</span>` : ''; }
     let checked = i < 7;
-    if (checked) checkedCount++;
     html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">
-      <input type="checkbox" id="${cbPrefix}-${i}" data-tab="${tab}" data-idx="${i}" ${checked ? 'checked' : ''} style="margin-top:2px;">
-      <span>${label} ${subtitle}</span>
+      <input type="checkbox" id="` + prefix + `-` + i + `" ` + (checked ? 'checked' : '') + ` style="margin-top:2px;">
+      <span>` + label + ` ` + subtitle + `</span>
     </label>`;
   });
   div.innerHTML = html;
-  document.getElementById('context-tab-info').textContent = `${filtered.length}/${items.length} items · ${checkedCount} selected`;
 }
 
-function toggleSelectAllContext() {
-  const cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
-  let anyUnchecked = [...cbs].some(cb => !cb.checked);
+function toggleAllInModal() {
+  let cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
+  let anyUnchecked = false;
+  cbs.forEach(cb => { if (!cb.checked) anyUnchecked = true; });
   cbs.forEach(cb => cb.checked = anyUnchecked);
-  document.getElementById('ctx-select-all-btn').textContent = anyUnchecked ? 'Unselect All' : 'Select All';
 }
+
 
 async function findMoreFacts() {
   const idea = document.getElementById('ag-idea').value.trim();
