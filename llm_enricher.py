@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 
 KB_ROOT = Path(r"C:\knowledge-base")
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 MODEL = "qwen2.5:14b"
 MAX_CHUNK_WORDS = 2000
 

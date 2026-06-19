@@ -9,7 +9,7 @@ from image_search import get_article_images
 
 KB_ROOT = Path(r"C:\knowledge-base")
 OLLAMA_MODEL = "llama3.1"
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
 logger = logging.getLogger("article_gen")
 logger.setLevel(logging.DEBUG)
