@@ -3091,6 +3091,7 @@ function renderCurrentContextModal() {
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded.</p>'; document.getElementById('context-count').textContent = '0 items'; return; }
   document.getElementById('context-count').textContent = items.length + ' items';
   renderContextResults(div, items, tab, pfx);
+}
 
 var ctxSearchTimer = null;
 function fetchContextSearch(tab, query, pfx) {
