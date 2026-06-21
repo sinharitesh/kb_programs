@@ -3099,21 +3099,31 @@ function switchModalTab(tab) {
 
 function renderSelectedTab() {
   var div = document.getElementById('ctx-selected-content');
-  var h = '<div style="margin-bottom:8px;font-size:0.88em;color:#666;">Checked items across all four categories:</div>';
-  var count = 0;
+  var sel = [], h = '<div style="margin-bottom:8px;font-size:0.88em;color:#666;">Checked items across all categories:</div>';
   ['facts','questions','synthkw','kwintel'].forEach(function(t) {
     if (!ctxSelected[t] || !ctxSelected[t].size) return;
     var labelMap = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
     h += '<div style="font-weight:600;margin-top:8px;">' + labelMap[t] + ' (' + ctxSelected[t].size + ')</div>';
     ctxSelected[t].forEach(function(key) {
+      var idx = sel.length;
+      sel.push({t: t, key: key});
       h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;">'
-        + '<input type="checkbox" checked onchange="ctxSelected[\\'' + t + '\\''].delete(\\'' + key + '\\'');renderSelectedTab();updateSelectedSummary();" style="margin-top:2px;">'
-        + '<span style="flex:1;">✅ ' + key.slice(2, 150) + '</span></div>';
-      count++;
+        + '<input type="checkbox" checked onclick="ctxRemoveSelected(' + idx + ')" style="margin-top:2px;">'
+        + '<span style="flex:1;">' + key.slice(2, 150) + '</span></div>';
     });
   });
-  if (!count) h += '<p style="color:#666;padding:15px;">Nothing selected yet. Use the Search tab to find and select items.</p>';
+  if (!sel.length) h += '<p style="color:#666;padding:15px;">Nothing selected yet.</p>';
   div.innerHTML = h;
+  div.setAttribute('data-sel', JSON.stringify(sel));
+}
+
+function ctxRemoveSelected(idx) {
+  var div = document.getElementById('ctx-selected-content');
+  var sel = JSON.parse(div.getAttribute('data-sel') || '[]');
+  var item = sel[idx];
+  if (item && ctxSelected[item.t]) { ctxSelected[item.t].delete(item.key); }
+  renderSelectedTab();
+  updateSelectedSummary();
 }
 
 function renderCurrentContextModal() {
