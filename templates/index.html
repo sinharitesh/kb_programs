@@ -3135,16 +3135,29 @@ function renderCurrentContextModal() {
 
   var qs = []; if (q) qs = q.split('+').map(function(s) { return s.trim(); }).filter(function(s) { return s.length >= 2; });
   if (qs.length) {
-    document.getElementById('context-count').textContent = 'Searching "' + q + '"...';
-    fetchContextSearch(tab, q, pfx);
-    return;
+    document.getElementById('context-count').textContent = 'Searching ' + q + '...';
+    fetchContextSearch(tab, q, pfx); return;
   }
 
   var div = document.getElementById('context-tab-content');
-  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded.</p>'; document.getElementById('context-count').textContent = '0 items'; return; }
+  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded.</p>';
+    document.getElementById('context-count').textContent = '0 items'; return; }
   document.getElementById('context-count').textContent = items.length + ' items';
   renderContextResults(div, items, tab, pfx);
 }
+
+function ctxSelClick(idx) {
+  var div = document.getElementById('context-tab-content');
+  var items = JSON.parse(div.getAttribute('data-ctx-items') || '[]');
+  if (idx < 0 || idx >= items.length) return;
+  var it = items[idx];
+  if (!ctxSelected[it.t]) ctxSelected[it.t] = new Set();
+  var cb = div.querySelectorAll('input[type=checkbox]')[idx];
+  if (cb.checked) ctxSelected[it.t].add(it.k);
+  else ctxSelected[it.t].delete(it.k);
+  updateSelectedSummary();
+}
+
 
 var ctxSearchTimer = null;
 function fetchContextSearch(tab, query, pfx) {
