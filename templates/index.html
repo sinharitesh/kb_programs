@@ -818,17 +818,26 @@
 
     <!-- CONTEXT SELECTION MODAL -->
     <div class="modal-overlay" id="context-modal" style="display:none;">
-      <div class="modal" style="max-width:700px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="modal" style="max-width:750px;width:92%;max-height:88vh;display:flex;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <h3 style="margin:0;" id="context-modal-title">Select Context</h3>
           <button class="btn btn-grey" onclick="document.getElementById('context-modal').style.display='none'">✕ Close</button>
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <input type="text" id="context-search" placeholder="🔍 Search..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;flex:1;" oninput="renderCurrentContextModal()">
-          <button class="btn btn-grey" onclick="toggleAllInModal()" style="font-size:0.8em;padding:4px 10px;flex-shrink:0;">Select/Unselect All</button>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="btn btn-grey context-tab-btn active" onclick="switchModalTab('search')" id="ctx-tab-search-btn">🔍 Search</button>
+          <button class="btn btn-grey context-tab-btn" onclick="switchModalTab('selected')" id="ctx-tab-selected-btn">📋 Selected</button>
         </div>
-        <div style="font-size:0.82em;color:#666;margin-bottom:8px;" id="context-count"></div>
-        <div id="context-tab-content" style="flex:1;overflow-y:auto;min-height:200px;"></div>
+        <div id="ctx-search-panel" style="display:flex;flex-direction:column;flex:1;">
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <input type="text" id="context-search" placeholder="🔍 Search (use + for AND)..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;flex:1;" oninput="renderCurrentContextModal()">
+            <button class="btn btn-grey" onclick="toggleAllInModal()" style="font-size:0.8em;padding:4px 8px;flex-shrink:0;">Select/Unselect All</button>
+          </div>
+          <div style="font-size:0.82em;color:#666;margin-bottom:6px;" id="context-count"></div>
+          <div id="context-tab-content" style="flex:1;overflow-y:auto;min-height:200px;"></div>
+        </div>
+        <div id="ctx-selected-panel" style="display:none;flex:1;overflow-y:auto;">
+          <div id="ctx-selected-content" style="min-height:200px;"></div>
+        </div>
       </div>
     </div>
 
@@ -3059,6 +3068,8 @@ let ctxModalData = [];
 function openContextModal(tab) {
   ctxActiveTab = tab;
   document.getElementById('context-modal').style.display = 'flex';
+  switchModalTab('search');
+  switchModalTab('search');
   document.getElementById('context-search').value = '';
   let items, title;
   if (tab === 'facts') { items = gatheredContext.facts; title = '📊 Facts'; }
@@ -3074,6 +3085,37 @@ function openContextModal(tab) {
   renderCurrentContextModal();
 }
 
+
+let ctxModalTab = 'search';
+let ctxModalTab = 'search';
+
+function switchModalTab(tab) {
+  ctxModalTab = tab;
+  document.querySelectorAll('.context-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('ctx-tab-' + tab + '-btn').classList.add('active');
+  document.getElementById('ctx-search-panel').style.display = tab === 'search' ? 'flex' : 'none';
+  document.getElementById('ctx-selected-panel').style.display = tab === 'selected' ? 'block' : 'none';
+  if (tab === 'selected') renderSelectedTab();
+}
+
+function renderSelectedTab() {
+  var div = document.getElementById('ctx-selected-content');
+  var h = '<div style="margin-bottom:8px;font-size:0.88em;color:#666;">Checked items across all four categories:</div>';
+  var count = 0;
+  ['facts','questions','synthkw','kwintel'].forEach(function(t) {
+    if (!ctxSelected[t] || !ctxSelected[t].size) return;
+    var labelMap = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
+    h += '<div style="font-weight:600;margin-top:8px;">' + labelMap[t] + ' (' + ctxSelected[t].size + ')</div>';
+    switch(t) {
+      case 'facts': if (gatheredContext.facts) gatheredContext.facts.forEach(function(f) { if (ctxSelected.facts.has(getStableKey(f, 'facts'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + (f.fact||'').slice(0,120) + '</div>'; count++; } }); break;
+      case 'questions': if (gatheredContext.questions) gatheredContext.questions.forEach(function(q) { if (ctxSelected.questions.has(getStableKey(q, 'questions'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + (q.question||'').slice(0,120) + '</div>'; count++; } }); break;
+      case 'synthkw': if (gatheredContext.synthesized_keywords) gatheredContext.synthesized_keywords.forEach(function(k) { if (ctxSelected.synthkw.has(getStableKey(k, 'synthkw'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + (k.keyword||'') + '</div>'; count++; } }); break;
+      case 'kwintel': if (gatheredContext.keyword_intelligence) gatheredContext.keyword_intelligence.forEach(function(k) { if (ctxSelected.kwintel.has(getStableKey(k, 'kwintel'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((k.text||k.keyword||'')).slice(0,120) + '</div>'; count++; } }); break;
+    }
+  });
+  if (!count) h += '<p style="color:#666;padding:15px;">Nothing selected yet. Use the Search tab to find and select items.</p>';
+  div.innerHTML = h;
+}
 function renderCurrentContextModal() {
   var tab = ctxActiveTab, items = ctxModalData, pfx, q = (document.getElementById('context-search').value || '').toLowerCase().trim();
   if (tab === 'facts') pfx = 'ag-fact';
