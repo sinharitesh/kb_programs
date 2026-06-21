@@ -803,6 +803,7 @@
     <div class="card" id="ag-context" style="display:none;">
       <h3>Step 2: Context Ready</h3>
       <p style="color:#666;font-size:0.9em;margin-bottom:12px;" id="ag-context-summary"></p>
+      <p style="font-size:0.85em;margin-bottom:8px;min-height:20px;" id="ag-selected-summary"></p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-blue" onclick="openContextModal('facts')">📊 Facts <span id="ag-fact-badge"></span></button>
         <button class="btn btn-blue" onclick="openContextModal('questions')">❓ Questions <span id="ag-q-badge"></span></button>
@@ -2738,7 +2739,7 @@ async function gatherArticleContext() {
     document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
     document.getElementById('ag-q-badge').textContent = `(${gatheredContext.questions.length})`;
     document.getElementById('ag-context').style.display = 'block';
-    ctxChecked = {};
+    ctxSelected = {};
     loadAdditionalContext(idea);
   } catch(e) {
     document.getElementById('ag-config-status').textContent = 'Error gathering context';
