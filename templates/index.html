@@ -3105,16 +3105,17 @@ function renderSelectedTab() {
     if (!ctxSelected[t] || !ctxSelected[t].size) return;
     var labelMap = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
     h += '<div style="font-weight:600;margin-top:8px;">' + labelMap[t] + ' (' + ctxSelected[t].size + ')</div>';
-    switch(t) {
-      case 'facts': if (gatheredContext.facts) gatheredContext.facts.forEach(function(f) { if (ctxSelected.facts.has(getStableKey(f, 'facts'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + (f.fact||'').slice(0,120) + '</div>'; count++; } }); break;
-      case 'questions': if (gatheredContext.questions) gatheredContext.questions.forEach(function(q) { if (ctxSelected.questions.has(getStableKey(q, 'questions'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + (q.question||'').slice(0,120) + '</div>'; count++; } }); break;
-      case 'synthkw': if (gatheredContext.synthesized_keywords) gatheredContext.synthesized_keywords.forEach(function(k) { if (ctxSelected.synthkw.has(getStableKey(k, 'synthkw'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + (k.keyword||'') + '</div>'; count++; } }); break;
-      case 'kwintel': if (gatheredContext.keyword_intelligence) gatheredContext.keyword_intelligence.forEach(function(k) { if (ctxSelected.kwintel.has(getStableKey(k, 'kwintel'))) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((k.text||k.keyword||'')).slice(0,120) + '</div>'; count++; } }); break;
-    }
+    ctxSelected[t].forEach(function(key) {
+      h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;">'
+        + '<input type="checkbox" checked onchange="ctxSelected[\\'' + t + '\\''].delete(\\'' + key + '\\'');renderSelectedTab();updateSelectedSummary();" style="margin-top:2px;">'
+        + '<span style="flex:1;">✅ ' + key.slice(2, 150) + '</span></div>';
+      count++;
+    });
   });
   if (!count) h += '<p style="color:#666;padding:15px;">Nothing selected yet. Use the Search tab to find and select items.</p>';
   div.innerHTML = h;
 }
+
 function renderCurrentContextModal() {
   var tab = ctxActiveTab, items = ctxModalData, pfx, q = (document.getElementById('context-search').value || '').toLowerCase().trim();
   if (tab === 'facts') pfx = 'ag-fact';
