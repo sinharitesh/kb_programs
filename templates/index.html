@@ -2738,6 +2738,7 @@ async function gatherArticleContext() {
     document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
     document.getElementById('ag-q-badge').textContent = `(${gatheredContext.questions.length})`;
     document.getElementById('ag-context').style.display = 'block';
+    ctxChecked = {};
     loadAdditionalContext(idea);
   } catch(e) {
     document.getElementById('ag-config-status').textContent = 'Error gathering context';
@@ -3056,7 +3057,6 @@ let ctxModalData = [];
 
 function openContextModal(tab) {
   ctxActiveTab = tab;
-  ctxChecked = {};
   document.getElementById('context-modal').style.display = 'flex';
   document.getElementById('context-search').value = '';
   let items, title;
@@ -3080,29 +3080,27 @@ function renderCurrentContextModal() {
   else if (tab === 'synthkw') pfx = 'ag-skw';
   else pfx = 'ag-kwi';
 
-  // Show "Searching..." animation while fetch runs
-  if (q && q.length >= 2) {
-    document.getElementById('context-count').textContent = 'Searching "' + q + '"...\u00a0\u00a0\u2022\u00a0\u2022\u00a0\u2022';
-    document.getElementById('context-tab-content').innerHTML = '<p style="color:#666;padding:20px;">Searching all ' + tab + '...</p>';
+  var qs = []; if (q) qs = q.split('+').map(function(s) { return s.trim(); }).filter(function(s) { return s.length >= 2; });
+  if (qs.length) {
+    document.getElementById('context-count').textContent = 'Searching "' + q + '"...';
     fetchContextSearch(tab, q, pfx);
     return;
   }
 
   var div = document.getElementById('context-tab-content');
-  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded. Gather context first.</p>'; document.getElementById('context-count').textContent = '0 items'; return; }
+  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded.</p>'; document.getElementById('context-count').textContent = '0 items'; return; }
   document.getElementById('context-count').textContent = items.length + ' items';
   renderContextResults(div, items, tab, pfx);
-}
 
 var ctxSearchTimer = null;
 function fetchContextSearch(tab, query, pfx) {
   if (ctxSearchTimer) clearTimeout(ctxSearchTimer);
   ctxSearchTimer = setTimeout(function() {
-    var idea = document.getElementById('ag-idea').value.trim();
+    var cleanQuery = query.replace(/\+/g, ' ');
     var div = document.getElementById('context-tab-content');
 
     if (tab === 'facts') {
-      var params = new URLSearchParams(); params.append('search', query);
+      var params = new URLSearchParams(); params.append('search', cleanQuery);
       fetch('/facts/explorer?' + params.toString()).then(function(r) { return r.json(); }).then(function(d) {
         ctxModalData = d.facts || [];
         document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
@@ -3110,7 +3108,7 @@ function fetchContextSearch(tab, query, pfx) {
         renderContextResults(div, ctxModalData, tab, pfx);
       });
     } else if (tab === 'questions') {
-      var params = new URLSearchParams(); params.append('q', query); params.append('limit', '30');
+      var params = new URLSearchParams(); params.append('q', cleanQuery); params.append('limit', '30');
       fetch('/questions/search?' + params.toString()).then(function(r) { return r.json(); }).then(function(d) {
         ctxModalData = d.questions || [];
         document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
@@ -3118,7 +3116,7 @@ function fetchContextSearch(tab, query, pfx) {
         renderContextResults(div, ctxModalData, tab, pfx);
       });
     } else if (tab === 'synthkw') {
-      fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(query) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+      fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(cleanQuery) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
         var flat = []; (d.keywords || []).forEach(function(kw) {
           (kw.suggested || []).forEach(function(s) {
             flat.push({keyword: typeof s === 'string' ? s : s.keyword, intent: typeof s === 'object' ? s.intent : '', category: kw.category});
@@ -3130,7 +3128,7 @@ function fetchContextSearch(tab, query, pfx) {
         renderContextResults(div, ctxModalData, tab, pfx);
       });
     } else {
-      fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(query) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+      fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(cleanQuery) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
         ctxModalData = d.items || [];
         document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
         if (gatheredContext) gatheredContext.keyword_intelligence = ctxModalData;
