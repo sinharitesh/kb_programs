@@ -3196,23 +3196,37 @@ var ctxChecked = {};
 
 function renderContextResults(div, items, t, pfx) {
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; return; }
-  var h = [];
+  if (!ctxSelected[t]) ctxSelected[t] = new Set();
+  var sel = ctxSelected[t], h = [], ctxItems = [];
   items.forEach(function(item, idx) {
-    var key = pfx + '#' + idx;
-    var label = '', sub = '';
+    var label = '', sub = '', stableKey = getStableKey(item, t);
     if (t === 'facts') { label = item.fact; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.source||'') + ')</span>'; }
     else if (t === 'questions') { label = item.question; }
     else if (t === 'synthkw') { label = item.keyword; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.intent||item.category||'') + ')</span>'; }
     else { label = item.text || item.keyword; sub = item.source ? '<span style="color:#888;font-size:0.8em;">(' + item.source + ')</span>' : ''; }
-    var chk = idx < 7 ? 'checked' : '';
-    if (ctxChecked[key] !== undefined) chk = ctxChecked[key] ? 'checked' : '';
-    else ctxChecked[key] = (idx < 7);
+    var chk = sel.has(stableKey) ? ' checked' : (idx < 7 ? ' checked' : '');
+    if (chk && !sel.has(stableKey)) sel.add(stableKey);
+    ctxItems.push({k: stableKey, t: t});
     h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
-      + '<input type="checkbox" id="' + key + '" ' + chk + ' onclick="ctxChecked[this.id]=this.checked" style="margin-top:2px;">'
+      + '<input type="checkbox" onclick="ctxSelClick(' + ctxItems.length + ')"' + chk + ' style="margin-top:2px;">'
       + '<span>' + label + ' ' + sub + '</span></label>');
   });
   div.innerHTML = h.join('');
+  div.setAttribute('data-ctx-items', JSON.stringify(ctxItems));
 }
+
+function ctxSelClick(idx) {
+  var div = document.getElementById('context-tab-content');
+  var items = JSON.parse(div.getAttribute('data-ctx-items') || '[]');
+  var it = items[idx - 1];
+  if (!it) return;
+  if (!ctxSelected[it.t]) ctxSelected[it.t] = new Set();
+  var cb = div.querySelectorAll('input[type=checkbox]')[idx - 1];
+  if (cb.checked) ctxSelected[it.t].add(it.k);
+  else ctxSelected[it.t].delete(it.k);
+  updateSelectedSummary();
+}
+
 
 function toggleAllInModal() {
   let cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
