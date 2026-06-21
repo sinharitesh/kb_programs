@@ -3085,7 +3085,6 @@ function openContextModal(tab) {
   renderCurrentContextModal();
 }
 
-
 let ctxModalTab = 'search';
 
 function switchModalTab(tab) {
@@ -3099,7 +3098,7 @@ function switchModalTab(tab) {
 
 function renderSelectedTab() {
   var div = document.getElementById('ctx-selected-content');
-  var sel = [], h = '<div style="margin-bottom:8px;font-size:0.88em;color:#666;">Checked items across all categories:</div>';
+  var sel = [], h = '<div style="margin-bottom:8px;font-size:0.88em;color:#666;">Checked items across all four categories:</div>';
   ['facts','questions','synthkw','kwintel'].forEach(function(t) {
     if (!ctxSelected[t] || !ctxSelected[t].size) return;
     var labelMap = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
@@ -3126,36 +3125,76 @@ function ctxRemoveSelected(idx) {
   updateSelectedSummary();
 }
 
+function getStableKey(item, t) {
+  if (t === 'facts') return 'f_' + (item.id || '');
+  if (t === 'questions') return 'q_' + (item.id || '');
+  if (t === 'synthkw') return 's_' + (item.keyword || '');
+  return 'k_' + (item.text || item.keyword || '');
+}
+
+function renderContextResults(div, items, t, pfx) {
+  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; return; }
+  if (!ctxSelected[t]) ctxSelected[t] = new Set();
+  var sel = ctxSelected[t], h = [], ctxItems = [];
+  items.forEach(function(item, idx) {
+    var label = '', sub = '', stableKey = getStableKey(item, t);
+    if (t === 'facts') { label = item.fact; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.source||'') + ')</span>'; }
+    else if (t === 'questions') { label = item.question; }
+    else if (t === 'synthkw') { label = item.keyword; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.intent||item.category||'') + ')</span>'; }
+    else { label = item.text || item.keyword; sub = item.source ? '<span style="color:#888;font-size:0.8em;">(' + item.source + ')</span>' : ''; }
+    var chk = sel.has(stableKey) ? ' checked' : (idx < 7 ? ' checked' : '');
+    if (chk && !sel.has(stableKey)) sel.add(stableKey);
+    ctxItems.push({k: stableKey, t: t});
+    h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
+      + '<input type="checkbox" onclick="ctxSelClick(' + ctxItems.length + ')"' + chk + ' style="margin-top:2px;">'
+      + '<span>' + label + ' ' + sub + '</span></label>');
+  });
+  div.innerHTML = h.join('');
+  div.setAttribute('data-ctx-items', JSON.stringify(ctxItems));
+}
+
+function ctxSelClick(idx) {
+  var div = document.getElementById('context-tab-content');
+  var items = JSON.parse(div.getAttribute('data-ctx-items') || '[]');
+  var it = items[idx - 1];
+  if (!it) return;
+  if (!ctxSelected[it.t]) ctxSelected[it.t] = new Set();
+  var cb = div.querySelectorAll('input[type=checkbox]')[idx - 1];
+  if (cb.checked) ctxSelected[it.t].add(it.k);
+  else ctxSelected[it.t].delete(it.k);
+  updateSelectedSummary();
+}
+
+function toggleAllInModal() {
+  var cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]'), t = ctxActiveTab;
+  if (!ctxSelected[t]) ctxSelected[t] = new Set();
+  var anyUnchecked = false;
+  for (var i = 0; i < cbs.length; i++) { if (!cbs[i].checked) { anyUnchecked = true; break; } }
+  for (var i = 0; i < cbs.length; i++) cbs[i].checked = anyUnchecked;
+  if (anyUnchecked) {
+    var d = document.getElementById('context-tab-content');
+    var items = JSON.parse(d.getAttribute('data-ctx-items') || '[]');
+    items.forEach(function(it) { ctxSelected[t].add(it.k); });
+  } else ctxSelected[t].clear();
+  updateSelectedSummary();
+}
+
 function renderCurrentContextModal() {
   var tab = ctxActiveTab, items = ctxModalData, pfx, q = (document.getElementById('context-search').value || '').toLowerCase().trim();
   if (tab === 'facts') pfx = 'ag-fact';
   else if (tab === 'questions') pfx = 'ag-q';
   else if (tab === 'synthkw') pfx = 'ag-skw';
   else pfx = 'ag-kwi';
-
   var qs = []; if (q) qs = q.split('+').map(function(s) { return s.trim(); }).filter(function(s) { return s.length >= 2; });
   if (qs.length) {
     document.getElementById('context-count').textContent = 'Searching ' + q + '...';
     fetchContextSearch(tab, q, pfx); return;
   }
-
   var div = document.getElementById('context-tab-content');
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded.</p>';
     document.getElementById('context-count').textContent = '0 items'; return; }
   document.getElementById('context-count').textContent = items.length + ' items';
   renderContextResults(div, items, tab, pfx);
-}
-
-function ctxSelClick(idx) {
-  var div = document.getElementById('context-tab-content');
-  var items = JSON.parse(div.getAttribute('data-ctx-items') || '[]');
-  if (idx < 0 || idx >= items.length) return;
-  var it = items[idx];
-  if (!ctxSelected[it.t]) ctxSelected[it.t] = new Set();
-  var cb = div.querySelectorAll('input[type=checkbox]')[idx];
-  if (cb.checked) ctxSelected[it.t].add(it.k);
-  else ctxSelected[it.t].delete(it.k);
-  updateSelectedSummary();
 }
 
 
@@ -3205,41 +3244,16 @@ function fetchContextSearch(tab, query, pfx) {
   }, 400);
 }
 
-var ctxChecked = {};
-
-function renderContextResults(div, items, t, pfx) {
-  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; return; }
-  if (!ctxSelected[t]) ctxSelected[t] = new Set();
-  var sel = ctxSelected[t], h = [], ctxItems = [];
-  items.forEach(function(item, idx) {
-    var label = '', sub = '', stableKey = getStableKey(item, t);
-    if (t === 'facts') { label = item.fact; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.source||'') + ')</span>'; }
-    else if (t === 'questions') { label = item.question; }
-    else if (t === 'synthkw') { label = item.keyword; sub = '<span style="color:#888;font-size:0.8em;">(' + (item.intent||item.category||'') + ')</span>'; }
-    else { label = item.text || item.keyword; sub = item.source ? '<span style="color:#888;font-size:0.8em;">(' + item.source + ')</span>' : ''; }
-    var chk = sel.has(stableKey) ? ' checked' : (idx < 7 ? ' checked' : '');
-    if (chk && !sel.has(stableKey)) sel.add(stableKey);
-    ctxItems.push({k: stableKey, t: t});
-    h.push('<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">'
-      + '<input type="checkbox" onclick="ctxSelClick(' + ctxItems.length + ')"' + chk + ' style="margin-top:2px;">'
-      + '<span>' + label + ' ' + sub + '</span></label>');
-  });
-  div.innerHTML = h.join('');
-  div.setAttribute('data-ctx-items', JSON.stringify(ctxItems));
+function getStableKey(item, t) {
+  if (t === 'facts') return 'f_' + (item.id || '');
+  if (t === 'questions') return 'q_' + (item.id || '');
+  if (t === 'synthkw') return 's_' + (item.keyword || '');
+  return 'k_' + (item.text || item.keyword || '');
 }
 
-function ctxSelClick(idx) {
-  var div = document.getElementById('context-tab-content');
-  var items = JSON.parse(div.getAttribute('data-ctx-items') || '[]');
-  var it = items[idx - 1];
-  if (!it) return;
-  if (!ctxSelected[it.t]) ctxSelected[it.t] = new Set();
-  var cb = div.querySelectorAll('input[type=checkbox]')[idx - 1];
-  if (cb.checked) ctxSelected[it.t].add(it.k);
-  else ctxSelected[it.t].delete(it.k);
-  updateSelectedSummary();
-}
+var ctxSelected = {};
 
+function getStableKey(item, t) {if(t==='facts')return'f_'+(item.id||'');if(t==='questions')return'q_'+(item.id||'');if(t==='synthkw')return's_'+(item.keyword||'');return'k_'+(item.text||item.keyword||'');}
 
 function toggleAllInModal() {
   let cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
