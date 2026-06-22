@@ -1217,6 +1217,9 @@ class GenerateArticleRequest(BaseModel):
     content_type: str = "Blog Post"
     selected_facts: list = []
     selected_questions: list = []
+    selected_synthesized_keywords: list = []
+    selected_keyword_intelligence: list = []
+    freeform_notes: str = ""
     wiki_context: list = []
 
 
