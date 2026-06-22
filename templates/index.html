@@ -2834,6 +2834,10 @@ async function generateArticle() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt.slice(0, 200));
+    }
     const data = await res.json();
     articleGenJobId = data.job_id;
     
