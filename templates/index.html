@@ -2997,14 +2997,14 @@ async function loadGeneratedArticles() {
     }
     
     div.innerHTML = data.articles.map(a => `
-<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e0e0e0;font-size:0.9em;gap:8px;" data-ctx data-facts="${(a.context_facts||'[]')}" data-questions="${(a.context_questions||'[]')}" data-synth="${(a.context_synth_kw||'[]')}" data-kwintel="${(a.context_kw_intel||'[]')}">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e0e0e0;font-size:0.9em;gap:8px;">
         <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${a.title}">${a.title}</div>
         <div style="color:#666;font-size:0.8em;flex-shrink:0;">${a.focus_keyphrase || ''} · ${a.word_count||0}w · SEO ${a.seo_score}/100</div>
         <div style="color:#888;font-size:0.78em;flex-shrink:0;">${a.generated_at ? new Date(a.generated_at).toLocaleDateString() : ''}</div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticle('${a.file}')">👁 View</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="editArticle('${a.file}')">✏️ Edit</button>
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewContext(event,this)">📋 Context</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleContext('${a.file}')">📋 Context</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="retryArticle('${a.file}')">🔄 Retry</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="deleteArticleFile('${a.file}')">🗑</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
@@ -3016,23 +3016,35 @@ async function loadGeneratedArticles() {
   }
 }
 
-function viewContext(ev,btn) {
-  var row = (btn||ev.target).closest('[data-ctx]');
-  if (!row) return;
+async function viewArticleContext(path) {
   try {
-    var facts = JSON.parse(row.getAttribute('data-facts') || '[]'), questions = JSON.parse(row.getAttribute('data-questions') || '[]');
-    var synth = JSON.parse(row.getAttribute('data-synth') || '[]'), kwintel = JSON.parse(row.getAttribute('data-kwintel') || '[]');
-  } catch(e) { return alert('Could not parse context'); }
-  var h = '<h3>📋 Context Used</h3>';
-  if (facts.length) { h += '<h4 style="margin-top:12px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((f.fact||f||'')).slice(0,120) + '</div>'; }); }
-  if (questions.length) { h += '<h4 style="margin-top:12px;">❓ Questions (' + questions.length + ')</h4>'; questions.forEach(function(q) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((q.question||q||'')).slice(0,120) + '</div>'; }); }
-  if (synth.length) { h += '<h4 style="margin-top:12px;">✨ Synth Keywords (' + synth.length + ')</h4>'; synth.forEach(function(s) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((s.keyword||s||'')).slice(0,120) + '</div>'; }); }
-  if (kwintel.length) { h += '<h4 style="margin-top:12px;">🔑 KW Intelligence (' + kwintel.length + ')</h4>'; kwintel.forEach(function(k) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((k.text||k.keyword||k||'')).slice(0,120) + '</div>'; }); }
-  if (!facts.length && !questions.length && !synth.length && !kwintel.length) h += '<p style="color:#666;">No context was saved with this article (generated before this feature).</p>';
-  document.getElementById('wiki-modal-title').textContent = '📋 Context';
-  document.getElementById('wiki-modal-rendered').innerHTML = h;
-  document.getElementById('wiki-file-modal').style.display = 'flex';
+    var res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+    var data = await res.json();
+    if (!data.content) return alert('Could not read article');
+    var fmMatch = data.content.match(/^---([\\s\\S]*?)---/);
+    if (!fmMatch) return alert('No frontmatter found');
+    var lines = fmMatch[1].split('\\n');
+    var ctx = {};
+    for (var i = 0; i < lines.length; i++) {
+      var colon = lines[i].indexOf(':');
+      if (colon < 0) continue;
+      var k = lines[i].slice(0, colon).trim(), v = lines[i].slice(colon+1).trim().replace(/^"|"$/g, '');
+      if (k.startsWith('context_')) ctx[k.slice(8)] = v;
+    }
+    var facts = _safeParse(ctx.facts), questions = _safeParse(ctx.questions), synth = _safeParse(ctx.synth_kw), kwintel = _safeParse(ctx.kw_intel);
+    var h = '<h3>📋 Context Used</h3>';
+    if (facts.length) { h += '<h4 style="margin-top:12px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof f==='string'?f:f.fact||f||'')).slice(0,150) + '</div>'; }); }
+    if (questions.length) { h += '<h4 style="margin-top:12px;">❓ Questions (' + questions.length + ')</h4>'; questions.forEach(function(q) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof q==='string'?q:q.question||q||'')).slice(0,150) + '</div>'; }); }
+    if (synth.length) { h += '<h4 style="margin-top:12px;">✨ Synth Keywords (' + synth.length + ')</h4>'; synth.forEach(function(s) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof s==='string'?s:s.keyword||s||'')).slice(0,150) + '</div>'; }); }
+    if (kwintel.length) { h += '<h4 style="margin-top:12px;">🔑 KW Intelligence (' + kwintel.length + ')</h4>'; kwintel.forEach(function(k) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof k==='string'?k:k.text||k.keyword||k||'')).slice(0,150) + '</div>'; }); }
+    if (!facts.length && !questions.length && !synth.length && !kwintel.length) h += '<p style="color:#666;">No context was saved with this article (generated before this feature).</p>';
+    document.getElementById('wiki-modal-title').textContent = '📋 Context';
+    document.getElementById('wiki-modal-rendered').innerHTML = h;
+    document.getElementById('wiki-file-modal').style.display = 'flex';
+  } catch(e) { alert('Error: ' + e.message); }
 }
+
+function _safeParse(s) { try { var v = JSON.parse(s); return Array.isArray(v) ? v : []; } catch(e) { return []; } }
 
 async function viewArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
