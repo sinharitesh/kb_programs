@@ -3011,6 +3011,79 @@ async function loadGeneratedArticles() {
   }
 }
 
+function viewContext(path) {
+  var row = event.target.closest('[data-ctx]');
+  if (!row) return;
+  try {
+    var facts = JSON.parse(row.getAttribute('data-facts') || '[]'), questions = JSON.parse(row.getAttribute('data-questions') || '[]');
+    var synth = JSON.parse(row.getAttribute('data-synth') || '[]'), kwintel = JSON.parse(row.getAttribute('data-kwintel') || '[]');
+  } catch(e) { return alert('Could not parse context'); }
+  var h = '<h3>📋 Context Used</h3>';
+  if (facts.length) { h += '<h4 style="margin-top:12px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((f.fact||f||'')).slice(0,120) + '</div>'; }); }
+  if (questions.length) { h += '<h4 style="margin-top:12px;">❓ Questions (' + questions.length + ')</h4>'; questions.forEach(function(q) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((q.question||q||'')).slice(0,120) + '</div>'; }); }
+  if (synth.length) { h += '<h4 style="margin-top:12px;">✨ Synth Keywords (' + synth.length + ')</h4>'; synth.forEach(function(s) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((s.keyword||s||'')).slice(0,120) + '</div>'; }); }
+  if (kwintel.length) { h += '<h4 style="margin-top:12px;">🔑 KW Intelligence (' + kwintel.length + ')</h4>'; kwintel.forEach(function(k) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((k.text||k.keyword||k||'')).slice(0,120) + '</div>'; }); }
+  if (!facts.length && !questions.length && !synth.length && !kwintel.length) h += '<p style="color:#666;">No context was saved with this article (generated before this feature).</p>';
+  document.getElementById('wiki-modal-title').textContent = '📋 Context';
+  document.getElementById('wiki-modal-rendered').innerHTML = h;
+  document.getElementById('wiki-file-modal').style.display = 'flex';
+}
+
+async function viewArticle(path) {
+async function viewArticle(path) {
+  const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+  const data = await res.json();
+  if (data.content) {
+    document.getElementById('wiki-modal-title').textContent = '📄 ' + path;
+    document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(data.content);
+    document.getElementById('wiki-file-modal').style.display = 'flex';
+    wikiModalShowRendered();
+    currentWikiPath = path;
+  }
+}
+
+async function editArticle(path) {
+  const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+  const data = await res.json();
+  if (data.content) {
+    document.getElementById('wiki-modal-title').textContent = '✏️ ' + path;
+    document.getElementById('wiki-modal-raw').value = data.content;
+    document.getElementById('wiki-file-modal').style.display = 'flex';
+    wikiModalShowRaw();
+    currentWikiPath = path;
+    document.getElementById('wiki-modal-save-btn').onclick = async () => {
+      const fd = new FormData();
+      fd.append('path', path);
+      fd.append('content', document.getElementById('wiki-modal-raw').value);
+      await fetch('/articles/save', {method: 'POST', body: fd});
+      alert('✅ Saved');
+      wikiModalShowRendered();
+      loadGeneratedArticles();
+    };
+  }
+}
+
+async function deleteArticleFile(path) {
+  if (!confirm('Delete this article?')) return;
+  const res = await fetch('/articles/delete?path=' + encodeURIComponent(path), {method: 'DELETE'});
+  if (res.ok) loadGeneratedArticles();
+}
+
+async function retryArticle(path) {
+  const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+  const data = await res.json();
+  if (!data.content) return;
+  let idea = path.split(/(\\/|\\\\\\)/).pop().replace(/\.md$/, '').replace(/-/g, ' ');
+  let fm = {}, fmMatch = data.content.match(/^---\n([\\s\\S]*?)\n---/);
+  if (fmMatch) fmMatch[1].split('\\n').forEach(function(line) { var parts = line.split(':',2); if (parts[0] && parts[1]) fm[parts[0].trim()] = parts[1].trim().replace(/"/g,''); });
+  idea = fm.title || idea;
+  if (fm.focus_keyphrase) document.getElementById('ag-keyphrase').value = fm.focus_keyphrase;
+  if (fm.category) document.getElementById('ag-category').value = fm.category;
+  document.getElementById('ag-idea').value = idea;
+  _showTabImpl('articlegen', document.querySelector('[onclick*="articlegen"]'));
+}
+
+
 function downloadArticle(path) {
   window.open('/articles/download?path=' + encodeURIComponent(path), '_blank');
 }

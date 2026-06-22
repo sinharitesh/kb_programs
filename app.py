@@ -1356,7 +1356,11 @@ async def api_list_articles():
                     "slug": meta.get("slug", ""),
                     "language": meta.get("language", ""),
                     "word_count": int(meta.get("word_count", 0)),
-                    "focus_keyphrase": meta.get("focus_keyphrase", "")
+                    "focus_keyphrase": meta.get("focus_keyphrase", ""),
+                    "context_facts": meta.get("context_facts", "[]"),
+                    "context_questions": meta.get("context_questions", "[]"),
+                    "context_synth_kw": meta.get("context_synth_kw", "[]"),
+                    "context_kw_intel": meta.get("context_kw_intel", "[]")
                 })
         except Exception:
             continue

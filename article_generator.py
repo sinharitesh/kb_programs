@@ -490,6 +490,10 @@ internal_links: {json.dumps(seo_data.get('internal_links', []))}
 outbound_links: {json.dumps(seo_data.get('outbound_links', []))}
 readability: "{seo_data.get('readability', 'Medium')}"
 generated_at: {datetime.now().isoformat()}
+context_facts: {json.dumps(context.get('selected_facts', [])[:20])}
+context_questions: {json.dumps(context.get('selected_questions', [])[:20])}
+context_synth_kw: {json.dumps(context.get('selected_synthesized_keywords', [])[:20])}
+context_kw_intel: {json.dumps(context.get('selected_keyword_intelligence', [])[:20])}
 ---
 
 """
