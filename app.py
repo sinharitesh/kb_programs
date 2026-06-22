@@ -1317,14 +1317,6 @@ async def api_generate_article(
             article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": str(e)}
     background_tasks.add_task(run_generation)
     return JSONResponse({"job_id": job_id, "status": "generating"})
-    def run_generation():
-        try:
-            result = generate_article(ctx, settings)
-            article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
-        except Exception as e:
-            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": str(e)}
-    background_tasks.add_task(run_generation)
-    return JSONResponse({"job_id": job_id, "status": "generating"})
 
 @app.get("/articles/status/{job_id}")
 async def api_article_status(job_id: str):

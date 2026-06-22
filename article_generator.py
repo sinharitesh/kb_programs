@@ -453,6 +453,12 @@ def generate_article(context: dict, settings: dict) -> dict:
     }
 
 
+def _safe_text(item):
+    "Extract text from any context item type"
+    if not item: return ''
+    if isinstance(item, str): return item[:200]
+    return (item.get('fact') or item.get('question') or item.get('keyword') or item.get('text') or str(item))[:200]
+
 def save_article(article_md: str, context: dict, settings: dict, seo_data: dict) -> str:
     """Save generated article to KB wiki folder."""
     category = context.get("category", "uncategorized")
@@ -490,10 +496,10 @@ internal_links: {json.dumps(seo_data.get('internal_links', []))}
 outbound_links: {json.dumps(seo_data.get('outbound_links', []))}
 readability: "{seo_data.get('readability', 'Medium')}"
 generated_at: {datetime.now().isoformat()}
-context_facts: {json.dumps(context.get('selected_facts', [])[:20])}
-context_questions: {json.dumps(context.get('selected_questions', [])[:20])}
-context_synth_kw: {json.dumps(context.get('selected_synthesized_keywords', [])[:20])}
-context_kw_intel: {json.dumps(context.get('selected_keyword_intelligence', [])[:20])}
+context_facts: {json.dumps([_safe_text(f) for f in context.get('selected_facts', [])[:20]])}
+context_questions: {json.dumps([_safe_text(q) for q in context.get('selected_questions', [])[:20]])}
+context_synth_kw: {json.dumps([_safe_text(s) for s in context.get('selected_synthesized_keywords', [])[:20]])}
+context_kw_intel: {json.dumps([_safe_text(k) for k in context.get('selected_keyword_intelligence', [])[:20]])}
 ---
 
 """
