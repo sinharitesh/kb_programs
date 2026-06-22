@@ -3099,25 +3099,42 @@ function updateSelectedSummary() { var p = [], t = 0; ['facts','questions','synt
 function renderSelectedTab() {
   var div = document.getElementById('context-tab-content');
   document.getElementById('context-modal-title').textContent = '📋 Selected Items';
-  var parts = [], count = 0;
+  document.getElementById('context-count').textContent = '';
+  var allSelected = [], parts = [], count = 0;
   ['facts','questions','synthkw','kwintel'].forEach(function(t) {
     if (!ctxSelected[t] || !ctxSelected[t].size) return;
     var labels = {facts:'📊 Facts', questions:'❓ Questions', synthkw:'✨ Synth Keywords', kwintel:'🔑 KW Intelligence'};
-    parts.push('<div style="font-weight:600;margin-top:10px;">' + labels[t] + ' (' + ctxSelected[t].size + ')</div>');
-    ctxSelected[t].forEach(function(key) {
-      count++;
-      parts.push('<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + key.slice(2, 150) + '</div>');
-    });
+    var tCount = 0;
+    ctxSelected[t].forEach(function(key) { allSelected.push({t:t, key:key}); tCount++; });
+    parts.push('<div style="font-weight:600;margin-top:10px;">' + labels[t] + ' (' + tCount + ')</div>');
   });
-  if (!count) { div.innerHTML = '<p style="color:#666;padding:20px;">Nothing selected yet. Use the other tabs to find and select items.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; }
-  else { div.innerHTML = parts.join(''); document.getElementById('context-tab-info').textContent = count + ' items selected'; }
+  if (!allSelected.length) { div.innerHTML = '<p style="color:#666;padding:20px;">Nothing selected yet. Use the other tabs to search and select items.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; return; }
+  allSelected.forEach(function(item, i) {
+    parts.push('<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;">'
+      + '<input type="checkbox" checked onclick="ctxModalDeselect(' + i + ')" style="margin-top:2px;">'
+      + '<span style="flex:1;">✅ ' + item.key.slice(2, 200) + '</span></div>');
+    count++;
+  });
+  div.innerHTML = parts.join('');
+  div.setAttribute('data-sel', JSON.stringify(allSelected));
+  document.getElementById('context-tab-info').textContent = count + ' items selected';
 }
+
+function ctxModalDeselect(idx) {
+  var div = document.getElementById('context-tab-content');
+  var sel = JSON.parse(div.getAttribute('data-sel') || '[]');
+  var it = sel[idx];
+  if (it && ctxSelected[it.t]) { ctxSelected[it.t].delete(it.key); }
+  renderSelectedTab();
+  updateSelectedSummary();
+}
+
 function toggleSelectAllContext() {
-  var cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]'), t = ctxActiveTab, anyUnchecked = false;
+  var cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]'), t = ctxActiveTab;
   if (!ctxSelected[t]) ctxSelected[t] = new Set();
-  var sel = ctxSelected[t];
-  cbs.forEach(function(cb) { if (!cb.checked) anyUnchecked = true; });
-  cbs.forEach(function(cb) { cb.checked = anyUnchecked; if (anyUnchecked) { sel.add(cb.getAttribute('data-key')); } else { sel.delete(cb.getAttribute('data-key')); } });
+  var sel = ctxSelected[t], anyUnchecked = false;
+  cbs.forEach(function(cb) { if (cb && !cb.checked) anyUnchecked = true; });
+  cbs.forEach(function(cb) { if (cb) { cb.checked = anyUnchecked; var k = cb.getAttribute('data-key'); if (k) { if (anyUnchecked) sel.add(k); else sel.delete(k); } } });
   updateSelectedSummary();
 }
 
