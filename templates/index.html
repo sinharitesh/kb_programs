@@ -3030,7 +3030,6 @@ function viewContext(path) {
 }
 
 async function viewArticle(path) {
-async function viewArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
   const data = await res.json();
   if (data.content) {
@@ -3073,12 +3072,20 @@ async function retryArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
   const data = await res.json();
   if (!data.content) return;
-  let idea = path.split(/(\\/|\\\\\\)/).pop().replace(/\.md$/, '').replace(/-/g, ' ');
-  let fm = {}, fmMatch = data.content.match(/^---\n([\\s\\S]*?)\n---/);
-  if (fmMatch) fmMatch[1].split('\\n').forEach(function(line) { var parts = line.split(':',2); if (parts[0] && parts[1]) fm[parts[0].trim()] = parts[1].trim().replace(/"/g,''); });
-  idea = fm.title || idea;
-  if (fm.focus_keyphrase) document.getElementById('ag-keyphrase').value = fm.focus_keyphrase;
-  if (fm.category) document.getElementById('ag-category').value = fm.category;
+  var idea = path.split('/').pop().replace('.md', '').replace(/-/g, ' ');
+  var fmMatch = data.content.match(/^---([\s\S]*?)---/);
+  if (fmMatch) {
+    var lines = fmMatch[1].split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var parts = lines[i].split(':', 2);
+      if (parts.length === 2) {
+        var k = parts[0].trim(), v = parts[1].trim().replace(/"/g, '');
+        if (k === 'title') idea = v;
+        if (k === 'focus_keyphrase') document.getElementById('ag-keyphrase').value = v;
+        if (k === 'category') document.getElementById('ag-category').value = v;
+      }
+    }
+  }
   document.getElementById('ag-idea').value = idea;
   _showTabImpl('articlegen', document.querySelector('[onclick*="articlegen"]'));
 }
