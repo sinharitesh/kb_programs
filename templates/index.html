@@ -822,8 +822,9 @@
           <button class="btn btn-grey" onclick="closeContextModal()">✕ Close</button>
         </div>
         <div style="margin-bottom:10px;">
-          <input type="text" id="context-search" placeholder="🔍 Filter items (use + for multiple terms)..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;width:100%;" oninput="renderCurrentTab()">
+          <input type="text" id="context-search" placeholder="🔍 Search (≥3 chars for global lookup)..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;width:100%;" oninput="renderCurrentTab()">
         </div>
+        <div style="font-size:0.78em;color:#888;margin-bottom:4px;" id="context-count"></div>
         <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
           <button class="btn btn-grey context-tab-btn active" onclick="switchContextTab('facts')" id="ctx-tab-facts">📊 Facts</button>
           <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('questions')" id="ctx-tab-questions">❓ Questions</button>
@@ -3017,6 +3018,7 @@ function downloadArticle(path) {
 
 let ctxActiveTab = 'facts';
 let ctxSelected = {};
+let ctxModalData = null;
 
 function getStableKey(item, t) {if(t==='facts')return'f_'+(item.id||'');if(t==='questions')return'q_'+(item.id||'');if(t==='synthkw')return's_'+(item.keyword||'');return'k_'+(item.text||item.keyword||'');}
 
@@ -3031,17 +3033,37 @@ function switchContextTab(tab) {
   else renderContextTab(tab);
 }
 
-function renderCurrentTab() { if (ctxActiveTab === 'selected') renderSelectedTab(); else renderContextTab(ctxActiveTab); }
+function renderCurrentTab() { var q = document.getElementById('context-search').value.trim(); if (q.length >= 3) { document.getElementById('context-count').textContent = 'Searching...'; debouncedFetch(ctxActiveTab, q); return; } if (ctxActiveTab === 'selected') renderSelectedTab(); else renderContextTab(ctxActiveTab); }
+
+var csTimer = null;
+function debouncedFetch(tab, q) { if (csTimer) clearTimeout(csTimer); csTimer = setTimeout(function() { fetchContextSearch(tab, q); }, 400); }
+
+function fetchContextSearch(tab, query) {
+  var clean = query.replace(/\+/g, ' '), div = document.getElementById('context-tab-content');
+  if (tab === 'facts') fetch('/facts/explorer?search=' + encodeURIComponent(clean)).then(function(r) { return r.json(); }).then(function(d) {
+    ctxModalData = d.facts || []; document.getElementById('context-count').textContent = ctxModalData.length + ' results'; renderContextResults(div, ctxModalData, tab, 'ag-fact');
+  });
+  else if (tab === 'questions') fetch('/questions/search?q=' + encodeURIComponent(clean) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+    ctxModalData = d.questions || []; document.getElementById('context-count').textContent = ctxModalData.length + ' results'; renderContextResults(div, ctxModalData, tab, 'ag-q');
+  });
+  else if (tab === 'synthkw') fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(clean) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+    var flat = []; (d.keywords || []).forEach(function(kw) { (kw.suggested||[]).forEach(function(s) { flat.push({keyword: typeof s==='string' ? s : s.keyword, intent: typeof s==='object' ? s.intent : '', category: kw.category}); }); });
+    ctxModalData = flat; document.getElementById('context-count').textContent = ctxModalData.length + ' results'; renderContextResults(div, ctxModalData, tab, 'ag-skw');
+  });
+  else fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(clean) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
+    ctxModalData = d.items || []; document.getElementById('context-count').textContent = ctxModalData.length + ' results'; renderContextResults(div, ctxModalData, tab, 'ag-kwi');
+  });
+}
 
 function renderContextTab(tab) {
   const div = document.getElementById('context-tab-content');
   const titles = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
   document.getElementById('context-modal-title').textContent = '📋 ' + titles[tab];
   let items, cbPrefix;
-  if (tab === 'facts') { items = gatheredContext.facts; cbPrefix = 'ag-fact'; }
-  else if (tab === 'questions') { items = gatheredContext.questions; cbPrefix = 'ag-q'; }
-  else if (tab === 'synthkw') { items = gatheredContext.synthesized_keywords; cbPrefix = 'ag-skw'; }
-  else if (tab === 'kwintel') { items = gatheredContext.keyword_intelligence; cbPrefix = 'ag-kwi'; }
+  if (tab === 'facts') { items = ctxModalData || gatheredContext.facts; cbPrefix = 'ag-fact'; }
+  else if (tab === 'questions') { items = ctxModalData || gatheredContext.questions; cbPrefix = 'ag-q'; }
+  else if (tab === 'synthkw') { items = ctxModalData || gatheredContext.synthesized_keywords; cbPrefix = 'ag-skw'; }
+  else if (tab === 'kwintel') { items = ctxModalData || gatheredContext.keyword_intelligence; cbPrefix = 'ag-kwi'; }
   if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; return; }
   let q = (document.getElementById('context-search').value || '').toLowerCase().trim(), qs = q ? q.split('+').map(s => s.trim()).filter(s => s.length >= 2) : [];
   let filtered = qs.length ? items.filter(item => {
