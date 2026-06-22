@@ -822,13 +822,14 @@
           <button class="btn btn-grey" onclick="closeContextModal()">✕ Close</button>
         </div>
         <div style="margin-bottom:10px;">
-          <input type="text" id="context-search" placeholder="🔍 Filter items (use + for multiple terms)..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;width:100%;" oninput="renderContextTab(ctxActiveTab)">
+          <input type="text" id="context-search" placeholder="🔍 Filter items (use + for multiple terms)..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;width:100%;" oninput="renderCurrentTab()">
         </div>
         <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
           <button class="btn btn-grey context-tab-btn active" onclick="switchContextTab('facts')" id="ctx-tab-facts">📊 Facts</button>
           <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('questions')" id="ctx-tab-questions">❓ Questions</button>
           <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('synthkw')" id="ctx-tab-synthkw">✨ Synth Keywords</button>
           <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('kwintel')" id="ctx-tab-kwintel">🔑 KW Intelligence</button>
+          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('selected')" id="ctx-tab-selected">📋 Selected</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <span style="font-size:0.85em;color:#666;" id="context-tab-info"></span>
@@ -3026,8 +3027,11 @@ function switchContextTab(tab) {
   ctxActiveTab = tab;
   document.querySelectorAll('.context-tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('ctx-tab-' + tab).classList.add('active');
-  renderContextTab(tab);
+  if (tab === 'selected') renderSelectedTab();
+  else renderContextTab(tab);
 }
+
+function renderCurrentTab() { if (ctxActiveTab === 'selected') renderSelectedTab(); else renderContextTab(ctxActiveTab); }
 
 function renderContextTab(tab) {
   const div = document.getElementById('context-tab-content');
@@ -3053,7 +3057,7 @@ function renderContextTab(tab) {
     else if (tab === 'questions') { label = item.question; }
     else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.intent||item.category||''})</span>`; }
     else if (tab === 'kwintel') { label = item.text || item.keyword; subtitle = item.source ? `<span style="color:#888;font-size:0.8em;">(${item.source})</span>` : ''; }
-    let checked = i < 7 || sel.has(stableKey);
+    let checked = sel.has(stableKey);
     if (checked && !sel.has(stableKey)) sel.add(stableKey);
     if (checked) checkedCount++;
     html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">
@@ -3068,6 +3072,22 @@ function renderContextTab(tab) {
 
 function ctxModalToggle(cb) { var t = cb.getAttribute('data-tab'), k = cb.getAttribute('data-key'); if (!ctxSelected[t]) ctxSelected[t] = new Set(); if (cb.checked) ctxSelected[t].add(k); else ctxSelected[t].delete(k); updateSelectedSummary(); }
 function updateSelectedSummary() { var p = [], t = 0; ['facts','questions','synthkw','kwintel'].forEach(function(tab) { if (ctxSelected[tab] && ctxSelected[tab].size) { p.push(ctxSelected[tab].size + ' ' + tab); t += ctxSelected[tab].size; } }); document.getElementById('ag-selected-summary').textContent = t ? '📋 Selected: ' + p.join(' + ') : ''; }
+function renderSelectedTab() {
+  var div = document.getElementById('context-tab-content');
+  document.getElementById('context-modal-title').textContent = '📋 Selected Items';
+  var parts = [], count = 0;
+  ['facts','questions','synthkw','kwintel'].forEach(function(t) {
+    if (!ctxSelected[t] || !ctxSelected[t].size) return;
+    var labels = {facts:'📊 Facts', questions:'❓ Questions', synthkw:'✨ Synth Keywords', kwintel:'🔑 KW Intelligence'};
+    parts.push('<div style="font-weight:600;margin-top:10px;">' + labels[t] + ' (' + ctxSelected[t].size + ')</div>');
+    ctxSelected[t].forEach(function(key) {
+      count++;
+      parts.push('<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + key.slice(2, 150) + '</div>');
+    });
+  });
+  if (!count) { div.innerHTML = '<p style="color:#666;padding:20px;">Nothing selected yet. Use the other tabs to find and select items.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; }
+  else { div.innerHTML = parts.join(''); document.getElementById('context-tab-info').textContent = count + ' items selected'; }
+}
 function toggleSelectAllContext() {
   var cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]'), t = ctxActiveTab, anyUnchecked = false;
   if (!ctxSelected[t]) ctxSelected[t] = new Set();
