@@ -237,7 +237,7 @@
     <span class="nav-icon">📊</span> Keyword Analysis
   </div>
   <div class="nav-item" onclick="showTab('kwsynthesis', this)">
-    <span class="nav-icon">✨</span> Keyword Synthesis History
+    <span class="nav-icon">✨</span> Synthesis Jobs
   </div>
   <div class="nav-item" onclick="showTab('facts', this)">
     <span class="nav-icon">🔎</span> Facts Explorer
@@ -314,7 +314,6 @@
       </div>
       <button class="btn btn-red" onclick="deleteBelowQuality()">Delete Low Quality</button>
       <button class="btn btn-grey" onclick="cleanupOrphans()">🧹 Cleanup Orphans</button>
-      <button class="btn btn-grey" onclick="deduplicateAll()">🔄 Deduplicate All</button>
     </div>
     <div class="url-manager-layout">
       <div>
@@ -494,7 +493,7 @@
 
   <!-- KEYWORD SYNTHESIS JOBS -->
   <div id="kwsynthesis" class="section">
-    <h2>✨ Keyword Synthesis History</h2>
+    <h2>✨ Keyword Synthesis Jobs</h2>
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <div style="font-size:0.9em;color:#666;">
@@ -684,7 +683,6 @@
         <div style="display:flex;align-items:flex-end;gap:8px">
           <button class="btn btn-grey" onclick="loadFacts()">↺ Reset</button>
           <button class="btn btn-red" onclick="deleteSelectedFacts()">🗑 Delete Selected</button>
-        <button class="btn btn-blue" onclick="verifyFacts()">🔍 Verify Facts</button>
         </div>
       </div>
     </div>
@@ -803,7 +801,6 @@
     <div class="card" id="ag-context" style="display:none;">
       <h3>Step 2: Context Ready</h3>
       <p style="color:#666;font-size:0.9em;margin-bottom:12px;" id="ag-context-summary"></p>
-      <p style="font-size:0.85em;margin-bottom:8px;min-height:20px;" id="ag-selected-summary"></p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-blue" onclick="openContextModal('facts')">📊 Facts <span id="ag-fact-badge"></span></button>
         <button class="btn btn-blue" onclick="openContextModal('questions')">❓ Questions <span id="ag-q-badge"></span></button>
@@ -818,25 +815,24 @@
 
     <!-- CONTEXT SELECTION MODAL -->
     <div class="modal-overlay" id="context-modal" style="display:none;">
-      <div class="modal" style="max-width:750px;width:92%;max-height:88vh;display:flex;flex-direction:column;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div class="modal" style="max-width:700px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h3 style="margin:0;" id="context-modal-title">Select Context</h3>
-          <button class="btn btn-grey" onclick="document.getElementById('context-modal').style.display='none'">✕ Close</button>
+          <button class="btn btn-grey" onclick="closeContextModal()">✕ Close</button>
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <button class="btn btn-grey context-tab-btn active" onclick="switchModalTab('search')" id="ctx-tab-search-btn">🔍 Search</button>
-          <button class="btn btn-grey context-tab-btn" onclick="switchModalTab('selected')" id="ctx-tab-selected-btn">📋 Selected</button>
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+          <button class="btn btn-grey context-tab-btn active" onclick="switchContextTab('facts')" id="ctx-tab-facts">📊 Facts</button>
+          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('questions')" id="ctx-tab-questions">❓ Questions</button>
+          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('synthkw')" id="ctx-tab-synthkw">✨ Synth Keywords</button>
+          <button class="btn btn-grey context-tab-btn" onclick="switchContextTab('kwintel')" id="ctx-tab-kwintel">🔑 KW Intelligence</button>
         </div>
-        <div id="ctx-search-panel" style="display:flex;flex-direction:column;flex:1;">
-          <div style="display:flex;gap:6px;margin-bottom:8px;">
-            <input type="text" id="context-search" placeholder="🔍 Search (use + for AND)..." style="padding:6px 10px;font-size:0.85em;border:1px solid #dadce0;border-radius:4px;flex:1;" oninput="renderCurrentContextModal()">
-            <button class="btn btn-grey" onclick="toggleAllInModal()" style="font-size:0.8em;padding:4px 8px;flex-shrink:0;">Select/Unselect All</button>
-          </div>
-          <div style="font-size:0.82em;color:#666;margin-bottom:6px;" id="context-count"></div>
-          <div id="context-tab-content" style="flex:1;overflow-y:auto;min-height:200px;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:0.85em;color:#666;" id="context-tab-info"></span>
+          <button class="btn btn-grey" onclick="toggleSelectAllContext()" style="font-size:0.8em;padding:4px 10px;" id="ctx-select-all-btn">Select All</button>
         </div>
-        <div id="ctx-selected-panel" style="display:none;flex:1;overflow-y:auto;">
-          <div id="ctx-selected-content" style="min-height:200px;"></div>
+        <div id="context-tab-content" style="flex:1;overflow-y:auto;min-height:200px;"></div>
+        <div style="margin-top:12px;padding-top:8px;border-top:1px solid #e0e0e0;display:flex;justify-content:flex-end;gap:8px;">
+          <button class="btn btn-grey" onclick="closeContextModal()">Done</button>
         </div>
       </div>
     </div>
@@ -1590,15 +1586,9 @@ function renderFacts(facts) {
     <div class="url-card" style="padding:10px 14px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px">
       <input type="checkbox" class="fact-chk" data-id="${f.id}" style="margin-top:4px;flex-shrink:0">
       <div style="flex:1">
-        <div style="font-size:0.9em;margin-bottom:4px">
-          ${f.verified ? '✅' : '❓'} ${f.fact || '(no fact text)'}
-          <span style="background:#${f.interest_score >= 8 ? '34a853' : f.interest_score >= 6 ? 'fbbc04' : '#dadce0'};color:${f.interest_score >= 6 ? '#fff' : '#444'};padding:1px 6px;border-radius:4px;font-size:0.75em;margin-left:6px;" title="Interest score: ${f.interest_score}/10">⭐${f.interest_score || 5}</span>
-        </div>
+        <div style="font-size:0.9em;margin-bottom:4px">${f.verified ? '✅' : '❓'} ${f.fact || '(no fact text)'}</div>
         <div style="font-size:0.78em;color:#888">
           <a href="${f.source_url}" target="_blank">${f.source_title||f.domain||''}</a>
-          ${f.category ? `<span class="tag" style="margin-left:8px;">📁 ${f.category}</span>` : ''}
-          ${f.keywords ? `<span style="color:#999;margin-left:8px;" title="${f.keywords}">🔑 ${f.keywords.slice(0,40)}${f.keywords.length>40?'...':''}</span>` : ''}
-          ${f.verification_source ? `<span style="color:#999;margin-left:8px;" title="Verified via ${f.verification_source}">✓ ${f.verification_source}</span>` : ''}
         </div>
       </div>
       <button class="btn btn-red" style="font-size:0.78em;padding:4px 8px;flex-shrink:0"
@@ -1616,14 +1606,15 @@ async function deleteOneFact(id, btn) {
   btn.closest('.url-card').remove();
 }
 
-async function verifyFacts() {
-  const btn = event.target;
-  btn.disabled = true; btn.textContent = 'Verifying...';
-  const res = await fetch('/facts/verify', {method: 'POST'});
-  const d = await res.json();
-  alert(`✅ Verified ${d.verified} facts via Wikipedia`);
-  btn.disabled = false; btn.textContent = '🔍 Verify Facts';
-  loadFacts();
+async function deleteSelectedFacts() {
+  const ids = [...document.querySelectorAll('.fact-chk:checked')].map(c => +c.dataset.id);
+  if (!ids.length) { alert('No facts selected.'); return; }
+  if (!confirm(`Delete ${ids.length} facts?`)) return;
+  await fetch('/facts/delete-bulk', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(ids)});
+  await fetchFacts(
+    document.getElementById('facts-topic-search').value,
+    document.getElementById('facts-verified-filter').value
+  );
 }
 
 async function confirmFactsCategory() {
@@ -1743,105 +1734,1336 @@ function clearQuestionCategories() {
 }
 
 function updateSelectedSummary() {
-  var parts = [], selTotal = 0;
-  ['facts','questions','synthkw','kwintel'].forEach(function(t) {
-    if (ctxSelected[t] && ctxSelected[t].size) { parts.push(ctxSelected[t].size + ' ' + t); selTotal += ctxSelected[t].size; }
-  });
-  var el = document.getElementById('ag-selected-summary');
-  if (el) el.textContent = selTotal ? '📋 Selected: ' + parts.join(' + ') : '';
-}
-
-
-function renderCurrentContextModal() {
-  var tab = ctxActiveTab, items = ctxModalData, pfx, q = (document.getElementById('context-search').value || '').toLowerCase().trim();
-  if (tab === 'facts') pfx = 'ag-fact';
-  else if (tab === 'questions') pfx = 'ag-q';
-  else if (tab === 'synthkw') pfx = 'ag-skw';
-  else pfx = 'ag-kwi';
-  var qs = []; if (q) qs = q.split('+').map(function(s) { return s.trim(); }).filter(function(s) { return s.length >= 2; });
-  if (qs.length) {
-    document.getElementById('context-count').textContent = 'Searching ' + q + '...';
-    fetchContextSearch(tab, q, pfx); return;
+  const summary = document.getElementById('q-selected-summary');
+  const count = document.getElementById('q-selected-count');
+  const names = document.getElementById('q-selected-names');
+  const catArray = Array.from(selectedQuestionCats);
+  if (catArray.length === 0) {
+    summary.style.display = 'none';
+  } else {
+    summary.style.display = 'block';
+    count.textContent = catArray.length;
+    names.textContent = catArray.slice(0, 3).join(', ') + (catArray.length > 3 ? ` +${catArray.length - 3} more` : '');
   }
-  var div = document.getElementById('context-tab-content');
-  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items loaded.</p>';
-    document.getElementById('context-count').textContent = '0 items'; return; }
-  document.getElementById('context-count').textContent = items.length + ' items';
-  renderContextResults(div, items, tab, pfx);
+}
+
+async function searchQuestions() {
+  const category = Array.from(selectedQuestionCats).join(',');
+  await fetchQuestions(
+    category,
+    document.getElementById('q-keyphrase').value,
+    document.getElementById('q-source').value
+  );
+}
+
+async function fetchQuestions(category='', keyphrase='', source='') {
+  const params = new URLSearchParams();
+  // Support multiple categories as comma-separated
+  if (category) {
+    category.split(',').forEach(c => params.append('category', c.trim()));
+  }
+  if (keyphrase) params.append('keyphrase', keyphrase);
+  if (source) params.append('source', source);
+  const res = await fetch('/questions?' + params.toString());
+  const data = await res.json();
+  renderQuestions(data.questions);
+}
+
+function renderQuestions(questions) {
+  const div = document.getElementById('questions-list');
+  if (!questions.length) { div.innerHTML = '<p style="color:#666">No questions found.</p>'; return; }
+  // Group by category for bulk delete
+  const cats = [...new Set(questions.map(q => q.category))];
+  const catBtns = cats.map(c => `<button class="btn btn-red" style="font-size:0.8em;padding:5px 10px"
+    onclick="deleteQuestionsByCategory('${c.replace(/'/g,"\\'")}')">🗑 All in ${c}</button>`).join(' ');
+  div.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:0.85em;color:#666">Delete by category:</span>${catBtns}
+    </div>
+    <div style="margin-top:8px">
+    <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+      <thead style="background:#f1f3f4">
+        <tr>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Question</th>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Category</th>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Keyphrase</th>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Date</th>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${questions.map(q => `
+        <tr style="border-top:1px solid #e0e0e0">
+          <td style="padding:10px 14px;font-size:0.9em">${q.question}</td>
+          <td style="padding:10px 14px"><span class="tag">${q.category||''}</span></td>
+          <td style="padding:10px 14px;font-size:0.85em;color:#666">${q.keyphrase||''}</td>
+          <td style="padding:10px 14px;font-size:0.8em;color:#999">${(q.analyzed_at||'').substring(0,10)}</td>
+          <td style="padding:10px 14px;display:flex;gap:6px">
+            <button class="btn btn-green" style="font-size:0.8em;padding:5px 10px"
+              onclick="useAsArticleTopic('${q.question.replace(/'/g,"\\'")}')">✍️ Use</button>
+            <button class="btn btn-red" style="font-size:0.8em;padding:5px 10px"
+              onclick="deleteQuestion(${q.id}, this)">🗑</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function useAsArticleTopic(question) {
+  document.getElementById('kw-topic').value = question;
+  showTab('keywords', document.querySelector('[onclick*="keywords"]'));
+  alert('✅ Topic loaded in Keyword Finder!');
+}
+
+// ── Delete helpers ──
+async function deleteQuestion(id, btn) {
+  if (!confirm('Delete this question?')) return;
+  await fetch(`/questions/${id}`, {method: 'DELETE'});
+  btn.closest('tr').remove();
+}
+
+async function deleteQuestionsByCategory(category) {
+  if (!confirm(`Delete ALL questions in category "${category}"?`)) return;
+  await fetch(`/questions/category/${encodeURIComponent(category)}`, {method: 'DELETE'});
+  loadQuestions();
+}
+
+async function deleteKeywordTopic(topic) {
+  if (!confirm(`Delete ALL keywords for topic "${topic}"?`)) return;
+  await fetch(`/keywords/topic/${encodeURIComponent(topic)}`, {method: 'DELETE'});
+  document.getElementById('kw-results').innerHTML = '<p style="color:#666">Keywords deleted.</p>';
+}
+
+async function deleteBelowQuality() {
+  const score = document.getElementById('bulk-quality-threshold').value;
+  if (!score) { alert('Enter a quality score threshold first.'); return; }
+  if (!confirm(`Delete ALL URLs with quality score below ${score}? This also deletes their facts and paths.`)) return;
+  const fd = new FormData(); fd.append('min_score', score);
+  const res = await fetch('/urls/delete-below-quality', {method: 'POST', body: fd});
+  const d = await res.json();
+  alert(`✅ Deleted ${d.count} URLs.`);
+  loadURLs();
+  loadIndexSummary();
+}
+
+async function cleanupOrphans() {
+  if (!confirm('Remove orphaned facts and paths (those with no matching URL)? This cannot be undone.')) return;
+  const res = await fetch('/db/cleanup-orphans', {method: 'POST'});
+  const d = await res.json();
+  alert(`✅ Cleaned up: ${d.orphan_facts_deleted} orphan facts, ${d.orphan_paths_deleted} orphan paths deleted.`);
+  loadIndexSummary();
 }
 
 
-var ctxSearchTimer = null;
-function fetchContextSearch(tab, query, pfx) {
-  if (ctxSearchTimer) clearTimeout(ctxSearchTimer);
-  ctxSearchTimer = setTimeout(function() {
-    var cleanQuery = query.replace(/\+/g, ' ');
-    var div = document.getElementById('context-tab-content');
 
-    if (tab === 'facts') {
-      var params = new URLSearchParams(); params.append('search', cleanQuery);
-      fetch('/facts/explorer?' + params.toString()).then(function(r) { return r.json(); }).then(function(d) {
-        ctxModalData = d.facts || [];
-        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
-        renderContextResults(div, ctxModalData, tab, pfx);
-      });
-    } else if (tab === 'questions') {
-      var params = new URLSearchParams(); params.append('q', cleanQuery); params.append('limit', '30');
-      fetch('/questions/search?' + params.toString()).then(function(r) { return r.json(); }).then(function(d) {
-        ctxModalData = d.questions || [];
-        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
-        renderContextResults(div, ctxModalData, tab, pfx);
-      });
-    } else if (tab === 'synthkw') {
-      fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(cleanQuery) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
-        var flat = []; (d.keywords || []).forEach(function(kw) {
-          (kw.suggested || []).forEach(function(s) {
-            flat.push({keyword: typeof s === 'string' ? s : s.keyword, intent: typeof s === 'object' ? s.intent : '', category: kw.category});
-          });
-        });
-        ctxModalData = flat;
-        document.getElementById('context-count').textContent = ctxModalData.length + ' results';
-        renderContextResults(div, ctxModalData, tab, pfx);
-      });
-    } else {
-      fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(cleanQuery) + '&limit=30').then(function(r) { return r.json(); }).then(function(d) {
-        ctxModalData = d.items || [];
-        document.getElementById('context-count').textContent = ctxModalData.length + ' results for "' + query + '"';
-        renderContextResults(div, ctxModalData, tab, pfx);
-      });
+
+
+
+
+// ── Index rebuild ──
+async function rebuildIndex() {
+  const box = document.getElementById('index-status');
+  box.style.display = 'block';
+  box.textContent = '⏳ Rebuilding indexes...';
+  const res = await fetch('/index/rebuild', {method: 'POST'});
+  const data = await res.json();
+  box.textContent = `✅ ${data.message}`;
+}
+
+async function importFactsFromFiles() {
+  const box = document.getElementById('index-status');
+  box.style.display = 'block';
+  box.textContent = '⏳ Importing facts from verified_facts.md files...';
+  const res = await fetch('/index/import-facts', {method: 'POST'});
+  const d = await res.json();
+  box.textContent = `✅ Imported: ${d.imported} facts | Skipped (no URL match): ${d.skipped_no_url}`;
+  loadIndexSummary();
+}
+
+// ── Index Management ──
+function idxTab(name) {
+  document.querySelectorAll('.idx-sub').forEach(d => d.style.display = 'none');
+  document.querySelectorAll('[id^="idx-tab-"]').forEach(b => b.style.borderBottom = 'none');
+  document.getElementById('idx-' + name).style.display = 'block';
+  document.getElementById('idx-tab-' + name + '-btn').style.borderBottom = '2px solid #1a73e8';
+  if (name === 'search') { /* do nothing, wait for input */ }
+  if (name === 'cats') loadIdxCategories();
+  if (name === 'keywords') loadIdxKeywords();
+  if (name === 'facts') loadIdxFacts();
+  if (name === 'questions') loadIdxQuestions();
+}
+
+async function loadIndexSummary() {
+  const res = await fetch('/index/summary');
+  const d = await res.json();
+  const cards = [
+    {label:'Total URLs',    val: d.urls_total,              color:'#1a73e8'},
+    {label:'Enriched',      val: d.urls_enriched,           color:'#34a853'},
+    {label:'Scraped',       val: d.urls_scraped,            color:'#fbbc04'},
+    {label:'Failed',        val: d.urls_failed,             color:'#d93025'},
+    {label:'Facts',         val: d.facts_total,             color:'#1a73e8'},
+    {label:'Verified Facts',val: d.facts_verified,          color:'#34a853'},
+    {label:'Keywords',      val: d.keywords_total,          color:'#9334e6'},
+    {label:'KW Topics',     val: d.keywords_topics,         color:'#9334e6'},
+    {label:'Questions',     val: d.questions_total,         color:'#e37400'},
+    {label:'Q Categories',  val: d.questions_categories,    color:'#e37400'},
+    {label:'Categories',    val: d.categories_total,        color:'#1a73e8'},
+  ];
+  document.getElementById('index-summary-cards').innerHTML = cards.map(c => `
+    <div style="background:#fff;border:1px solid #e0e0e0;border-top:4px solid ${c.color};
+      border-radius:10px;padding:16px;text-align:center;">
+      <div style="font-size:2em;font-weight:700;color:${c.color}">${c.val}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">${c.label}</div>
+    </div>`).join('');
+}
+
+async function runIndexSearch() {
+  const q = document.getElementById('idx-search-input').value.trim();
+  if (!q) return;
+  const res = await fetch('/index/search?q=' + encodeURIComponent(q));
+  const d = await res.json();
+  let html = '';
+  if (d.urls.length) {
+    html += `<h3>🔗 URLs (${d.urls.length})</h3>`;
+    d.urls.forEach(r => html += `<div class="url-card">
+      <div class="title">${r.title || '(no title)'}</div>
+      <div class="url-text"><a href="${r.url}" target="_blank">${r.url}</a></div>
+      <div class="meta"><span>Domain: ${r.domain}</span><span>Quality: ${r.quality_score}</span></div>
+    </div>`);
+  }
+  if (d.facts.length) {
+    html += `<h3>✅ Facts (${d.facts.length})</h3>`;
+    d.facts.forEach(r => html += `<div class="card">
+      <div>${r.verified ? '✅' : '❓'} ${r.fact || '(no fact text)'}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">Source: ${r.source}</div>
+    </div>`);
+  }
+  if (d.keywords.length) {
+    html += `<h3>🔑 Keywords (${d.keywords.length})</h3>`;
+    d.keywords.forEach(r => html += `<div class="card">
+      <span class="tag">${r.source}</span> <strong>${r.keyword}</strong>
+      <span style="color:#666;font-size:0.85em;margin-left:8px">Topic: ${r.topic} | Score: ${r.score ?? '-'}</span>
+    </div>`);
+  }
+  if (d.questions.length) {
+    html += `<h3>❓ Questions (${d.questions.length})</h3>`;
+    d.questions.forEach(r => html += `<div class="card">
+      <div>${r.question}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">${r.category} » ${r.keyphrase} | ${r.source}</div>
+    </div>`);
+  }
+  if (!html) html = '<div class="status-box">No results found.</div>';
+  document.getElementById('idx-search-results').innerHTML = html;
+}
+
+async function loadIdxCategories() {
+  const res = await fetch('/index/categories');
+  const d = await res.json();
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr style="background:#f1f3f4;"><th style="padding:8px;text-align:left">Category</th><th style="padding:8px;text-align:right">URLs</th><th style="padding:8px;text-align:right">Avg Quality</th></tr>';
+  d.categories.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #e0e0e0;">
+      <td style="padding:8px">${r.path}</td>
+      <td style="padding:8px;text-align:right">${r.url_count}</td>
+      <td style="padding:8px;text-align:right">${r.avg_quality}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (!d.categories.length) html = '<div class="status-box">No categories found.</div>';
+  document.getElementById('idx-cats-results').innerHTML = html;
+}
+
+async function loadIdxKeywords() {
+  const topic = document.getElementById('idx-kw-filter').value;
+  const res = await fetch('/index/keywords?topic=' + encodeURIComponent(topic));
+  const d = await res.json();
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr style="background:#f1f3f4;"><th style="padding:8px;text-align:left">Topic</th><th style="padding:8px;text-align:left">Source</th><th style="padding:8px;text-align:right">Count</th><th style="padding:8px;text-align:left">Last Run</th></tr>';
+  d.keywords.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #e0e0e0;">
+      <td style="padding:8px">${r.topic}</td>
+      <td style="padding:8px"><span class="tag">${r.source}</span></td>
+      <td style="padding:8px;text-align:right">${r.count}</td>
+      <td style="padding:8px;font-size:0.82em;color:#666">${r.last_run?.slice(0,16)}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (!d.keywords.length) html = '<div class="status-box">No keywords found.</div>';
+  document.getElementById('idx-keywords-results').innerHTML = html;
+}
+
+async function loadIdxFacts() {
+  const res = await fetch('/index/facts');
+  const d = await res.json();
+  let html = '';
+  d.facts.forEach(r => {
+    html += `<div class="card">
+      <div>${r.verified ? '✅' : '❓'} ${r.fact || '(no fact text)'}</div>
+      <div style="font-size:0.8em;color:#666;margin-top:4px">
+        Source: <a href="${r.source_url}" target="_blank">${r.source_title}</a>
+      </div>
+    </div>`;
+  });
+  if (!d.facts.length) html = '<div class="status-box">No facts found.</div>';
+  document.getElementById('idx-facts-results').innerHTML = html;
+}
+
+async function loadIdxQuestions() {
+  const cat = document.getElementById('idx-q-filter').value;
+  const res = await fetch('/index/questions?category=' + encodeURIComponent(cat));
+  const d = await res.json();
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr style="background:#f1f3f4;"><th style="padding:8px;text-align:left">Category</th><th style="padding:8px;text-align:left">Keyphrase</th><th style="padding:8px;text-align:right">Questions</th><th style="padding:8px;text-align:left">Last Run</th></tr>';
+  d.questions.forEach(r => {
+    html += `<tr style="border-bottom:1px solid #e0e0e0;">
+      <td style="padding:8px">${r.category}</td>
+      <td style="padding:8px">${r.keyphrase}</td>
+      <td style="padding:8px;text-align:right">${r.count}</td>
+      <td style="padding:8px;font-size:0.82em;color:#666">${r.last_run?.slice(0,16)}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  if (!d.questions.length) html = '<div class="status-box">No questions found.</div>';
+  document.getElementById('idx-questions-results').innerHTML = html;
+}
+
+async function exportTable() {
+  const table = document.getElementById('export-table').value;
+  const fmt = document.getElementById('export-fmt').value;
+  const url = `/index/export?table=${table}&fmt=${fmt}`;
+  if (fmt === 'csv') {
+    window.location.href = url;
+  } else {
+    const res = await fetch(url);
+    const d = await res.json();
+    const blob = new Blob([JSON.stringify(d.data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = table + '.json'; a.click();
+  }
+}
+
+async function previewTable() {
+  const table = document.getElementById('export-table').value;
+  const res = await fetch(`/index/export?table=${table}&fmt=json`);
+  const d = await res.json();
+  const box = document.getElementById('export-preview');
+  box.style.display = 'block';
+  box.textContent = `${d.count} records\n\n` + JSON.stringify(d.data.slice(0,5), null, 2) + '\n...(first 5 shown)';
+}
+
+// Auto-load summary when Index tab opens (hooked into showTab above)
+
+
+// ── Categories ──
+async function addCategory() {
+  const fd = new FormData();
+  fd.append('category', document.getElementById('new-category').value);
+  await fetch('/categories/add', {method: 'POST', body: fd});
+  location.reload();
+}
+async function removeCategory(cat) {
+  const fd = new FormData(); fd.append('category', cat);
+  await fetch('/categories/remove', {method: 'POST', body: fd});
+  location.reload();
+}
+
+// ── Domains ──
+async function loadDomains() {
+  const res = await fetch('/domains');
+  const data = await res.json();
+  const div = document.getElementById('domain-list');
+  div.innerHTML = '';
+  ['whitelist','blocklist'].forEach(type => {
+    div.innerHTML += `<h3>${type === 'whitelist' ? '✅ Whitelist' : '🚫 Blocklist'}</h3>`;
+    (data[type]||[]).forEach(d => {
+      div.innerHTML += `<span class="tag">${d} <a href="#" onclick="removeDomain('${d}','${type}')">✕</a></span>`;
+    });
+  });
+}
+async function addDomain() {
+  const fd = new FormData();
+  fd.append('domain', document.getElementById('new-domain').value);
+  fd.append('list_type', document.getElementById('domain-type').value);
+  await fetch('/domains/add', {method: 'POST', body: fd});
+  loadDomains();
+}
+async function removeDomain(domain, list_type) {
+  const fd = new FormData();
+  fd.append('domain', domain);
+  fd.append('list_type', list_type);
+  await fetch('/domains/remove', {method: 'POST', body: fd});
+  loadDomains();
+}
+
+// Auto-refresh queue every 5 seconds
+setInterval(() => {
+  if (document.getElementById('queue').classList.contains('active')) refreshQueue();
+}, 5000);
+// ── Keyword Analysis ──
+async function loadKeywordAnalysis() {
+  const res = await fetch('/analysis/keywords');
+  const data = await res.json();
+  renderKeywordAnalysis(data);
+}
+// NEW: URL search with phrase filtering
+async function analyzeKeywordsWithSearch() {
+  const searchPhrase = document.getElementById('ka-url-search')?.value || '';
+  const res = await fetch('/analysis/keywords?search=' + encodeURIComponent(searchPhrase));
+  const data = await res.json();
+  renderKeywordAnalysis(data);
+}
+
+
+function renderKeywordAnalysis(data) {
+  // Populate topics filter dropdown
+  const topicSelect = document.getElementById('ka-topic-filter');
+  const currentTopic = topicSelect.value;
+  const uniqueTopics = [...new Set(data.by_topic.map(t => t.topic).filter(Boolean))].sort();
+
+  topicSelect.innerHTML = '<option value="">All Topics</option>' +
+    uniqueTopics.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  // Restore selection if still valid
+  if (currentTopic && uniqueTopics.includes(currentTopic)) {
+    topicSelect.value = currentTopic;
+  }
+
+  document.getElementById('ka-topic-count').textContent = `${uniqueTopics.length} topics`;
+
+  // Source breakdown table
+  const sourceTbody = document.querySelector('#ka-source-table tbody');
+  sourceTbody.innerHTML = data.by_source.map(s => `
+    <tr>
+      <td><span class="tag">${s.source}</span></td>
+      <td>${s.count.toLocaleString()}</td>
+      <td>${s.topics}</td>
+      <td>${s.categories}</td>
+    </tr>
+  `).join('');
+}
+
+async function showKeywordDetail(keyword) {
+  const resp = await fetch('/analysis/keywords/' + keyword + '/detail');
+  const data = await resp.json();
+  
+  document.getElementById('kw-detail-title').textContent = decodeURIComponent(data.keyword);
+  
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+      <div class="stat-card"><h3>${data.total_mentions}</h3><p>Total Mentions</p></div>
+      <div class="stat-card"><h3>${data.urls_found}</h3><p>URLs Found</p></div>
+      <div class="stat-card"><h3>${data.sources.length}</h3><p>Data Sources</p></div>
+    </div>
+    
+    <h4>All Mentions</h4>
+    <div style="max-height:200px;overflow-y:auto;margin-bottom:16px;">
+      ${data.mentions.map(m => `
+        <div class="kw-detail-row">
+          <strong>${m.source}</strong> • ${m.topic} (${m.category})<br>
+          <small style="color:#666">${m.note || 'No note'} • ${m.at?.slice(0, 16).replace('T', ' ') || 'N/A'}</small>
+        </div>
+      `).join('')}
+    </div>
+    
+    <h4>URLs Discovered (${data.urls_found})</h4>
+    <div style="max-height:200px;overflow-y:auto;">
+      ${data.urls.length ? data.urls.map(u => `
+        <div class="kw-url-item">
+          <a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 60)}${u.url.length > 60 ? '...' : ''}</a>
+          <span class="tag">${u.source}</span>
+        </div>
+      `).join('') : '<p style="color:#666;">No URLs found for this keyword.</p>'}
+    </div>
+  `;
+  
+  document.getElementById('kw-detail-content').innerHTML = html;
+  document.getElementById('kw-detail-modal').style.display = 'flex';
+}
+
+function closeKeywordDetail() {
+  document.getElementById('kw-detail-modal').style.display = 'none';
+}
+
+// Mini Ingest Modal functions for discovered URLs
+async function openMiniIngest(url) {
+  document.getElementById('mini-ingest-url').value = url;
+  document.getElementById('mini-ingest-keywords').value = '';
+  document.getElementById('mini-ingest-force').checked = false;
+  
+  // Fetch fresh categories like the Categories tab does
+  const res = await fetch('/categories');
+  const data = await res.json();
+  const select = document.getElementById('mini-ingest-category');
+  select.innerHTML = data.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  
+  document.getElementById('mini-ingest-modal').style.display = 'block';
+}
+
+function closeMiniIngest() {
+  document.getElementById('mini-ingest-modal').style.display = 'none';
+}
+
+// ── Discovered URLs ──
+async function loadDiscoveredURLs() {
+  const search = document.getElementById('discovered-search')?.value || '';
+  const status = document.getElementById('discovered-status')?.value || '';
+
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (status) params.append('status', status);
+
+  const resp = await fetch('/analysis/urls/discovered?' + params.toString());
+  const data = await resp.json();
+
+  const tbody = document.querySelector('#discovered-table tbody');
+  document.getElementById('discovered-count').textContent = `${data.urls?.length || 0} URLs found`;
+
+  if (!data.urls || data.urls.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;padding:20px;">No URLs found matching your filters.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.urls.map(u => {
+    const potentialIcon = u.potential === 'hot' ? '🔥' : u.potential === 'warm' ? '⚡' : '❄️';
+    const statusBadge = u.status === 'enriched' ? '✅' : u.status === 'processing' ? '🔄' : u.status === 'error' ? '❌' : '⏳';
+    const encodedUrl = encodeURIComponent(u.url);
+    return `
+    <tr>
+      <td><input type="checkbox" class="discovered-cb" data-url="${encodedUrl}" data-category="${encodeURIComponent(u.category || 'general')}"></td>
+      <td><span title="Score: ${u.score}/100">${potentialIcon} <strong>${u.score}</strong></span></td>
+      <td>${u.keyword.slice(0, 35)}${u.keyword.length > 35 ? '...' : ''}</td>
+      <td><a href="${u.url}" target="_blank" title="${u.url}">${u.url.slice(0, 45)}${u.url.length > 45 ? '...' : ''}</a></td>
+      <td>${u.topic || '-'}</td>
+      <td><span class="tag" title="${u.sources?.join(', ') || ''}">${u.source_count || 1} sources</span></td>
+      <td>${statusBadge} ${u.status || 'pending'}</td>
+      <td>
+        <button class="btn btn-blue" onclick="openQueueModal('${encodedUrl}')">📋 Queue</button>
+        <button class="btn btn-red" onclick="deleteDiscoveredURL('${encodedUrl}', this)">🗑 Delete</button>
+      </td>
+    </tr>
+  `}).join('');
+}
+
+function toggleSelectAllDiscovered() {
+  const allCb = document.getElementById('discovered-select-all');
+  const cbs = document.querySelectorAll('.discovered-cb');
+  cbs.forEach(cb => cb.checked = allCb.checked);
+}
+
+async function scheduleSelectedURLs() {
+  const selected = [...document.querySelectorAll('.discovered-cb:checked')];
+  if (selected.length === 0) {
+    alert('Please select at least one URL to process.');
+    return;
+  }
+
+  // Group by category for efficient queueing
+  const byCategory = {};
+  selected.forEach(cb => {
+    const url = decodeURIComponent(cb.dataset.url);
+    const category = decodeURIComponent(cb.dataset.category || 'general');
+    if (!byCategory[category]) byCategory[category] = [];
+    byCategory[category].push(url);
+  });
+
+  let totalQueued = 0;
+  const jobIds = [];
+
+  for (const [category, urls] of Object.entries(byCategory)) {
+    const resp = await fetch('/api/schedule-urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls, category: category })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      totalQueued += data.job_count || 0;
+      if (data.job_ids) jobIds.push(...data.job_ids);
     }
-  }, 400);
+  }
+
+  alert(`✅ Queued ${totalQueued} URLs for processing. Check the Ingest Queue for progress.`);
+  loadDiscoveredURLs(); // Refresh to show updated status
 }
 
+// Queue Modal Functions for Discovered URLs
+let currentQueueUrl = null;
 
+async function openQueueModal(encodedUrl) {
+  const url = decodeURIComponent(encodedUrl);
+  currentQueueUrl = url;
+  document.getElementById('queue-modal-url').textContent = url;
+  
+  // Load fresh categories like other modals do
+  const res = await fetch('/categories');
+  const data = await res.json();
+  const select = document.getElementById('queue-modal-category');
+  select.innerHTML = '<option value="">Select category...</option>' + 
+    data.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  
+  document.getElementById('queue-modal-overlay').style.display = 'flex';
+  document.getElementById('queue-modal-status').textContent = '';
 
-var ctxSelected = {};
+  // Fetch suggestions from backend
+  try {
+    const resp = await fetch('/analysis/urls/' + encodedUrl + '/suggest');
+    const data = await resp.json();
 
-function getStableKey(item, t) {if(t==='facts')return'f_'+(item.id||'');if(t==='questions')return'q_'+(item.id||'');if(t==='synthkw')return's_'+(item.keyword||'');return'k_'+(item.text||item.keyword||'');}
+    // Autofill form
+    if (data.category) {
+      document.getElementById('queue-modal-category').value = data.category;
+    }
+    if (data.keywords && data.keywords.length > 0) {
+      document.getElementById('queue-modal-keywords').value = data.keywords.join(', ');
+    }
+  } catch (e) {
+    console.error('Failed to load suggestions:', e);
+  }
+}
 
+function closeQueueModal() {
+  document.getElementById('queue-modal-overlay').style.display = 'none';
+  currentQueueUrl = null;
+}
 
+async function submitQueueModal() {
+  if (!currentQueueUrl) return;
 
-async function findMoreFacts() {
+  const category = document.getElementById('queue-modal-category').value;
+  const keywords = document.getElementById('queue-modal-keywords').value;
+  const priority = parseInt(document.getElementById('queue-modal-priority').value);
+
+  if (!category) {
+    document.getElementById('queue-modal-status').innerHTML = '<span style="color:#c0392b">❌ Please select a category</span>';
+    return;
+  }
+
+  document.getElementById('queue-modal-status').textContent = 'Queuing...';
+
+  const resp = await fetch('/api/schedule-urls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      urls: [currentQueueUrl],
+      category: category,
+      keywords: keywords,
+      priority: priority
+    })
+  });
+
+  if (resp.ok) {
+    const data = await resp.json();
+    document.getElementById('queue-modal-status').innerHTML = `<span style="color:#27ae60">✅ Queued! Job ID: ${data.job_ids?.[0] || 'N/A'}</span>`;
+    setTimeout(() => {
+      closeQueueModal();
+      loadDiscoveredURLs(); // Refresh list
+    }, 1000);
+  } else {
+    document.getElementById('queue-modal-status').innerHTML = '<span style="color:#c0392b">❌ Failed to queue URL</span>';
+  }
+}
+
+async function deleteDiscoveredURL(encodedUrl, btnElement) {
+  if (!confirm('Delete this URL from discovered list? This cannot be undone.')) return;
+
+  try {
+    const resp = await fetch('/analysis/urls/discovered/' + encodedUrl, { method: 'DELETE' });
+    if (resp.ok) {
+      // Remove row from table
+      const row = btnElement.closest('tr');
+      row.style.opacity = '0.5';
+      setTimeout(() => row.remove(), 300);
+    } else {
+      alert('❌ Failed to delete URL');
+    }
+  } catch (e) {
+    alert('❌ Error deleting URL');
+    console.error(e);
+  }
+}
+
+// ── High Potential Keywords Selection ──
+function toggleSelectAllKeywords() {
+  const allCb = document.getElementById('ka-select-all');
+  const cbs = document.querySelectorAll('.kw-select-cb');
+  cbs.forEach(cb => cb.checked = allCb.checked);
+}
+
+async function synthesizeSelectedKeywords() {
+  const selected = [...document.querySelectorAll('.kw-select-cb:checked')].map(cb => decodeURIComponent(cb.dataset.keyword));
+  if (selected.length === 0) { alert('Please select at least one keyword to synthesize.'); return; }
+
+  try {
+    const resp = await fetch('/api/synthesize-keywords', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keywords: selected })
+    });
+
+    if (!resp.ok) { alert('Failed to start synthesis.'); return; }
+
+    const { job_id } = await resp.json();
+    alert(`✅ Synthesis started! Job ID: ${job_id}\n\nGo to "✨ Synthesis Jobs" tab to view progress and results.`);
+  } catch (e) {
+    console.error('Synthesis error:', e);
+    alert('❌ Error: ' + e.message);
+  }
+}
+
+async function pollSynthesisStatus(job_id) {
+  const statusLabels = {
+    queued: 'Queued...',
+    scraping: '🔄 Checking URLs (skipping already enriched)...',
+    enriching: '🧠 Processing new URLs...',
+    analyzing: '✨ Running LLM SEO analysis...',
+    done: '✅ Analysis complete!',
+  };
+
+  const resp = await fetch(`/api/synthesize-keywords/status/${job_id}`);
+  const data = await resp.json();
+
+  document.getElementById('synth-status-text').textContent = statusLabels[data.status] || data.status;
+
+  if (data.status === 'done') {
+    renderSynthesisResults(data.results);
+    return;
+  }
+
+  if (data.status !== 'not_found') {
+    setTimeout(() => pollSynthesisStatus(job_id), 3000);
+  }
+}
+
+function renderSynthesisResults(results) {
+  document.getElementById('synth-progress').style.display = 'none';
+  document.getElementById('synth-results').style.display = 'block';
+
+  let html = '';
+  results.forEach(r => {
+    html += `<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #e0e0e0;">
+      <div style="font-weight:600;margin-bottom:6px;">📌 Original: <span style="color:#1a73e8;">${r.keyword}</span>
+        <span style="font-size:0.8em;color:#666;font-weight:normal;margin-left:8px;">${r.facts_count || 0} facts found</span>
+      </div>`;
+
+    // Show URLs used for this keyword
+    if (r.urls && r.urls.length > 0) {
+      html += `<div style="margin:8px 0 12px 0;font-size:0.82em;">
+        <span style="color:#666;">📚 Sources:</span>
+        ${r.urls.map((u, i) => `<a href="${u.url}" target="_blank" style="color:#1a73e8;margin-left:8px;" title="${u.title}">[${i+1}]</a>`).join('')}
+      </div>`;
+    }
+
+    if (r.error) {
+      html += `<p style="color:#d93025;font-size:0.9em;">${r.error}</p>`;
+    } else if (r.suggested && r.suggested.length > 0) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+      r.suggested.forEach((s, i) => {
+        const kw = typeof s === 'string' ? s : s.keyword;
+        const intent = typeof s === 'object' ? s.intent : '';
+        const rationale = typeof s === 'object' ? s.rationale : '';
+        html += `<label style="display:flex;align-items:center;gap:4px;background:#f1f8ff;border:1px solid #c8e6c9;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:0.88em;" title="${rationale}">
+          <input type="checkbox" class="synth-kw-cb" value="${encodeURIComponent(kw)}" checked>
+          ${kw} ${intent ? `<span style="color:#888;font-size:0.8em;">(${intent})</span>` : ''}
+        </label>`;
+      });
+      html += `</div>`;
+    } else {
+      html += `<p style="color:#666;font-size:0.9em;">No suggestions generated.</p>`;
+    }
+    html += `</div>`;
+  });
+
+  document.getElementById('synth-results-body').innerHTML = html;
+
+  // Uncheck original selected keywords
+  document.querySelectorAll('.kw-select-cb').forEach(cb => cb.checked = false);
+  document.getElementById('ka-select-all').checked = false;
+}
+
+function uncheckAllSynthesized() {
+  document.querySelectorAll('.synth-kw-cb').forEach(cb => cb.checked = false);
+}
+
+async function approveSynthesizedKeywords() {
+  const selected = [...document.querySelectorAll('.synth-kw-cb:checked')].map(cb => decodeURIComponent(cb.value));
+  if (selected.length === 0) {
+    alert('Please select at least one keyword to add to TODO.');
+    return;
+  }
+
+  const resp = await fetch('/api/synthesize-keywords/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords: selected })
+  });
+
+  if (resp.ok) {
+    const result = await resp.json();
+    alert(`✅ Added ${result.added} keywords to TODO list.`);
+    document.getElementById('synth-modal').style.display = 'none';
+    loadKeywordTODO();
+  } else {
+    alert('Failed to add keywords to TODO.');
+  }
+}
+
+// ── Synthesis Jobs ──
+async function loadSynthesisJobs() {
+  const res = await fetch('/api/synthesize-keywords/jobs');
+  const data = await res.json();
+  
+  document.getElementById('synth-jobs-count').textContent = `${data.total} jobs`;
+  const container = document.getElementById('synthesis-jobs-list');
+  
+  if (!data.jobs || data.jobs.length === 0) {
+    container.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">Click "✨ Synthesize Selected" in Keyword Analysis to start a synthesis job.</p>';
+    return;
+  }
+  
+  const statusLabels = {
+    queued: '⏳ Queued',
+    scraping: '🔄 Collecting URLs',
+    enriching: '📚 Enriching content',
+    analyzing: '🧠 AI Synthesizing',
+    done: '✅ Synthesis Complete',
+    error: '❌ Error'
+  };
+  
+  container.innerHTML = data.jobs.map(job => {
+    const created = new Date(job.created_at).toLocaleString();
+    const completed = job.completed_at ? new Date(job.completed_at).toLocaleString() : null;
+    const keywords = job.keywords.join(', ');
+    const resultCount = job.results ? job.results.reduce((acc, r) => acc + (r.suggested ? r.suggested.length : 0), 0) : 0;
+    
+    return `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-weight:600;margin-bottom:4px;">${statusLabels[job.status] || job.status} <span style="font-size:0.8em;color:#666;font-weight:normal;">(${job.id})</span></div>
+          <div style="font-size:0.85em;color:#444;margin-bottom:8px;">${keywords}</div>
+          <div style="font-size:0.8em;color:#666;">
+            🕐 ${created}
+            ${completed ? ` | ✅ ${completed}` : ''}
+            ${job.status === 'done' ? ` | <strong>${resultCount}</strong> keywords suggested` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          ${job.status === 'done' ? 
+            `<button class="btn btn-green" onclick="viewSynthesisResults('${job.id}')" style="font-size:0.85em;padding:6px 12px;">👀 View</button>`
+            : ''}
+          <button class="btn btn-red" onclick="deleteSynthesisJob('${job.id}')" style="font-size:0.85em;padding:6px 12px;">🗑 Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function viewSynthesisResults(jobId) {
+  console.log('viewSynthesisResults:', jobId);
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(`/api/synthesize-keywords/status/${jobId}`, {signal: controller.signal});
+    clearTimeout(timeout);
+    const job = await res.json();
+    console.log('Synthesis job:', job?.status, 'results:', job?.results?.length);
+    
+    if (!job || !job.results || !job.results.length) {
+      alert(job?.error || 'Job results not found or empty');
+      return;
+    }
+    
+    document.getElementById('synth-modal').style.display = 'flex';
+    document.getElementById('synth-progress').style.display = 'none';
+    document.getElementById('synth-results').style.display = 'block';
+    document.getElementById('synth-status-text').textContent = 'Synthesis Results';
+    
+    renderSynthesisResults(job.results);
+  } catch (e) {
+    console.error('viewSynthesisResults error:', e);
+    alert('❌ Failed to load results: ' + (e.name === 'AbortError' ? 'Timeout' : e.message));
+  }
+}
+
+async function deleteSynthesisJob(jobId) {
+  if (!confirm('Delete this synthesis job?')) return;
+  
+  const res = await fetch(`/api/synthesize-keywords/jobs/${jobId}`, { method: 'DELETE' });
+  if (res.ok) {
+    loadSynthesisJobs();
+  } else {
+    alert('Failed to delete job');
+  }
+}
+
+async function clearOldSynthJobs() {
+  if (!confirm('Clear all completed jobs older than 24 hours?')) return;
+  
+  // This will be implemented on backend
+  alert('Feature coming soon: auto-clear old jobs');
+}
+
+// ── Keyword TODO List ──
+async function loadKeywordTODO() {
+  const resp = await fetch('/api/keyword-todo');
+  const data = await resp.json();
+
+  const container = document.getElementById('keyword-todo-list');
+  if (!data.items || data.items.length === 0) {
+    container.innerHTML = '<p style="color:#666;text-align:center;padding:20px;">Select and synthesize keywords to add them here.</p>';
+    return;
+  }
+
+  container.innerHTML = data.items.map(item => `
+    <div class="todo-item" style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #e0e0e0;">
+      <input type="checkbox" class="todo-cb" data-keyword="${encodeURIComponent(item.keyword)}" ${item.status === 'generated' ? 'checked disabled' : ''}>
+      <div style="flex:1;${item.status === 'generated' ? 'opacity:0.6;text-decoration:line-through;' : ''}">
+        <div style="font-weight:500;">${item.keyword}</div>
+        <div style="font-size:0.8em;color:#666;">${item.status} · ${item.added_at?.slice(0, 10) || 'N/A'}</div>
+      </div>
+      ${item.status === 'pending' ? `<button class="btn" onclick="removeFromTODO('${encodeURIComponent(item.keyword)}')">✕</button>` : ''}
+    </div>
+  `).join('');
+}
+
+async function removeFromTODO(keyword) {
+  const resp = await fetch('/api/keyword-todo/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword: decodeURIComponent(keyword) })
+  });
+  if (resp.ok) loadKeywordTODO();
+}
+
+async function generateArticlesFromTODO() {
+  const selected = [...document.querySelectorAll('.todo-cb:checked:not(:disabled)')].map(cb => decodeURIComponent(cb.dataset.keyword));
+  if (selected.length === 0) {
+    alert('Please select at least one pending keyword to generate.');
+    return;
+  }
+
+  const resp = await fetch('/api/generate-articles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords: selected })
+  });
+
+  if (resp.ok) {
+    const result = await resp.json();
+    alert(`Started generating ${result.started} articles. Check the Ingest Queue for progress.`);
+    loadKeywordTODO();
+  } else {
+    alert('Failed to start article generation.');
+  }
+}
+
+async function submitMiniIngest() {
+  const url = document.getElementById('mini-ingest-url').value;
+  const category = document.getElementById('mini-ingest-category').value;
+  const keywords = document.getElementById('mini-ingest-keywords').value;
+  const force = document.getElementById('mini-ingest-force').checked;
+  
+  const fd = new FormData();
+  fd.append('url', url);
+  fd.append('category', category);
+  fd.append('keywords', keywords);
+  fd.append('force_refresh', force);
+  
+  closeMiniIngest();
+  
+  const res = await fetch('/ingest', {method: 'POST', body: fd});
+  const data = await res.json();
+  
+  // Show notification (optional - could add a toast)
+  const status = data.status === 'skipped' ? 'skipped (already exists)' : 'queued';
+  alert(`URL ${status}: ${data.job_id || data.message}`);
+  
+  // Refresh the keyword analysis to update status
+  analyzeKeywordsWithSearch();
+}
+
+async function analyzeKeywordsWithFilters(search='', category='') {
+  const btn = document.getElementById('ka-analyze-btn');
+  btn.disabled = true; btn.textContent = 'Analyzing...';
+  
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (category) params.append('category', category);
+  
+  const resp = await fetch('/analysis/keywords?' + params.toString());
+  const data = await resp.json();
+  
+  renderKeywordAnalysis(data);
+  
+  btn.disabled = false; btn.textContent = '🔍 Analyze Keywords';
+}
+
+// ==================== ARTICLE GENERATOR FUNCTIONS ====================
+
+let articleGenJobId = null;
+let gatheredContext = null;
+
+async function loadArticleGenCategories() {
+  const res = await fetch('/categories');
+  const data = await res.json();
+  const sel = document.getElementById('ag-category');
+  sel.innerHTML = '<option value="">Select category...</option>';
+  (data.categories || data).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.slug || c;
+    opt.textContent = c.name || c;
+    sel.appendChild(opt);
+  });
+}
+
+async function gatherArticleContext() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '🔍 Gathering...';
+  
   const idea = document.getElementById('ag-idea').value.trim();
-  if (!idea) return alert('Please enter a central idea first');
-  const btn = event.target; btn.disabled = true; btn.textContent = 'Searching...';
+  const category = document.getElementById('ag-category').value;
+  const phrases = document.getElementById('ag-phrases').value.trim();
+  
+  if (!idea || !category) {
+    alert('Please enter central idea and select category');
+    btn.disabled = false;
+    btn.textContent = '🔍 Gather Context';
+    return;
+  }
+  
+  const payload = {
+    idea,
+    category: category,
+    search_phrases: phrases ? phrases.split(',').map(p => p.trim()) : [],
+    fact_limit: 15
+  };
+  
   try {
     const res = await fetch('/articles/gather-context', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({idea, category: '', search_phrases: idea.split(/\s+/).filter(w => w.length > 3), fact_limit: 15})
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (data.facts) {
-      let existing = new Set((gatheredContext.facts || []).map(f => f.id));
-      data.facts.forEach(f => { if (!existing.has(f.id)) { gatheredContext.facts.push(f); existing.add(f.id); } });
-      gatheredContext.facts.sort((a, b) => (b.interest_score||5) - (a.interest_score||5));
-      document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
-      ctxActiveTab = 'facts'; ctxModalData = gatheredContext.facts;
-      openContextModal('facts');
-      document.getElementById('ag-context-summary').textContent = `${gatheredContext.facts.length} facts added (all categories)`;
+    gatheredContext = data;
+    
+
+
+    // Store context for modal-based selection and fetch additional sources
+    gatheredContext.facts = data.facts || [];
+    gatheredContext.questions = data.questions || [];
+    document.getElementById('ag-fact-badge').textContent = `(${gatheredContext.facts.length})`;
+    document.getElementById('ag-q-badge').textContent = `(${gatheredContext.questions.length})`;
+    document.getElementById('ag-context').style.display = 'block';
+    loadAdditionalContext(idea);
+  } catch(e) {
+    document.getElementById('ag-config-status').textContent = 'Error gathering context';
+    console.error('Gather context error:', e);
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '🔍 Gather Context';
+}
+
+async function loadAdditionalContext(idea) {
+    try {
+      const synthRes = await fetch('/api/synthesized-keywords/for-topic?topic=' + encodeURIComponent(idea));
+      const synthData = await synthRes.json();
+      let flatList = [];
+      (synthData.keywords || []).forEach(kw => {
+        (kw.suggested || []).forEach(s => {
+          let skw = typeof s === 'string' ? s : s.keyword;
+          flatList.push({ keyword: skw, intent: typeof s === 'object' ? s.intent : '', sourceKw: kw.keyword, category: kw.category });
+        });
+      });
+      gatheredContext.synthesized_keywords = flatList;
+    } catch(e) { gatheredContext.synthesized_keywords = []; }
+    try {
+      const kwiRes = await fetch('/api/keyword-intelligence/for-topic?topic=' + encodeURIComponent(idea));
+      const kwiData = await kwiRes.json();
+      gatheredContext.keyword_intelligence = kwiData.items || [];
+    } catch(e) { gatheredContext.keyword_intelligence = []; }
+    document.getElementById('ag-skw-badge').textContent = `(${gatheredContext.synthesized_keywords.length})`;
+    document.getElementById('ag-kwi-badge').textContent = `(${gatheredContext.keyword_intelligence.length})`;
+    document.getElementById('ag-context-summary').textContent = `${gatheredContext.facts.length} facts | ${gatheredContext.questions.length} questions | ${gatheredContext.synthesized_keywords.length} synth kw | ${gatheredContext.keyword_intelligence.length} KW intel`;
+}
+async function generateArticle() {
+  if (!gatheredContext) return;
+  
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '✍️ Starting...';
+  
+  // Collect selected facts/questions/synthesized keywords/keyword intelligence
+  const selectedFacts = [], selectedQuestions = [], selectedSynthesizedKeywords = [], selectedKeywordIntelligence = [];
+  
+  gatheredContext.facts?.forEach((f, i) => {
+    if (document.getElementById(`ag-fact-${i}`)?.checked) selectedFacts.push(f);
+  });
+  gatheredContext.questions?.forEach((q, i) => {
+    if (document.getElementById(`ag-q-${i}`)?.checked) selectedQuestions.push(q);
+  });
+  gatheredContext.synthesized_keywords?.forEach((kw, i) => {
+    if (document.getElementById(`ag-skw-${i}`)?.checked) selectedSynthesizedKeywords.push(kw);
+  });
+  gatheredContext.keyword_intelligence?.forEach((kw, i) => {
+    if (document.getElementById(`ag-kwi-${i}`)?.checked) selectedKeywordIntelligence.push(kw);
+  });
+  
+  const payload = {
+    idea: document.getElementById('ag-idea').value.trim(),
+    category: document.getElementById('ag-category').value,
+    search_phrases: document.getElementById('ag-phrases').value.trim().split(',').map(p => p.trim()),
+    focus_keyphrase: document.getElementById('ag-keyphrase').value.trim(),
+    tone: document.getElementById('ag-tone').value,
+    word_count: parseInt(document.getElementById('ag-wordcount').value),
+    language: document.getElementById('ag-language').value,
+    content_type: document.getElementById('ag-type').value,
+    selected_facts: selectedFacts,
+    selected_questions: selectedQuestions,
+    selected_synthesized_keywords: selectedSynthesizedKeywords,
+    selected_keyword_intelligence: selectedKeywordIntelligence,
+    freeform_notes: document.getElementById('ag-freeform-notes').value.trim(),
+    wiki_context: gatheredContext.wiki_context || []
+  };
+  
+  try {
+    const res = await fetch('/articles/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    articleGenJobId = data.job_id;
+    
+    document.getElementById('ag-progress').style.display = 'block';
+    document.getElementById('ag-context').style.display = 'none';
+    pollArticleStatus();
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '✍️ Generate Article';
+  }
+}
+
+
+
+async function pollArticleStatus() {
+  if (!articleGenJobId) return;
+  
+  try {
+    const res = await fetch(`/articles/status/${articleGenJobId}`);
+    const data = await res.json();
+    
+    const bar = document.getElementById('ag-progress-bar');
+    const txt = document.getElementById('ag-progress-text');
+    
+    const stages = ['gathering_context', 'generating_title', 'creating_structure', 'writing_article', 'refining_article', 'seo_optimization', 'completed', 'failed'];
+    const progress = (stages.indexOf(data.status) / 6) * 100;
+    bar.style.width = `${Math.min(progress, 100)}%`;
+    txt.textContent = data.message || data.status;
+    
+    if (data.status === 'done' && data.article_md) {
+      document.getElementById('ag-progress').style.display = 'none';
+      showArticleResult(data);
+      loadGeneratedArticles();
+    } else if (data.status === 'error') {
+      document.getElementById('ag-progress').style.display = 'none';
+      alert('Generation failed: ' + data.message);
+      document.getElementById('ag-context').style.display = 'block';
+    } else {
+      setTimeout(pollArticleStatus, 1000);
     }
-  } catch(e) { alert('Error: ' + e.message); }
-  btn.disabled = false; btn.textContent = '🔍 Search All Categories for More Facts';
+  } catch(e) {
+    console.error('Poll error:', e);
+    setTimeout(pollArticleStatus, 2000);
+  }
+}
+
+function showArticleResult(data) {
+  document.getElementById('ag-preview').style.display = 'block';
+  document.getElementById('ag-article-md').value = data.article_md;
+  document.getElementById('ag-article-rendered').innerHTML = marked.parse(data.article_md);
+  
+  const seo = data.seo || {};
+  document.getElementById('ag-seo-info').innerHTML = `
+    <strong>SEO Score: ${seo.seo_score || 'N/A'}/100</strong> |
+    Title: "${seo.seo_title || 'N/A'}" |
+    Slug: ${seo.slug || 'N/A'} |
+    Words: ${data.word_count || 'N/A'} |
+    Saved: ${data.saved_to || 'N/A'}
+  `;
+  
+  // Show downloaded images
+  if (data.images && data.images.length > 0) {
+    let imgHtml = '<div class="image-gallery"><h4>Downloaded Images</h4>';
+    data.images.forEach(img => {
+      imgHtml += `<div class="img-thumb"><img src="${img.local_path}" alt="${img.alt}" style="max-width:200px;max-height:150px;margin:5px;"/></div>`;
+    });
+    imgHtml += '</div>';
+    document.getElementById('ag-seo-info').innerHTML += imgHtml;
+  }
+}
+
+function toggleArticleView(mode) {
+  const rendered = document.getElementById('ag-article-rendered');
+  const md = document.getElementById('ag-article-md');
+  const btnRendered = document.getElementById('ag-view-rendered');
+  const btnMd = document.getElementById('ag-view-md');
+  
+  if (mode === 'rendered') {
+    rendered.style.display = 'block';
+    md.style.display = 'none';
+    btnRendered.style.borderBottom = '2px solid #1a73e8';
+    btnMd.style.borderBottom = 'none';
+  } else {
+    rendered.style.display = 'none';
+    md.style.display = 'block';
+    btnRendered.style.borderBottom = 'none';
+    btnMd.style.borderBottom = '2px solid #1a73e8';
+  }
+}
+
+async function saveArticleToFile() {
+  const md = document.getElementById('ag-article-md').value;
+  const title = gatheredContext?.idea || 'article';
+  
+  // Download file
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const filename = title.toLowerCase().replace(/\s+/g, '_') + '.md';
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  // Save inputs to cache for autocomplete
+  const idea = document.getElementById('ag-idea').value.trim();
+  const keyphrase = document.getElementById('ag-keyphrase').value.trim();
+  const phrases = document.getElementById('ag-phrases').value.trim();
+  const category = document.getElementById('ag-category').value;
+  
+  if (idea && keyphrase) {
+    try {
+      await fetch('/articles/cache-input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: idea,
+          focus_keyphrase: keyphrase,
+          search_phrases: phrases,
+          category: category
+        })
+      });
+    } catch (e) {
+      console.error('Failed to cache inputs:', e);
+    }
+  }
+  
+  // Save prompt link to article
+  const optimizedPrompt = document.getElementById('ag-optimized-prompt').value.trim();
+  if (optimizedPrompt) {
+    try {
+      await fetch('/articles/save-with-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          article_path: 'articles/' + filename,
+          final_prompt: optimizedPrompt,
+          inputs_snapshot: JSON.stringify({idea, keyphrase, phrases, category})
+        })
+      });
+    } catch (e) {
+      console.error('Failed to save prompt link:', e);
+    }
+  }
+}
+
+async function loadGeneratedArticles() {
+  try {
+    const res = await fetch('/articles/list');
+    const data = await res.json();
+    const div = document.getElementById('ag-articles-list');
+    
+    if (!data.articles || !data.articles.length) {
+      div.innerHTML = '<p style="color:#666;">No articles generated yet.</p>';
+      return;
+    }
+    
+    div.innerHTML = data.articles.map(a => `
+      <div class="card" style="border-left:4px solid #1a73e8;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <strong style="font-size:1.1em;">${a.title}</strong>
+            <p style="margin:4px 0;color:#666;font-size:0.9em;">
+              ${a.focus_keyphrase} | ${a.language} | ${a.word_count} words | SEO: ${a.seo_score}/100
+            </p>
+            <p style="margin:0;color:#888;font-size:0.85em;">Saved: ${new Date(a.saved_at).toLocaleString()}</p>
+          </div>
+          <button class="btn btn-grey" onclick="downloadArticle('${a.file_path}')">Download</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('ag-articles-list').innerHTML = '<p style="color:#d93025;">Error loading articles.</p>';
+  }
+}
+
+function downloadArticle(path) {
+  window.open('/articles/download?path=' + encodeURIComponent(path), '_blank');
+}
+
+
+let ctxActiveTab = 'facts';
+
+function openContextModal(tab) { ctxActiveTab = tab; document.getElementById('context-modal').style.display = 'flex'; switchContextTab(tab); }
+function closeContextModal() { document.getElementById('context-modal').style.display = 'none'; }
+
+function switchContextTab(tab) {
+  ctxActiveTab = tab;
+  document.querySelectorAll('.context-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('ctx-tab-' + tab).classList.add('active');
+  renderContextTab(tab);
+}
+
+function renderContextTab(tab) {
+  const div = document.getElementById('context-tab-content');
+  const titles = {facts:'Facts', questions:'Questions', synthkw:'Synth Keywords', kwintel:'KW Intelligence'};
+  document.getElementById('context-modal-title').textContent = '📋 ' + titles[tab];
+  let items, cbPrefix;
+  if (tab === 'facts') { items = gatheredContext.facts; cbPrefix = 'ag-fact'; }
+  else if (tab === 'questions') { items = gatheredContext.questions; cbPrefix = 'ag-q'; }
+  else if (tab === 'synthkw') { items = gatheredContext.synthesized_keywords; cbPrefix = 'ag-skw'; }
+  else if (tab === 'kwintel') { items = gatheredContext.keyword_intelligence; cbPrefix = 'ag-kwi'; }
+  if (!items || !items.length) { div.innerHTML = '<p style="color:#666;padding:20px;">No items found.</p>'; document.getElementById('context-tab-info').textContent = '0 items'; return; }
+  let checkedCount = 0;
+  let html = '';
+  items.forEach((item, i) => {
+    let label, subtitle = '';
+    if (tab === 'facts') { label = item.fact; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.source})</span>`; }
+    else if (tab === 'questions') { label = item.question; }
+    else if (tab === 'synthkw') { label = item.keyword; subtitle = `<span style="color:#888;font-size:0.8em;">(${item.intent||item.category||''})</span>`; }
+    else if (tab === 'kwintel') { label = item.text || item.keyword; subtitle = item.source ? `<span style="color:#888;font-size:0.8em;">(${item.source})</span>` : ''; }
+    let checked = i < 7;
+    if (checked) checkedCount++;
+    html += `<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:0.88em;cursor:pointer;">
+      <input type="checkbox" id="${cbPrefix}-${i}" data-tab="${tab}" data-idx="${i}" ${checked ? 'checked' : ''} style="margin-top:2px;">
+      <span>${label} ${subtitle}</span>
+    </label>`;
+  });
+  div.innerHTML = html;
+  document.getElementById('context-tab-info').textContent = `${items.length} items · ${checkedCount} selected`;
+}
+
+function toggleSelectAllContext() {
+  const cbs = document.querySelectorAll('#context-tab-content input[type=checkbox]');
+  let anyUnchecked = [...cbs].some(cb => !cb.checked);
+  cbs.forEach(cb => cb.checked = anyUnchecked);
+  document.getElementById('ctx-select-all-btn').textContent = anyUnchecked ? 'Unselect All' : 'Select All';
 }
 
 
