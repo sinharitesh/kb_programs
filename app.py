@@ -1286,8 +1286,13 @@ async def api_generate_article(
     # Build context object from request
     ctx = {
         "idea": req.idea,
+        "category": req.category,
         "facts": req.selected_facts,
         "questions": req.selected_questions,
+        "selected_facts": req.selected_facts,
+        "selected_questions": req.selected_questions,
+        "selected_synthesized_keywords": req.selected_synthesized_keywords,
+        "selected_keyword_intelligence": req.selected_keyword_intelligence,
         "wiki_context": req.wiki_context
     }
     
