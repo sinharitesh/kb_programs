@@ -3020,7 +3020,7 @@ let ctxActiveTab = 'facts';
 let ctxSelected = {};
 let ctxModalData = null;
 
-function getStableKey(item, t) {if(t==='facts')return'f_'+(item.id||'');if(t==='questions')return'q_'+(item.id||'');if(t==='synthkw')return's_'+(item.keyword||'');return'k_'+(item.text||item.keyword||'');}
+function getStableKey(item, t) {if(t==='facts')return'f_'+(item.fact||'').slice(0,250);if(t==='questions')return'q_'+(item.question||'').slice(0,250);if(t==='synthkw')return's_'+(item.keyword||'').slice(0,250);return'k_'+((item.text||item.keyword||'')).slice(0,250);}
 
 function openContextModal(tab) { ctxActiveTab = tab; document.getElementById('context-modal').style.display = 'flex'; document.getElementById('context-search').value = ''; switchContextTab(tab); }
 function closeContextModal() { document.getElementById('context-modal').style.display = 'none'; }
