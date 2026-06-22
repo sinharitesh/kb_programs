@@ -3032,7 +3032,14 @@ async function viewArticleContext(path) {
       if (k.indexOf('context_') === 0) ctx[k.slice(8)] = v;
     }
     var facts = _safeParse(ctx.facts), questions = _safeParse(ctx.questions), synth = _safeParse(ctx.synth_kw), kwintel = _safeParse(ctx.kw_intel);
-    var h = '<h3>📋 Context Used</h3>';
+    var h = '<h3>📋 Article Inputs</h3>';
+    if (ctx.title) h += '<div style="font-size:0.85em;padding:3px 0;">📝 <strong>Title:</strong> ' + (ctx.title||'') + '</div>';
+    if (ctx.focus_keyphrase) h += '<div style="font-size:0.85em;padding:3px 0;">🔑 <strong>Keyphrase:</strong> ' + (ctx.focus_keyphrase||'') + '</div>';
+    if (ctx.category) h += '<div style="font-size:0.85em;padding:3px 0;">📁 <strong>Category:</strong> ' + (ctx.category||'') + '</div>';
+    if (ctx.language) h += '<div style="font-size:0.85em;padding:3px 0;">🌐 <strong>Language:</strong> ' + (ctx.language||'') + '</div>';
+    if (ctx.word_count) h += '<div style="font-size:0.85em;padding:3px 0;">📊 <strong>Words:</strong> ' + (ctx.word_count||'') + '</div>';
+    if (ctx.seo_score) h += '<div style="font-size:0.85em;padding:3px 0;">⭐ <strong>SEO:</strong> ' + (ctx.seo_score||'') + '/100</div>';
+    h += '<h3 style="margin-top:12px;">📋 Context Used</h3>';
     if (facts.length) { h += '<h4 style="margin-top:12px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof f==='string'?f:f.fact||f||'')).slice(0,150) + '</div>'; }); }
     if (questions.length) { h += '<h4 style="margin-top:12px;">❓ Questions (' + questions.length + ')</h4>'; questions.forEach(function(q) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof q==='string'?q:q.question||q||'')).slice(0,150) + '</div>'; }); }
     if (synth.length) { h += '<h4 style="margin-top:12px;">✨ Synth Keywords (' + synth.length + ')</h4>'; synth.forEach(function(s) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof s==='string'?s:s.keyword||s||'')).slice(0,150) + '</div>'; }); }
