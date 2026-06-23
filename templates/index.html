@@ -2566,7 +2566,11 @@ async function loadSynthesizedKeywords() {
             </div>` : ''}
           ${kw.urls && kw.urls.length ? `
             <div style="margin-bottom:4px;"><strong>Source URLs:</strong>
-              ${kw.urls.map(u => `<a href="${u}" target="_blank" style="display:block;color:#1a73e8;font-size:0.85em;" title="${u}">${u.length > 60 ? u.slice(0,60)+'...' : u}</a>`).join('')}
+              ${kw.urls.map(u => {
+                const url = typeof u === 'string' ? u : (u.url || '');
+                const label = typeof u === 'string' ? u : (u.title || u.url || '');
+                return `<a href="${url}" target="_blank" style="display:block;color:#1a73e8;font-size:0.85em;" title="${url}">${label.length > 60 ? label.slice(0,60)+'...' : label}</a>`;
+              }).join('')}
             </div>` : ''}
           <div style="color:#888;">Facts: ${kw.facts_count || 0} · Job: ${kw.job_id || 'N/A'} · ${kw.created_at ? kw.created_at.slice(0,10) : ''}</div>
         </div>
