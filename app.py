@@ -944,6 +944,25 @@ async def get_saved_keywords(search: str = "", category: str = "", limit: int = 
     keywords = get_synthesized_keywords(search, category, limit)
     return JSONResponse({"keywords": keywords, "total": len(keywords)})
 
+
+@app.get("/api/synthesized-keywords/{keyword}/facts")
+async def get_synthesized_keyword_facts(keyword: str):
+    """Get facts associated with a synthesized keyword."""
+    from db import get_con
+    con = get_con()
+    rows = con.execute("""
+        SELECT f.fact, f.verified, f.source, r.title, r.url
+        FROM facts f
+        JOIN url_registry r ON r.id = f.url_id
+        JOIN keyword_intelligence ki ON ki.notes = r.url
+        WHERE ki.keyword = ? AND f.fact IS NOT NULL AND f.fact != ''
+        ORDER BY f.verified DESC
+        LIMIT 20
+    """, [keyword]).fetchall()
+    con.close()
+    facts = [{"fact": r[0], "verified": r[1], "source": r[2], "title": r[3], "url": r[4]} for r in rows]
+    return JSONResponse({"keyword": keyword, "facts": facts, "count": len(facts)})
+
 @app.delete("/api/synthesized-keywords/{keyword}")
 async def delete_synthesized_keyword(keyword: str):
     """Delete a synthesized keyword by its keyword text."""

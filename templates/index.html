@@ -2557,7 +2557,7 @@ async function loadSynthesizedKeywords() {
         <div style="display:flex;align-items:center;gap:6px;">
           <span style="font-weight:600;">${kw.keyword}</span>
           ${kw.category ? `<span class="tag">${kw.category}</span>` : ''}
-          ${hasDetails ? `<button class="btn btn-grey synthkw-toggle" data-idx="${i}" style="font-size:0.75em;padding:2px 8px;line-height:1;">+</button>` : ''}
+          ${hasDetails ? `<button class="btn btn-grey synthkw-toggle" data-idx="${i}" data-kw="${kw.keyword.replace(/"/g, '&quot;')}" style="font-size:0.75em;padding:2px 8px;line-height:1;">+</button>` : ''}
         </div>
         <div class="synthkw-detail" id="synthkw-detail-${i}" style="display:none;margin-top:8px;font-size:0.8em;color:#666;">
           ${kw.suggested && kw.suggested.length ? `
@@ -2573,6 +2573,7 @@ async function loadSynthesizedKeywords() {
               }).join('')}
             </div>` : ''}
           <div style="color:#888;">Facts: ${kw.facts_count || 0} · Job: ${kw.job_id || 'N/A'} · ${kw.created_at ? kw.created_at.slice(0,10) : ''}</div>
+          <div class="synthkw-facts" id="synthkw-facts-${i}" style="margin-top:6px;"></div>
         </div>
       </div>
       <button class="btn btn-red" style="font-size:0.78em;padding:4px 8px;flex-shrink:0"
@@ -2582,12 +2583,32 @@ async function loadSynthesizedKeywords() {
 
   // Attach toggle listeners
   document.querySelectorAll('.synthkw-toggle').forEach(btn => {
-    btn.onclick = function() {
+    btn.onclick = async function() {
       const idx = this.dataset.idx;
+      const keyword = this.dataset.kw;
       const detail = document.getElementById('synthkw-detail-' + idx);
+      const factsDiv = document.getElementById('synthkw-facts-' + idx);
       if (detail.style.display === 'none') {
         detail.style.display = 'block';
         this.textContent = '−';
+        // Fetch facts if not loaded yet
+        if (factsDiv && !factsDiv.dataset.loaded) {
+          factsDiv.innerHTML = '<span style="color:#888;">Loading facts...</span>';
+          try {
+            const res = await fetch('/api/synthesized-keywords/' + encodeURIComponent(keyword) + '/facts');
+            const data = await res.json();
+            if (data.facts && data.facts.length) {
+              factsDiv.innerHTML = '<div style="margin-bottom:4px;"><strong>Facts:</strong></div>' +
+                data.facts.map(f => `<div style="font-size:0.78em;padding:2px 0;border-bottom:1px solid #f0f0f0;">
+                  ${f.verified ? '✅' : '❓'} ${f.fact || ''}
+                  ${f.url ? ` <a href="${f.url}" target="_blank" style="color:#1a73e8;font-size:0.85em;">[source]</a>` : ''}
+                </div>`).join('');
+            } else {
+              factsDiv.innerHTML = '<span style="color:#888;">No facts found.</span>';
+            }
+            factsDiv.dataset.loaded = '1';
+          } catch(e) { factsDiv.innerHTML = '<span style="color:#c00;">Error loading facts.</span>'; }
+        }
       } else {
         detail.style.display = 'none';
         this.textContent = '+';
