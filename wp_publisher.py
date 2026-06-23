@@ -251,7 +251,12 @@ def enrich_with_fact_urls(md_text: str, seo_data: dict, count: int = 2) -> str:
 def publish_article(slug: str, category: str = "",
                     featured_image_path: str = None,
                     inline_image_paths: list = None,
-                    scheduled_days: int = None) -> dict:
+                    scheduled_days: int = None,
+                    title_override: str = None,
+                    seo_title_override: str = None,
+                    meta_desc_override: str = None,
+                    focus_kw_override: str = None,
+                    content_override: str = None) -> dict:
     """
     Publish a generated article to WordPress.
 
@@ -298,6 +303,13 @@ def publish_article(slug: str, category: str = "",
         md_text = md_text[end+3:].strip()
     title = seo_data.get('title') or seo_data.get('seo_title') or title
     focus_kw = seo_data.get('focus_keyphrase') or seo_data.get('central_keyword') or title
+
+    # ── Apply overrides ──
+    if title_override: title = title_override
+    if seo_title_override: seo_data['seo_title'] = seo_title_override
+    if meta_desc_override: seo_data['meta_description'] = meta_desc_override
+    if focus_kw_override: focus_kw = focus_kw_override
+    if content_override: md_text = content_override
 
     # ── Enrich with verified fact URLs ──
     md_text = enrich_with_fact_urls(md_text, seo_data)

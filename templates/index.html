@@ -3133,7 +3133,7 @@ async function loadGeneratedArticles() {
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="retryArticle('${a.file}')">🔄 Retry</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="deleteArticleFile('${a.file}')">🗑</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleMeta('${a.file}','${(a.title||'').replace(/'/g,"\\'")}','${a.slug||''}','${a.seo_score||0}','${(a.focus_keyphrase||'').replace(/'/g,"\\'")}','${a.word_count||0}','${a.language||''}','${(a.generated_at||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}','${(a.wp_published_at||'').replace(/'/g,"\\'")}')">📋 Meta</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleMeta('${a.file}','${(a.title||'').replace(/'/g,"\\'")}','${a.slug||''}','${a.seo_score||0}','${(a.focus_keyphrase||'').replace(/'/g,"\\'")}','${a.word_count||0}','${a.language||''}','${(a.generated_at||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}','${(a.wp_published_at||'').replace(/'/g,"\\'")}','${(a.seo_title||'').replace(/'/g,"\\'")}','${(a.meta_description||'').replace(/'/g,"\\'")}','${(a.og_title||'').replace(/'/g,"\\'")}','${(a.og_description||'').replace(/'/g,"\\'")}','${(a.tags||'[]').replace(/'/g,"\\'")}')">📋 Meta</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
           <button class="btn btn-blue" style="padding:2px 8px;font-size:0.8em;" onclick="openImageModal('${a.slug||''}','${(a.title||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}')">🖼 Images</button>
           <button class="btn btn-green" style="padding:2px 8px;font-size:0.8em;" onclick="openPublishModal('${a.slug||''}','${(a.title||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}')">📤 Publish</button>
@@ -3194,8 +3194,14 @@ async function viewArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
   const data = await res.json();
   if (data.content) {
+    var body = data.content;
+    // Strip frontmatter for clean preview
+    if (body.startsWith('---')) {
+      var end = body.indexOf('---', 3);
+      if (end > 0) body = body.slice(end + 3).trim();
+    }
     document.getElementById('wiki-modal-title').textContent = '📄 ' + path;
-    document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(data.content);
+    document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(body);
     document.getElementById('wiki-file-modal').style.display = 'flex';
     wikiModalShowRendered();
     currentWikiPath = path;
@@ -3206,8 +3212,13 @@ async function editArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
   const data = await res.json();
   if (data.content) {
+    var body = data.content;
+    if (body.startsWith('---')) {
+      var end = body.indexOf('---', 3);
+      if (end > 0) body = body.slice(end + 3).trim();
+    }
     document.getElementById('wiki-modal-title').textContent = '✏️ ' + path;
-    document.getElementById('wiki-modal-raw').value = data.content;
+    document.getElementById('wiki-modal-raw').value = body;
     document.getElementById('wiki-file-modal').style.display = 'flex';
     wikiModalShowRaw();
     currentWikiPath = path;
@@ -3647,50 +3658,84 @@ async function uploadCustomImage() {
 // ── Publish to WordPress ──
 async function openPublishModal(slug, title, category) {
   var div = document.getElementById('publish-modal-content');
+  div.innerHTML = '<p style="color:#666;">Loading article data...</p>';
+  document.getElementById('publish-modal').style.display = 'flex';
 
-  // Load images
-  var imagesHtml = '<p style="color:#666;font-size:0.85em;">No images downloaded.</p>';
   try {
     var params = category ? '?category=' + encodeURIComponent(category) : '';
-    var res = await fetch('/articles/' + encodeURIComponent(slug) + '/images' + params);
+    var res = await fetch('/articles/' + encodeURIComponent(slug) + '/frontmatter' + params);
     var data = await res.json();
-    if (data.images && data.images.length) {
-      var featuredImg = data.images.find(function(i){return i.is_featured;});
-      var inlineImgs = data.images.filter(function(i){return !i.is_featured;});
-      imagesHtml =
-        '<div style="margin-bottom:8px;"><strong>⭐ Featured Image:</strong> ' +
-        (featuredImg ? featuredImg.filename : '<span style="color:#888;">None selected (use 🖼 Images tab to set one)</span>') +
-        '</div>' +
-        '<div style="margin-bottom:8px;"><strong>🖼 Inline Images (select for article body):</strong></div>' +
-        (inlineImgs.length ? inlineImgs.map(function(img) {
+    if (data.error) { div.innerHTML = '<p style="color:#d93025;">' + data.error + '</p>'; return; }
+
+    var fm = data.frontmatter || {};
+    var seoTitle = fm.seo_title || '';
+    var metaDesc = fm.meta_description || '';
+    var focusKw = fm.focus_keyphrase || fm.central_keyword || '';
+    var body = data.body || '';
+    title = fm.title || title;
+
+    // Load images
+    var imgParams = category ? '?category=' + encodeURIComponent(category) : '';
+    var imgRes = await fetch('/articles/' + encodeURIComponent(slug) + '/images' + imgParams);
+    var imgData = await imgRes.json();
+    var featuredImg = (imgData.images||[]).find(function(i){return i.is_featured;});
+    var inlineImgs = (imgData.images||[]).filter(function(i){return !i.is_featured;});
+
+    var days = Math.floor(Math.random() * 9) + 7;
+    var linksInfo = '';
+    try {
+      // Preview enrichment
+      var encRes = await fetch('/articles/' + encodeURIComponent(slug) + '/frontmatter' + params);
+      var encData = await encRes.json();
+      if (encData.enriched_links && encData.enriched_links.count) {
+        linksInfo = '<div style="font-size:0.85em;color:#1b5e20;margin-top:4px;">🔗 ' + encData.enriched_links.count + ' reference links will be added</div>';
+      }
+    } catch(e) {}
+
+    div.innerHTML =
+      '<div class="card" style="margin-bottom:12px;">' +
+      '<label style="margin-top:0;">📝 Title</label>' +
+      '<input type="text" id="pub-title" value="' + (title||'').replace(/"/g,'&quot;') + '" style="margin-bottom:8px;">' +
+      '<label>🔑 Focus Keyphrase</label>' +
+      '<input type="text" id="pub-focuskw" value="' + (focusKw||'').replace(/"/g,'&quot;') + '" style="margin-bottom:8px;">' +
+      '<label>🏷 SEO Title</label>' +
+      '<input type="text" id="pub-seotitle" value="' + (seoTitle||'').replace(/"/g,'&quot;') + '" style="margin-bottom:8px;">' +
+      '<label>📝 Meta Description</label>' +
+      '<textarea id="pub-metadesc" style="height:60px;margin-bottom:8px;">' + (metaDesc||'') + '</textarea>' +
+      linksInfo +
+      '<div style="font-size:0.85em;color:#666;margin-top:4px;">Slug: ' + slug + ' · Category: ' + (category||'N/A') + ' · 📅 ~' + days + ' days</div>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px;">' +
+      '<label>📄 Article Content (Markdown)</label>' +
+      '<textarea id="pub-content" style="height:300px;font-family:monospace;font-size:0.85em;">' + body.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>' +
+      '</div>' +
+      '<div class="card" style="margin-bottom:12px;">' +
+      '<strong>⭐ Featured Image:</strong> ' + (featuredImg ? featuredImg.filename : '<span style="color:#888;">None (use 🖼 Images tab)</span>') + '</div>' +
+      (inlineImgs.length ? '<div class="card" style="margin-bottom:12px;"><strong>🖼 Inline Images:</strong><br>' +
+        inlineImgs.map(function(img) {
           return '<label style="display:block;font-size:0.85em;padding:3px 0;">' +
-            '<input type="checkbox" class="pub-inline-chk" value="' + img.path + '" checked> ' + img.filename +
-            '</label>';
-        }).join('') : '<p style="color:#666;font-size:0.8em;">No inline images.</p>');
-    }
-  } catch(e) {}
-
-  var days = Math.floor(Math.random() * 9) + 7; // 7-15
-  div.innerHTML =
-    '<div class="card" style="margin-bottom:12px;">' +
-    '<div style="font-size:0.9em;"><strong>Title:</strong> ' + (title||slug) + '</div>' +
-    '<div style="font-size:0.85em;color:#666;">Slug: ' + slug + ' · Category: ' + (category||'N/A') + '</div>' +
-    '<div style="font-size:0.85em;color:#1a73e8;margin-top:4px;">📅 Scheduled: ~' + days + ' days from now</div>' +
-    '</div>' +
-    '<div class="card" style="margin-bottom:12px;">' + imagesHtml + '</div>' +
-    '<div style="display:flex;gap:8px;">' +
-    '<button class="btn btn-green" onclick="publishToWP(\'' + slug + '\',\'' + (title||'').replace(/'/g,"\\'") + '\',\'' + (category||'').replace(/'/g,"\\'") + '\')">📤 Publish Now</button>' +
-    '<button class="btn btn-grey" onclick="document.getElementById(\'publish-modal\').style.display=\'none\'">Cancel</button>' +
-    '</div>';
-
-  document.getElementById('publish-modal').style.display = 'flex';
+            '<input type="checkbox" class="pub-inline-chk" value="' + img.path + '" checked> ' + img.filename + '</label>';
+        }).join('') + '</div>' : '') +
+      '<div style="display:flex;gap:8px;">' +
+      '<button class="btn btn-green" onclick="publishToWP(\'' + slug + '\',\'' + (category||'').replace(/'/g,"\\'") + '\')">📤 Publish Now</button>' +
+      '<button class="btn btn-grey" onclick="document.getElementById(\'publish-modal\').style.display=\'none\'">Cancel</button>' +
+      '</div>';
+  } catch(e) {
+    div.innerHTML = '<p style="color:#d93025;">Error loading article: ' + e.message + '</p>';
+  }
 }
 
-async function publishToWP(slug, title, category) {
-  var featured = document.querySelector('.pub-inline-chk') ? null : null; // managed via featured_ prefix
+async function publishToWP(slug, category) {
+  var title = document.getElementById('pub-title')?.value || '';
+  var seoTitle = document.getElementById('pub-seotitle')?.value || '';
+  var metaDesc = document.getElementById('pub-metadesc')?.value || '';
+  var focusKw = document.getElementById('pub-focuskw')?.value || '';
+  var content = document.getElementById('pub-content')?.value || '';
+
   var inline = [...document.querySelectorAll('.pub-inline-chk:checked')].map(function(c){return c.value;});
 
-  // Find featured image from downloaded list
+  // Find featured image
+  var featured = null;
   try {
     var params = category ? '?category=' + encodeURIComponent(category) : '';
     var res = await fetch('/articles/' + encodeURIComponent(slug) + '/images' + params);
@@ -3703,7 +3748,12 @@ async function publishToWP(slug, title, category) {
     category: category,
     featured_image: featured,
     inline_images: inline,
-    scheduled_days: null
+    scheduled_days: null,
+    title: title,
+    seo_title: seoTitle,
+    meta_description: metaDesc,
+    focus_keyphrase: focusKw,
+    content: content,
   });
 
   try {
@@ -3721,7 +3771,7 @@ async function publishToWP(slug, title, category) {
   }
 }
 
-async function viewArticleMeta(file, title, slug, seo, kw, words, lang, gen, cat, wp) {
+async function viewArticleMeta(file, title, slug, seo, kw, words, lang, gen, cat, wp, seoTitle, metaDesc, ogTitle, ogDesc, tags) {
   var h = '<div style="font-size:0.9em;line-height:1.6;">';
   h += '<div style="padding:4px 0;"><strong>📄 File:</strong> ' + (file||'') + '</div>';
   h += '<div style="padding:4px 0;"><strong>📝 Title:</strong> ' + (title||'') + '</div>';
@@ -3729,10 +3779,18 @@ async function viewArticleMeta(file, title, slug, seo, kw, words, lang, gen, cat
   h += '<div style="padding:4px 0;"><strong>📁 Category:</strong> ' + (cat||'') + '</div>';
   h += '<div style="padding:4px 0;"><strong>⭐ SEO Score:</strong> ' + (seo||'0') + '/100</div>';
   h += '<div style="padding:4px 0;"><strong>🔑 Focus Keyphrase:</strong> ' + (kw||'') + '</div>';
-  h += '<div style="padding:4px 0;"><strong>📊 Word Count:</strong> ' + (words||'0') + '</div>';
+  h += '<div style="padding:4px 0;background:#f8f9fa;padding:8px;border-radius:4px;margin-top:8px;"><strong>🏷 SEO Title:</strong> ' + (seoTitle||'—') + '</div>';
+  h += '<div style="padding:4px 0;background:#f8f9fa;padding:8px;border-radius:4px;"><strong>📝 Meta Description:</strong> ' + (metaDesc||'—') + '</div>';
+  h += '<div style="padding:4px 0;background:#f8f9fa;padding:8px;border-radius:4px;"><strong>🔖 OG Title:</strong> ' + (ogTitle||'—') + '</div>';
+  h += '<div style="padding:4px 0;background:#f8f9fa;padding:8px;border-radius:4px;"><strong>📋 OG Description:</strong> ' + (ogDesc||'—') + '</div>';
+  try {
+    var tagList = JSON.parse(tags||'[]');
+    if (tagList.length) h += '<div style="padding:4px 0;margin-top:4px;"><strong>🏷 Tags:</strong> ' + tagList.join(', ') + '</div>';
+  } catch(e) { if (tags) h += '<div style="padding:4px 0;margin-top:4px;"><strong>🏷 Tags:</strong> ' + tags + '</div>'; }
+  h += '<div style="padding:4px 0;margin-top:4px;"><strong>📊 Word Count:</strong> ' + (words||'0') + '</div>';
   h += '<div style="padding:4px 0;"><strong>🌐 Language:</strong> ' + (lang||'') + '</div>';
   h += '<div style="padding:4px 0;"><strong>📅 Generated:</strong> ' + (gen ? new Date(gen).toLocaleDateString() : '') + '</div>';
-  h += '<div style="padding:4px 0;"><strong>✅ WP Published:</strong> ' + (wp ? new Date(wp).toLocaleDateString() : 'Not published') + '</div>';
+  h += '<div style="padding:4px 0;color:' + (wp ? '#1b5e20' : '#888') + ';"><strong>✅ WP Published:</strong> ' + (wp ? new Date(wp).toLocaleString() : 'Not published') + '</div>';
   h += '</div>';
   document.getElementById('meta-modal-content').innerHTML = h;
   document.getElementById('meta-modal').style.display = 'flex';

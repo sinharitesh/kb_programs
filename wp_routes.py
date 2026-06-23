@@ -137,7 +137,51 @@ async def api_publish_wp(slug: str, request: Request):
             featured_image_path=featured_image,
             inline_image_paths=inline_images,
             scheduled_days=scheduled_days,
+            title_override=data.get("title"),
+            seo_title_override=data.get("seo_title"),
+            meta_desc_override=data.get("meta_description"),
+            focus_kw_override=data.get("focus_keyphrase"),
+            content_override=data.get("content"),
         )
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@wp_router.get("/{slug}/frontmatter")
+async def api_article_frontmatter(slug: str, category: str = ""):
+    """Get parsed frontmatter and body for editing before publish."""
+    import json
+    from image_search import KB_ROOT as IMG_ROOT
+
+    md_path = IMG_ROOT / "generated_articles" / category / f"{slug}.md"
+    if not md_path.exists():
+        matches = list((IMG_ROOT / "generated_articles").rglob(f"{slug}.md"))
+        if matches:
+            md_path = matches[0]
+            if not category:
+                category = md_path.parent.name
+        else:
+            return JSONResponse({"error": "Article not found"}, status_code=404)
+
+    md_text = md_path.read_text(encoding='utf-8', errors='ignore')
+    fm = {}
+    body = md_text
+    if md_text.startswith('---'):
+        end = md_text.index('---', 3)
+        fm_block = md_text[3:end].strip()
+        for line in fm_block.split('\n'):
+            if ':' in line:
+                k, v = line.split(':', 1)
+                k, v = k.strip(), v.strip().strip('"')
+                if k in ('tags', 'focus_keyphrases', 'internal_links', 'outbound_links'):
+                    try: fm[k] = json.loads(v)
+                    except: fm[k] = v
+                else:
+                    fm[k] = v
+        body = md_text[end+3:].strip()
+
+    return JSONResponse({
+        "slug": slug, "category": category,
+        "frontmatter": fm, "body": body,
+    })

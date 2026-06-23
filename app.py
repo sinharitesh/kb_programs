@@ -1501,6 +1501,11 @@ async def api_list_articles():
                     "context_kw_intel": meta.get("context_kw_intel", "[]"),
                     "wp_post_id": meta.get("wp_post_id", ""),
                     "wp_published_at": meta.get("wp_published_at", ""),
+                    "seo_title": meta.get("seo_title", ""),
+                    "meta_description": meta.get("meta_description", ""),
+                    "og_title": meta.get("og_title", ""),
+                    "og_description": meta.get("og_description", ""),
+                    "tags": meta.get("tags", ""),
                 })
         except Exception:
             continue
