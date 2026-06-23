@@ -1294,23 +1294,21 @@ def _migrate_article_contexts(con):
 def _get_context(job_id):
     import json
     from db import get_con
-    con = get_con()
+    con = get_con(); _ensure_article_contexts_table(); _migrate_article_contexts(con)
+    table_cols = [r[1] for r in con.execute("PRAGMA table_info(article_contexts)").fetchall()]
     row = con.execute("SELECT * FROM article_contexts WHERE job_id = ?", [job_id]).fetchone()
     con.close()
     if not row: return JSONResponse({"error": "Context not found"}, status_code=404)
-    cols = ["job_id","title","idea","category","focus_keyphrase","tone","word_count","language","content_type",
-            "freeform_notes","selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
-            "wiki_excerpts","generation_prompt","settings_json","seo_data","slug","saved_path","generated_at"]
-    d = {cols[i]: row[i] for i in range(len(cols))}
-    # Convert datetime to iso string
-    if d.get("generated_at"): d["generated_at"] = d["generated_at"].isoformat()
-    # Parse JSON fields back to objects
-    for k in ["selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
-              "wiki_excerpts","seo_data","settings_json"]:
-        try: d[k] = json.loads(d[k]) if isinstance(d[k], str) else d[k]
-        except: d[k] = [] if k not in ("seo_data","settings_json") else {}
+    d = {}; json_fields = {"selected_facts","selected_questions","selected_synth_kw","selected_kw_intel","wiki_excerpts","seo_data","settings_json"}
+    for i, col in enumerate(table_cols):
+        if i >= len(row): continue
+        val = row[i]
+        if isinstance(val, datetime): val = val.isoformat()
+        if col in json_fields and isinstance(val, str):
+            try: val = json.loads(val)
+            except: pass
+        d[col] = val
     return JSONResponse(d)
-
 
 # ── Keyword Intelligence for Article Generator ──
 @app.get("/api/keyword-intelligence/for-topic")
