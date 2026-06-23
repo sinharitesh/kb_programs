@@ -3025,7 +3025,7 @@ async function viewArticleContext(path) {
       var res2 = await fetch('/articles/context/' + slug);
       try { data = await res2.json(); } catch(e) {}
     }
-    if (data.error) return alert('No context saved for this article. Context is saved when an article is generated. Try regenerating.');
+    if (data.error) return alert('No context saved yet. Context is only saved for articles generated AFTER this feature was added. Regenerate the article to create a context record.');
     var h = '<h3>📋 Article Inputs</h3>';
     if (data.title) h += '<div style="font-size:0.85em;padding:3px 0;">📝 <strong>Title:</strong> ' + (data.title||'') + '</div>';
     if (data.idea) h += '<div style="font-size:0.85em;padding:3px 0;">💡 <strong>Idea:</strong> ' + (data.idea||'') + '</div>';

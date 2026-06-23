@@ -1404,8 +1404,8 @@ async def api_article_context_by_slug(slug: str = ""):
     _ensure_article_contexts_table()
     from db import get_con
     con = get_con()
-    row = con.execute("SELECT job_id FROM article_contexts WHERE slug = ? OR saved_path LIKE ?",
-                      [slug, f"%{slug}%"]).fetchone()
+    row = con.execute("SELECT job_id FROM article_contexts WHERE slug = ? OR saved_path LIKE ? OR slug = ?",
+                      [slug, f"%{slug}%", slug.replace('-', ' ').title().replace(' ', '-')])
     con.close()
     if not row: return JSONResponse({"error": "Context not found for this slug"}, status_code=404)
     return _get_context(row[0])
