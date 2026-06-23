@@ -441,7 +441,7 @@ def fetch_ddg_facts(query: str, max_results: int = 10) -> list:
         log(f"[DDG] Error: {e}")
         return []
 
-def verify_unverified_facts(batch_size=1000, sleep_between=30):
+def verify_unverified_facts(batch_size=1000, sleep_between=60):
     "Verify unverified facts against Wikipedia search API — slow background service"
     import urllib.parse, time
     from db import get_con

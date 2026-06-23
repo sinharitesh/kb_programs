@@ -1292,6 +1292,8 @@ def _get_context(job_id):
             "freeform_notes","selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
             "wiki_excerpts","seo_data","slug","saved_path","generated_at"]
     d = {cols[i]: row[i] for i in range(len(cols))}
+    # Convert datetime to iso string
+    if d.get("generated_at"): d["generated_at"] = d["generated_at"].isoformat()
     # Parse JSON fields back to objects
     for k in ["selected_facts","selected_questions","selected_synth_kw","selected_kw_intel","wiki_excerpts","seo_data"]:
         try: d[k] = json.loads(d[k]) if isinstance(d[k], str) else d[k]
