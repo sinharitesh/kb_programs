@@ -480,7 +480,7 @@ def verify_unverified_facts(batch_size=1000, sleep_between=60):
                 timeout=15)
             if sm.status_code == 200:
                 con = get_con()
-                con.execute("UPDATE facts SET verified=TRUE, verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
+                con.execute("UPDATE facts SET verified=TRUE, source='wikipedia', verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
                 con.close()
                 verified_count += 1
         except: pass
