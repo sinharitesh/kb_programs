@@ -1303,10 +1303,11 @@ def _get_context(job_id):
     for i, col in enumerate(table_cols):
         if i >= len(row): continue
         val = row[i]
+        if val is None: continue
         if isinstance(val, datetime): val = val.isoformat()
         if col in json_fields and isinstance(val, str):
             try: val = json.loads(val)
-            except: pass
+            except: val = [] if col.startswith("selected_") or col == "wiki_excerpts" else val
         d[col] = val
     return JSONResponse(d)
 
@@ -1405,7 +1406,7 @@ async def api_article_context_by_slug(slug: str = ""):
     from db import get_con
     con = get_con()
     row = con.execute("SELECT job_id FROM article_contexts WHERE slug = ? OR saved_path LIKE ? OR slug = ?",
-                      [slug, f"%{slug}%", slug.replace('-', ' ').title().replace(' ', '-')])
+                      [slug, f"%{slug}%", slug.replace('-', ' ').title().replace(' ', '-')]).fetchone()
     con.close()
     if not row: return JSONResponse({"error": "Context not found for this slug"}, status_code=404)
     return _get_context(row[0])
