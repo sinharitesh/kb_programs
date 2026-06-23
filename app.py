@@ -941,7 +941,31 @@ async def list_synthesis_jobs(limit: int = 50):
 async def get_saved_keywords(search: str = "", category: str = "", limit: int = 100):
     """Get persisted synthesized keywords for article generation."""
     from db import get_synthesized_keywords
-    return JSONResponse({"keywords": get_synthesized_keywords(search, category, limit), "total": 0})
+    keywords = get_synthesized_keywords(search, category, limit)
+    return JSONResponse({"keywords": keywords, "total": len(keywords)})
+
+@app.delete("/api/synthesized-keywords/{keyword}")
+async def delete_synthesized_keyword(keyword: str):
+    """Delete a synthesized keyword by its keyword text."""
+    from db import get_con
+    con = get_con()
+    con.execute("DELETE FROM synthesized_keywords WHERE keyword = ?", [keyword])
+    con.close()
+    return JSONResponse({"status": "deleted", "keyword": keyword})
+
+@app.post("/api/synthesized-keywords/delete-bulk")
+async def delete_synthesized_keywords_bulk(request: Request):
+    """Delete multiple synthesized keywords."""
+    data = await request.json()
+    keywords = data.get("keywords", [])
+    if not keywords:
+        return JSONResponse({"status": "error", "message": "No keywords provided"}, status_code=400)
+    from db import get_con
+    con = get_con()
+    placeholders = ",".join(["?" for _ in keywords])
+    con.execute(f"DELETE FROM synthesized_keywords WHERE keyword IN ({placeholders})", keywords)
+    con.close()
+    return JSONResponse({"status": "deleted", "count": len(keywords)})
 
 @app.get("/api/synthesized-keywords/for-topic")
 async def get_keywords_for_topic(topic: str, limit: int = 20):

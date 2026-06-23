@@ -237,7 +237,7 @@
     <span class="nav-icon">📊</span> Keyword Analysis
   </div>
   <div class="nav-item" onclick="showTab('kwsynthesis', this)">
-    <span class="nav-icon">✨</span> Synthesis Jobs
+    <span class="nav-icon">✨</span> Synthesized Keywords
   </div>
   <div class="nav-item" onclick="showTab('facts', this)">
     <span class="nav-icon">🔎</span> Facts Explorer
@@ -491,22 +491,40 @@
     </div>
   </div>
 
-  <!-- KEYWORD SYNTHESIS JOBS -->
+  <!-- SYNTHESIZED KEYWORDS -->
   <div id="kwsynthesis" class="section">
-    <h2>✨ Keyword Synthesis Jobs</h2>
-    <div class="card" style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-        <div style="font-size:0.9em;color:#666;">
-          <span id="synth-jobs-count">0 jobs</span> | Click on a job to view results
-        </div>
-        <button class="btn btn-red" onclick="clearOldSynthJobs()">🧹 Clear Completed (>24h)</button>
+    <h2>✨ Synthesized Keywords</h2>
+
+    <!-- Search & Actions -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="synthkw-search" placeholder="Search keywords..."
+          style="flex:1;min-width:200px;" oninput="loadSynthesizedKeywords()">
+        <select id="synthkw-category" onchange="loadSynthesizedKeywords()" style="width:160px;">
+          <option value="">All Categories</option>
+        </select>
+        <button class="btn btn-grey" onclick="loadSynthesizedKeywords()">↺ Refresh</button>
+        <button class="btn btn-red" onclick="deleteSelectedSynthKeywords()">🗑 Delete Selected</button>
+      </div>
+    </div>
+
+    <!-- Keywords Table -->
+    <div id="synthesized-keywords-list">
+      <p style="color:#666;text-align:center;padding:40px;">Loading...</p>
+    </div>
+
+    <!-- Synthesis Jobs (sub-section) -->
+    <h3 style="margin-top:32px;font-size:1em;color:#666;">⚙️ Synthesis Job History</h3>
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:0.85em;color:#888;" id="synth-jobs-count">0 jobs</span>
+        <button class="btn btn-grey" onclick="clearOldSynthJobs()" style="font-size:0.8em;">🧹 Clear Old Jobs</button>
       </div>
     </div>
     <div id="synthesis-jobs-list">
-      <p style="color:#666;text-align:center;padding:40px;">Click “✨ Synthesize Selected” in Keyword Analysis to start a synthesis job.</p>
+      <p style="color:#666;text-align:center;padding:20px;">Click "✨ Synthesize Selected" in Keyword Analysis to start a job.</p>
     </div>
   </div>
-
   <!-- SYNTHESIS REVIEW MODAL -->
   <div class="modal-overlay" id="synth-modal" style="display:none;">
     <div class="modal" style="max-width:760px;width:92%;max-height:88vh;display:flex;flex-direction:column;">
@@ -1157,7 +1175,7 @@ function _showTabImpl(name, el) {
   if (name === 'facts') loadFacts();
   if (name === 'questions') loadQuestions();
   if (name === 'kwanalysis') { loadKeywordAnalysis(); loadKeywordTODO(); }
-  if (name === 'kwsynthesis') loadSynthesisJobs();
+  if (name === 'kwsynthesis') { loadSynthesizedKeywords(); loadSynthesisJobs(); }
   if (name === 'articles') loadGeneratedArticles();
   if (name === 'articlegen') { loadArticleGenCategories(); loadGeneratedArticles(); }
   if (name === 'discovered') loadDiscoveredURLs();
@@ -2514,6 +2532,74 @@ async function approveSynthesizedKeywords() {
     alert('Failed to add keywords to TODO.');
   }
 }
+
+// ── Synthesized Keywords ──
+async function loadSynthesizedKeywords() {
+  const search = document.getElementById('synthkw-search')?.value || '';
+  const category = document.getElementById('synthkw-category')?.value || '';
+  const params = new URLSearchParams({search, category, limit: '100'});
+  const res = await fetch('/api/synthesized-keywords?' + params);
+  const data = await res.json();
+  const container = document.getElementById('synthesized-keywords-list');
+
+  if (!data.keywords || !data.keywords.length) {
+    container.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">No synthesized keywords found. Run a synthesis job in Keyword Analysis.</p>';
+    return;
+  }
+
+  // Populate category dropdown
+  const cats = [...new Set(data.keywords.map(k => k.category).filter(Boolean))].sort();
+  const catSelect = document.getElementById('synthkw-category');
+  if (catSelect) {
+    catSelect.innerHTML = '<option value="">All Categories</option>' +
+      cats.map(c => `<option value="${c}" ${c === category ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  container.innerHTML = `
+    <div style="margin-bottom:8px;font-size:0.85em;color:#666">${data.keywords.length} keywords —
+      <label><input type="checkbox" onchange="toggleAllSynthKw(this)"> Select All</label>
+    </div>
+    ${data.keywords.map(kw => `
+    <div class="card" style="padding:10px 14px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px">
+      <input type="checkbox" class="synthkw-chk" data-keyword="${kw.keyword.replace(/"/g, '&quot;')}" style="margin-top:4px;flex-shrink:0">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;margin-bottom:2px;">${kw.keyword}
+          ${kw.category ? `<span class="tag" style="margin-left:6px;">${kw.category}</span>` : ''}
+        </div>
+        <div style="font-size:0.8em;color:#888;margin-bottom:4px;">
+          ${kw.suggested ? kw.suggested.length + ' sub-keywords' : ''} · facts: ${kw.facts_count || 0} · job: ${kw.job_id || 'N/A'}
+        </div>
+        ${kw.suggested && kw.suggested.length ? '<div style="font-size:0.78em;color:#666;">' +
+          kw.suggested.slice(0, 8).map(s => `<span style="display:inline-block;background:#e8f0fe;color:#1a73e8;padding:1px 6px;border-radius:8px;margin:1px 2px;font-size:0.9em;">${s}</span>`).join('') +
+          (kw.suggested.length > 8 ? `<span style="color:#888;"> +${kw.suggested.length - 8} more</span>` : '') +
+        '</div>' : ''}
+      </div>
+      <button class="btn btn-red" style="font-size:0.78em;padding:4px 8px;flex-shrink:0"
+        onclick="deleteOneSynthKw('${kw.keyword.replace(/'/g, "\\'")}', this)">🗑</button>
+    </div>`).join('')}`;
+}
+
+function toggleAllSynthKw(chk) {
+  document.querySelectorAll('.synthkw-chk').forEach(c => c.checked = chk.checked);
+}
+
+async function deleteOneSynthKw(keyword, btn) {
+  if (!confirm(`Delete synthesized keyword "${keyword}"?`)) return;
+  await fetch('/api/synthesized-keywords/' + encodeURIComponent(keyword), {method: 'DELETE'});
+  btn.closest('.card').remove();
+}
+
+async function deleteSelectedSynthKeywords() {
+  const kwds = [...document.querySelectorAll('.synthkw-chk:checked')].map(c => c.dataset.keyword);
+  if (!kwds.length) { alert('No keywords selected.'); return; }
+  if (!confirm(`Delete ${kwds.length} synthesized keyword(s)?`)) return;
+  await fetch('/api/synthesized-keywords/delete-bulk', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({keywords: kwds})
+  });
+  loadSynthesizedKeywords();
+}
+
 
 // ── Synthesis Jobs ──
 async function loadSynthesisJobs() {
