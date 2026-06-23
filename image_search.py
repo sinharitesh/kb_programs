@@ -1,113 +1,87 @@
-"""DuckDuckGo image search and download for article generation."""
+"""Image search for article generation — uses Wikimedia Commons API (free, no key)."""
 
 import os
-import requests
-import re
-import json
 from pathlib import Path
-from urllib.parse import quote
-from typing import List, Dict, Optional
+from typing import List, Dict
+import httpx
 
-# Detect OS for portable paths
-if os.name == 'nt':  # Windows
+if os.name == 'nt':
     KB_ROOT = Path(r"C:\knowledge-base")
-else:  # Linux/Mac
+else:
     KB_ROOT = Path("/app/data/kb")
 
+
 def search_duckduckgo_images(query: str, max_results: int = 5) -> List[Dict]:
-    """Search DuckDuckGo for images related to query."""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    
-    # DuckDuckGo image search
-    url = f"https://duckduckgo.com/?q={quote(query)}&iax=images&ia=images"
-    
+    """Search Wikimedia Commons for images related to query."""
     try:
-        # First request to get token
-        r = requests.get(url, headers=headers, timeout=10)
-        
-        # Extract vqd token
-        vqd_match = re.search(r'vqd=([\d-]+)', r.text)
-        if not vqd_match:
+        r = httpx.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query", "format": "json",
+                "generator": "search", "gsrsearch": query,
+                "gsrnamespace": 6, "gsrlimit": max_results,
+                "prop": "imageinfo", "iiprop": "url|extmetadata",
+                "iiurlwidth": 800,
+            },
+            headers={"User-Agent": "KBManager/1.0"},
+            timeout=15
+        )
+        if r.status_code != 200:
             return []
-        
-        vqd = vqd_match.group(1)
-        
-        # Image search API
-        api_url = f"https://duckduckgo.com/i.js?q={quote(query)}&o=json&vqd={vqd}"
-        r = requests.get(api_url, headers=headers, timeout=10)
-        
+
         data = r.json()
+        pages = data.get("query", {}).get("pages", {})
         results = []
-        
-        for img in data.get("results", [])[:max_results]:
+        for pid, page in pages.items():
+            info = (page.get("imageinfo") or [{}])[0]
+            url = info.get("thumburl") or info.get("url", "")
+            if not url:
+                continue
+            meta = info.get("extmetadata", {})
+            title = meta.get("ImageDescription", {}).get("value", "") or page.get("title", query)
             results.append({
-                "url": img.get("image"),
-                "title": img.get("title", ""),
-                "width": img.get("width"),
-                "height": img.get("height"),
-                "source": img.get("url")
+                "url": url,
+                "title": title.replace("File:", "")[:100],
+                "width": info.get("thumbwidth"),
+                "height": info.get("thumbheight"),
+                "source": info.get("descriptionurl", ""),
             })
-        
         return results
     except Exception as e:
         print(f"Image search error: {e}")
         return []
 
+
 def download_image(url: str, save_path: Path) -> bool:
     """Download image from URL to local path."""
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=15, stream=True)
-        r.raise_for_status()
-        
+        r = httpx.get(url, headers={"User-Agent": "Mozilla/5.0"},
+                      timeout=15, follow_redirects=True)
+        if r.status_code >= 400:
+            return False
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(save_path, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
+        save_path.write_bytes(r.content)
         return True
-    except Exception as e:
-        print(f"Download error: {e}")
+    except Exception:
         return False
+
 
 def get_article_images(topic: str, category: str, slug: str, count: int = 3) -> List[Dict]:
     """Get and save images for an article."""
-    # Create images folder
     img_dir = KB_ROOT / "generated_articles" / category / "images" / slug
     img_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Search images
     images = search_duckduckgo_images(topic, max_results=count + 2)
-    
     saved_images = []
     for i, img in enumerate(images[:count]):
-        if not img.get("url"):
-            continue
-        
-        # Determine extension
+        if not img.get("url"): continue
         ext = ".jpg"
-        if ".png" in img["url"].lower():
-            ext = ".png"
-        elif ".webp" in img["url"].lower():
-            ext = ".webp"
-        
+        if ".png" in img["url"].lower(): ext = ".png"
+        elif ".webp" in img["url"].lower(): ext = ".webp"
         save_path = img_dir / f"{slug}_img{i+1}{ext}"
-        
         if download_image(img["url"], save_path):
             saved_images.append({
                 "local_path": str(save_path),
                 "alt": img.get("title", f"{topic} image {i+1}"),
-                "source_url": img.get("source", "")
+                "source_url": img.get("source", ""),
             })
-    
     return saved_images
-
-if __name__ == "__main__":
-    # Test
-    results = search_duckduckgo_images("indian temples architecture", max_results=3)
-    print(f"Found {len(results)} images")
-    for r in results:
-        print(f"  - {r['title'][:50]}: {r['url'][:60]}...")
