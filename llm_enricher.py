@@ -4,8 +4,18 @@ import httpx
 import re
 import os
 import logging
+import time as _time
 from pathlib import Path
 from datetime import datetime
+
+def _wiki_get(url, **kw):
+    "GET request with User-Agent default and 429 retry + backoff"
+    kw.setdefault("headers", {"User-Agent": "KBManager/1.0"})
+    for attempt in range(3):
+        r = httpx.get(url, **kw)
+        if r.status_code != 429: return r
+        _time.sleep(5 * (attempt + 1))
+    return r
 
 KB_ROOT = Path(r"C:\knowledge-base")
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
@@ -186,8 +196,8 @@ def verify_via_wikipedia(entity: str) -> dict:
     try:
         import urllib.parse
         encoded = urllib.parse.quote(entity.replace(" ", "_")[:100])
-        r = httpx.get("https://en.wikipedia.org/api/rest_v1/page/summary/" + encoded,
-            headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+        r = _wiki_get("https://en.wikipedia.org/api/rest_v1/page/summary/" + encoded,
+            timeout=10)
         if r.status_code == 200:
             data = r.json()
             return {
@@ -458,16 +468,16 @@ def verify_unverified_facts(batch_size=1000, sleep_between=60):
             if len(fact_text) < 20: continue
             search_phrase = fact_text.split('.')[0][:80].strip().rstrip(',')
             if len(search_phrase) < 10: continue
-            sr = httpx.get("https://en.wikipedia.org/w/api.php",
+            sr = _wiki_get("https://en.wikipedia.org/w/api.php",
                 params={"action": "query", "list": "search", "srsearch": search_phrase, "format": "json", "srlimit": 1},
-                headers={"User-Agent": "KBManager/1.0"}, timeout=15)
+                timeout=15)
             if sr.status_code != 200: continue
             results = sr.json().get("query", {}).get("search", [])
             if not results: continue
             title = results[0]["title"]
             encoded = urllib.parse.quote(title.replace(" ", "_"))
-            sm = httpx.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
-                headers={"User-Agent": "KBManager/1.0"}, timeout=15)
+            sm = _wiki_get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
+                timeout=15)
             if sm.status_code == 200:
                 con = get_con()
                 con.execute("UPDATE facts SET verified=TRUE, verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
@@ -497,13 +507,13 @@ def _fetch_wikipedia_facts(query: str) -> list:
     "Fetch Wikipedia page snippets as verified facts"
     import httpx, re
     try:
-        r = httpx.get("https://en.wikipedia.org/w/api.php",
+        r = _wiki_get("https://en.wikipedia.org/w/api.php",
             params={"action": "query", "list": "search", "srsearch": query, "format": "json", "srlimit": 5},
-            headers={"User-Agent": "KBManager/1.0"}, timeout=10)
+            timeout=10)
         titles = [i["title"] for i in r.json()["query"]["search"]]
         facts = []
         for t in titles[:3]:
-            rr = httpx.get("https://en.wikipedia.org/api/rest_v1/page/summary/" + t.replace(" ", "_"), timeout=10)
+            rr = _wiki_get("https://en.wikipedia.org/api/rest_v1/page/summary/" + t.replace(" ", "_"), timeout=10)
             if rr.status_code == 200:
                 d = rr.json()
                 facts.append({"snippet": d.get("extract", "")[:500], "url": d.get("content_urls", {}).get("desktop", {}).get("page", "")})
