@@ -3215,13 +3215,8 @@ async function editArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
   const data = await res.json();
   if (data.content) {
-    var body = data.content;
-    if (body.startsWith('---')) {
-      var end = body.indexOf('---', 3);
-      if (end > 0) body = body.slice(end + 3).trim();
-    }
     document.getElementById('wiki-modal-title').textContent = '✏️ ' + path;
-    document.getElementById('wiki-modal-raw').value = body;
+    document.getElementById('wiki-modal-raw').value = data.content;
     document.getElementById('wiki-file-modal').style.display = 'flex';
     wikiModalShowRaw();
     currentWikiPath = path;
