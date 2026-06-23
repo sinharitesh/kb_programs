@@ -463,6 +463,7 @@ def verify_unverified_facts(batch_size=1000, sleep_between=60):
     """, [batch_size]).fetchall(); con.close()
     if not facts: return 0
     verified_count = 0
+    failed_fids = []
     for fid, fact_text in facts:
         try:
             if len(fact_text) < 20: continue
@@ -471,9 +472,13 @@ def verify_unverified_facts(batch_size=1000, sleep_between=60):
             sr = _wiki_get("https://en.wikipedia.org/w/api.php",
                 params={"action": "query", "list": "search", "srsearch": search_phrase, "format": "json", "srlimit": 1},
                 timeout=15)
-            if sr.status_code != 200: continue
+            if sr.status_code != 200:
+                failed_fids.append(fid)
+                continue
             results = sr.json().get("query", {}).get("search", [])
-            if not results: continue
+            if not results:
+                failed_fids.append(fid)
+                continue
             title = results[0]["title"]
             encoded = urllib.parse.quote(title.replace(" ", "_"))
             sm = _wiki_get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
@@ -483,8 +488,18 @@ def verify_unverified_facts(batch_size=1000, sleep_between=60):
                 con.execute("UPDATE facts SET verified=TRUE, source='wikipedia', verification_source='wikipedia', interest_score=interest_score+1 WHERE id=? AND interest_score<10", [fid])
                 con.close()
                 verified_count += 1
-        except: pass
+            else:
+                failed_fids.append(fid)
+        except:
+            failed_fids.append(fid)
         time.sleep(sleep_between)
+    # Batch mark failed attempts
+    if failed_fids:
+        con = get_con()
+        for fid in failed_fids:
+            con.execute("UPDATE facts SET verification_source='failed' WHERE id=? AND verified=FALSE", [fid])
+        con.close()
+        log(f"[Verify] Marked {len(failed_fids)} facts as failed verification")
     if verified_count: log(f"[Verify] Verified {verified_count}/{len(facts)} facts via Wikipedia")
     return verified_count
 

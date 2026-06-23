@@ -1235,6 +1235,17 @@ async def api_verify_facts():
     count = verify_unverified_facts(20)
     return JSONResponse({"verified": count})
 
+
+@app.post("/facts/cleanup-failed")
+async def api_cleanup_failed_facts():
+    """Delete facts where verification was attempted but failed."""
+    from db import get_con
+    con = get_con()
+    # Count before delete
+    before = con.execute("SELECT COUNT(*) FROM facts WHERE verified = FALSE AND verification_source = 'failed'").fetchone()[0]
+    con.execute("DELETE FROM facts WHERE verified = FALSE AND verification_source = 'failed'")
+    con.close()
+    return JSONResponse({"deleted": before})
 # Start background fact verifier on app startup
 @app.on_event("startup")
 async def startup_verifier():
