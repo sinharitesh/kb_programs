@@ -444,16 +444,21 @@ def generate_article(context: dict, settings: dict) -> dict:
     # Save to KB wiki
     save_path = save_article(article_md, context, settings, seo_data)
 
+    # Extract slug (same logic as save_article)
+    slug = seo_data.get("slug", "")
+    if not slug:
+        slug = re.sub(r'[^a-z0-9]+', '-', context["idea"].lower())[:40].strip('-')
+
     return {
         "article_md": article_md,
         "word_count": len(article_md.split()),
         "seo": seo_data,
         "saved_to": save_path,
+        "slug": slug,
         "generated_at": datetime.now().isoformat(),
         "generation_prompt": prompt,
         "settings": settings
     }
-
 
 def _safe_text(item):
     "Extract text from any context item type"

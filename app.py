@@ -1263,6 +1263,7 @@ def _save_article_context(job_id, idea, ctx, settings, result):
     from db import get_con
     con = get_con()
     _migrate_article_contexts(con)
+    slug = result.get("slug") or (result.get("seo") or {}).get("slug") or ""
     con.execute("INSERT OR REPLACE INTO article_contexts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)", [
         job_id, settings.get("title", idea), idea, ctx.get("category", ""),
         settings.get("focus_keyphrase", ""), settings.get("tone", ""),
@@ -1275,7 +1276,7 @@ def _save_article_context(job_id, idea, ctx, settings, result):
         json.dumps([w.get("excerpt","")[:200] for w in (ctx.get("wiki_context") or [])[:10]]),
         result.get("generation_prompt", ""),
         json.dumps(result.get("settings", {})),
-        json.dumps(result.get("seo", {})), result.get("slug", ""), result.get("saved_to", "")
+        json.dumps(result.get("seo", {})), slug, result.get("saved_to", "")
     ])
     con.close()
     logger.info(f"[Context] Saved article context for job {job_id}")
