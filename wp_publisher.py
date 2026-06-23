@@ -392,3 +392,111 @@ def publish_article(slug: str, category: str = "",
     except Exception as e:
         logger.error(f"Publish error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+# ── WP Sync ───────────────────────────────────────────────────────────────────
+def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int = 1) -> dict:
+    """Fetch posts from WordPress REST API."""
+    params = {"status": status, "per_page": per_page, "page": page, "_fields": "id,title,slug,status,date,modified,link,yoast_head_json,featured_media"}
+    r = _wp_get("/wp-json/wp/v2/posts", params=params, timeout=15)
+    if r.status_code != 200:
+        return {"status": "error", "message": f"WP API returned {r.status_code}"}
+
+    posts = r.json()
+    total = int(r.headers.get("X-WP-Total", len(posts)))
+    total_pages = int(r.headers.get("X-WP-TotalPages", 1))
+
+    # Match with local articles by slug
+    import json as _json
+    gen_root = KB_ROOT / "generated_articles"
+    local_slugs = {}
+    if gen_root.exists():
+        for md_file in gen_root.rglob("*.md"):
+            content = md_file.read_text(encoding='utf-8', errors='ignore')
+            localslug = md_file.stem
+            wp_post_id = ""
+            if content.startswith('---'):
+                end = content.index('---', 3)
+                fm = content[3:end]
+                for line in fm.split('\n'):
+                    if line.startswith('wp_post_id:'):
+                        wp_post_id = line.split(':',1)[1].strip()
+                    elif line.startswith('slug:'):
+                        localslug = line.split(':',1)[1].strip().strip('"')
+            local_slugs[localslug] = {
+                "file": str(md_file.relative_to(gen_root)),
+                "wp_post_id": wp_post_id,
+            }
+
+    result_posts = []
+    for p in posts:
+        pid = str(p["id"])
+        slug = p.get("slug", "")
+        matched = local_slugs.get(slug)
+        matched_by_id = None
+        if not matched:
+            for ls, ld in local_slugs.items():
+                if ld["wp_post_id"] == pid:
+                    matched_by_id = ld
+                    matched = ld
+                    break
+
+        result_posts.append({
+            "id": pid,
+            "title": p.get("title", {}).get("rendered", ""),
+            "slug": slug,
+            "status": p.get("status", ""),
+            "date": p.get("date", ""),
+            "modified": p.get("modified", ""),
+            "link": p.get("link", ""),
+            "local_match": matched["file"] if matched else None,
+            "local_slug": slug if matched else (matched_by_id["file"].split("/")[-1].replace(".md","") if matched_by_id else None),
+            "synced": bool(matched),
+        })
+
+    return {
+        "status": "ok",
+        "posts": result_posts,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "unmatched": sum(1 for p in result_posts if not p["synced"]),
+    }
+
+
+def update_wp_post(wp_post_id: int, title: str = None, content: str = None,
+                   slug: str = None, status: str = None, date: str = None,
+                   featured_media: int = None, seo_data: dict = None) -> dict:
+    """Update an existing WordPress post."""
+    post_data = {}
+    if title is not None: post_data["title"] = title
+    if content is not None: post_data["content"] = content
+    if slug is not None: post_data["slug"] = slug
+    if status is not None: post_data["status"] = status
+    if date is not None: post_data["date"] = date
+    if featured_media is not None: post_data["featured_media"] = featured_media
+
+    if not post_data:
+        return {"status": "error", "message": "No fields to update"}
+
+    try:
+        r = _wp_post(f"/wp-json/wp/v2/posts/{wp_post_id}", json_data=post_data, timeout=30)
+        if r.status_code != 200:
+            return {"status": "error", "message": f"WP returned {r.status_code}: {r.text[:200]}"}
+
+        result = r.json()
+
+        # Update Yoast if provided
+        if seo_data:
+            set_yoast_meta(wp_post_id, seo_data)
+
+        logger.info(f"Updated WP post {wp_post_id}: {title or result.get('title',{}).get('rendered','')}")
+        return {
+            "status": "updated",
+            "post_id": result["id"],
+            "link": result.get("link", ""),
+            "modified": result.get("modified", ""),
+        }
+    except Exception as e:
+        logger.error(f"WP update error: {e}")
+        return {"status": "error", "message": str(e)}

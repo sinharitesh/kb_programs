@@ -148,6 +148,72 @@ async def api_publish_wp(slug: str, request: Request):
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
+# ── WP Sync Routes ────────────────────────────────────────────────────────────
+@wp_router.get("/wp-sync/posts")
+async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_page: int = 50):
+    """Fetch WordPress posts and match with local generated articles."""
+    from wp_publisher import fetch_wp_posts
+    result = fetch_wp_posts(status=status, page=page, per_page=per_page)
+    return JSONResponse(result)
+
+
+@wp_router.post("/wp-sync/update/{wp_post_id}")
+async def api_wp_sync_update(wp_post_id: int, request: Request):
+    """Update a WordPress post from local article data."""
+    from wp_publisher import update_wp_post, md_to_html, enrich_with_fact_urls, upload_wp_image
+    data = await request.json()
+    slug = data.get("slug", "")
+    category = data.get("category", "")
+
+    # Re-read the local article
+    title = data.get("title")
+    content = None
+    seo_data = {}
+
+    if slug:
+        from pathlib import Path
+        from image_search import KB_ROOT as IMG_ROOT
+        gen_root = IMG_ROOT / "generated_articles"
+        md_matches = list(gen_root.rglob(f"{slug}.md"))
+        if md_matches:
+            md_text = md_matches[0].read_text(encoding='utf-8', errors='ignore')
+            # Parse frontmatter
+            if md_text.startswith('---'):
+                end = md_text.index('---', 3)
+                fm_block = md_text[3:end]
+                for line in fm_block.split('\n'):
+                    if ':' in line:
+                        k, v = line.split(':', 1)
+                        k, v = k.strip(), v.strip().strip('"')
+                        seo_data[k] = v
+                md_text = md_text[end+3:].strip()
+            if not title:
+                title = seo_data.get('title') or seo_data.get('seo_title')
+            # Enrich and convert
+            md_text = enrich_with_fact_urls(md_text, seo_data)
+            content = md_to_html(md_text)
+
+    # Apply user overrides
+    if data.get("title"): title = data["title"]
+    if data.get("content"): content = data["content"]
+    if data.get("seo_title"): seo_data["seo_title"] = data["seo_title"]
+    if data.get("meta_description"): seo_data["meta_description"] = data["meta_description"]
+    if data.get("focus_keyphrase"): seo_data["focus_keyphrase"] = data["focus_keyphrase"]
+
+    try:
+        result = update_wp_post(
+            wp_post_id=wp_post_id,
+            title=title,
+            content=content,
+            status=data.get("status"),
+            date=data.get("date"),
+            seo_data=seo_data if seo_data else None,
+        )
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
 @wp_router.get("/{slug}/frontmatter")
 async def api_article_frontmatter(slug: str, category: str = ""):
     """Get parsed frontmatter and body for editing before publish."""
