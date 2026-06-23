@@ -1264,7 +1264,8 @@ def _save_article_context(job_id, idea, ctx, settings, result):
     con = get_con()
     _migrate_article_contexts(con)
     slug = result.get("slug") or (result.get("seo") or {}).get("slug") or ""
-    con.execute("INSERT OR REPLACE INTO article_contexts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)", [
+    columns = "job_id, title, idea, category, focus_keyphrase, tone, word_count, language, content_type, freeform_notes, selected_facts, selected_questions, selected_synth_kw, selected_kw_intel, wiki_excerpts, generation_prompt, settings_json, seo_data, slug, saved_path, generated_at"
+    con.execute(f"INSERT OR REPLACE INTO article_contexts ({columns}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)", [
         job_id, settings.get("title", idea), idea, ctx.get("category", ""),
         settings.get("focus_keyphrase", ""), settings.get("tone", ""),
         settings.get("word_count", 0), settings.get("language", ""), settings.get("content_type", ""),
