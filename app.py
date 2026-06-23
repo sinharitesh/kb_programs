@@ -1282,6 +1282,7 @@ def _safe_json_item(item):
     return (item.get("fact") or item.get("question") or item.get("keyword") or item.get("text") or str(item))[:300]
 
 def _get_context(job_id):
+    import json
     from db import get_con
     con = get_con()
     row = con.execute("SELECT * FROM article_contexts WHERE job_id = ?", [job_id]).fetchone()
@@ -1290,7 +1291,12 @@ def _get_context(job_id):
     cols = ["job_id","title","idea","category","focus_keyphrase","tone","word_count","language","content_type",
             "freeform_notes","selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
             "wiki_excerpts","seo_data","slug","saved_path","generated_at"]
-    return JSONResponse({cols[i]: row[i] for i in range(len(cols))})
+    d = {cols[i]: row[i] for i in range(len(cols))}
+    # Parse JSON fields back to objects
+    for k in ["selected_facts","selected_questions","selected_synth_kw","selected_kw_intel","wiki_excerpts","seo_data"]:
+        try: d[k] = json.loads(d[k]) if isinstance(d[k], str) else d[k]
+        except: d[k] = []
+    return JSONResponse(d)
 
 
 # ── Keyword Intelligence for Article Generator ──
