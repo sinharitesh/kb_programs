@@ -3132,6 +3132,8 @@ async function loadGeneratedArticles() {
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="retryArticle('${a.file}')">🔄 Retry</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="deleteArticleFile('${a.file}')">🗑</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
+          <button class="btn btn-blue" style="padding:2px 8px;font-size:0.8em;" onclick="openImageModal('${a.slug||''}','${(a.title||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}')">🖼 Images</button>
+          <button class="btn btn-green" style="padding:2px 8px;font-size:0.8em;" onclick="openPublishModal('${a.slug||''}','${(a.title||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}')">📤 Publish</button>
         </div>
       </div>
     `).join('');
@@ -3532,6 +3534,204 @@ window.showTab = function(tabId, el) {
     loadGeneratedArticles();
   }
 };
+// ── Image Management ──
+var _imgSlug = '', _imgCategory = '', _imgTitle = '';
+
+async function openImageModal(slug, title, category) {
+  _imgSlug = slug; _imgCategory = category; _imgTitle = title;
+  document.getElementById('img-modal-title').textContent = title || slug;
+  document.getElementById('img-search-q').value = title || slug.replace(/-/g, ' ');
+  document.getElementById('image-modal').style.display = 'flex';
+  document.getElementById('img-search-results').innerHTML = '';
+  await loadDownloadedImages();
+}
+
+async function searchArticleImages() {
+  var q = document.getElementById('img-search-q').value || _imgTitle;
+  var div = document.getElementById('img-search-results');
+  div.innerHTML = '<p style="color:#666;">Searching...</p>';
+  try {
+    var res = await fetch('/articles/' + encodeURIComponent(_imgSlug) + '/images-search?q=' + encodeURIComponent(q));
+    var data = await res.json();
+    if (!data.images || !data.images.length) {
+      div.innerHTML = '<p style="color:#666;">No images found.</p>';
+      return;
+    }
+    div.innerHTML = data.images.map(function(img, i) {
+      return '<div style="border:1px solid #e0e0e0;border-radius:8px;padding:6px;text-align:center;">' +
+        '<img src="' + img.url + '" style="width:100%;height:120px;object-fit:cover;border-radius:4px;margin-bottom:4px;" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖼</text></svg>\'">' +
+        '<div style="font-size:0.7em;color:#666;margin-bottom:4px;max-height:30px;overflow:hidden;">' + (img.title||'').slice(0,50) + '</div>' +
+        '<button class="btn btn-green" style="font-size:0.75em;padding:2px 6px;width:100%;" onclick="downloadArticleImage(\'' + img.url + '\', this)">⬇ Download</button>' +
+      '</div>';
+    }).join('');
+  } catch(e) { div.innerHTML = '<p style="color:#d93025;">Search error.</p>'; }
+}
+
+async function downloadArticleImage(url, btn) {
+  btn.textContent = '...'; btn.disabled = true;
+  try {
+    var res = await fetch('/articles/' + encodeURIComponent(_imgSlug) + '/image-download', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url, category: _imgCategory})
+    });
+    var data = await res.json();
+    if (data.status === 'ok') {
+      btn.textContent = '✅ Done';
+      await loadDownloadedImages();
+    } else {
+      btn.textContent = '❌ Failed';
+    }
+  } catch(e) { btn.textContent = '❌ Error'; }
+}
+
+async function loadDownloadedImages() {
+  var div = document.getElementById('img-downloaded');
+  try {
+    var params = _imgCategory ? '?category=' + encodeURIComponent(_imgCategory) : '';
+    var res = await fetch('/articles/' + encodeURIComponent(_imgSlug) + '/images' + params);
+    var data = await res.json();
+    if (!data.images || !data.images.length) {
+      div.innerHTML = '<p style="color:#666;font-size:0.85em;">No images downloaded yet.</p>';
+      return;
+    }
+    div.innerHTML = data.images.map(function(img) {
+      return '<div style="border:1px solid #e0e0e0;border-radius:8px;padding:6px;text-align:center;' + (img.is_featured?'background:#e8f5e9;':'') + '">' +
+        '<div style="font-size:0.75em;color:#666;margin-bottom:4px;word-break:break-all;">' + img.filename + '</div>' +
+        '<div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">' +
+        (!img.is_featured ? '<button class="btn btn-blue" style="font-size:0.7em;padding:2px 6px;" onclick="setFeaturedImage(\'' + img.filename + '\')">⭐ Featured</button>' : '<span style="font-size:0.7em;color:#1a73e8;">⭐ Featured</span>') +
+        '<button class="btn btn-red" style="font-size:0.7em;padding:2px 6px;" onclick="deleteArticleImage(\'' + img.filename + '\')">🗑</button>' +
+        '</div></div>';
+    }).join('');
+  } catch(e) { div.innerHTML = '<p style="color:#d93025;">Error loading.</p>'; }
+}
+
+async function setFeaturedImage(filename) {
+  // Rename file to have featured_ prefix
+  try {
+    var res = await fetch('/articles/' + encodeURIComponent(_imgSlug) + '/set-featured', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({filename: filename, category: _imgCategory})
+    });
+    await loadDownloadedImages();
+  } catch(e) {}
+}
+
+async function deleteArticleImage(filename) {
+  if (!confirm('Delete ' + filename + '?')) return;
+  await fetch('/articles/' + encodeURIComponent(_imgSlug) + '/image-delete?filename=' + encodeURIComponent(filename), {method: 'DELETE'});
+  await loadDownloadedImages();
+}
+
+// ── Publish to WordPress ──
+async function openPublishModal(slug, title, category) {
+  var div = document.getElementById('publish-modal-content');
+
+  // Load images
+  var imagesHtml = '<p style="color:#666;font-size:0.85em;">No images downloaded.</p>';
+  try {
+    var params = category ? '?category=' + encodeURIComponent(category) : '';
+    var res = await fetch('/articles/' + encodeURIComponent(slug) + '/images' + params);
+    var data = await res.json();
+    if (data.images && data.images.length) {
+      var featuredImg = data.images.find(function(i){return i.is_featured;});
+      var inlineImgs = data.images.filter(function(i){return !i.is_featured;});
+      imagesHtml =
+        '<div style="margin-bottom:8px;"><strong>⭐ Featured Image:</strong> ' +
+        (featuredImg ? featuredImg.filename : '<span style="color:#888;">None selected (use 🖼 Images tab to set one)</span>') +
+        '</div>' +
+        '<div style="margin-bottom:8px;"><strong>🖼 Inline Images (select for article body):</strong></div>' +
+        (inlineImgs.length ? inlineImgs.map(function(img) {
+          return '<label style="display:block;font-size:0.85em;padding:3px 0;">' +
+            '<input type="checkbox" class="pub-inline-chk" value="' + img.path + '" checked> ' + img.filename +
+            '</label>';
+        }).join('') : '<p style="color:#666;font-size:0.8em;">No inline images.</p>');
+    }
+  } catch(e) {}
+
+  var days = Math.floor(Math.random() * 9) + 7; // 7-15
+  div.innerHTML =
+    '<div class="card" style="margin-bottom:12px;">' +
+    '<div style="font-size:0.9em;"><strong>Title:</strong> ' + (title||slug) + '</div>' +
+    '<div style="font-size:0.85em;color:#666;">Slug: ' + slug + ' · Category: ' + (category||'N/A') + '</div>' +
+    '<div style="font-size:0.85em;color:#1a73e8;margin-top:4px;">📅 Scheduled: ~' + days + ' days from now</div>' +
+    '</div>' +
+    '<div class="card" style="margin-bottom:12px;">' + imagesHtml + '</div>' +
+    '<div style="display:flex;gap:8px;">' +
+    '<button class="btn btn-green" onclick="publishToWP(\'' + slug + '\',\'' + (title||'').replace(/'/g,"\\'") + '\',\'' + (category||'').replace(/'/g,"\\'") + '\')">📤 Publish Now</button>' +
+    '<button class="btn btn-grey" onclick="document.getElementById(\'publish-modal\').style.display=\'none\'">Cancel</button>' +
+    '</div>';
+
+  document.getElementById('publish-modal').style.display = 'flex';
+}
+
+async function publishToWP(slug, title, category) {
+  var featured = document.querySelector('.pub-inline-chk') ? null : null; // managed via featured_ prefix
+  var inline = [...document.querySelectorAll('.pub-inline-chk:checked')].map(function(c){return c.value;});
+
+  // Find featured image from downloaded list
+  try {
+    var params = category ? '?category=' + encodeURIComponent(category) : '';
+    var res = await fetch('/articles/' + encodeURIComponent(slug) + '/images' + params);
+    var data = await res.json();
+    var featuredImg = (data.images||[]).find(function(i){return i.is_featured;});
+    if (featuredImg) featured = featuredImg.path;
+  } catch(e) {}
+
+  var body = JSON.stringify({
+    category: category,
+    featured_image: featured,
+    inline_images: inline,
+    scheduled_days: null
+  });
+
+  try {
+    var pr = await fetch('/articles/' + encodeURIComponent(slug) + '/publish-wp', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: body
+    });
+    var result = await pr.json();
+    if (result.status === 'published') {
+      alert('✅ Published!\n\nURL: ' + result.post_url + '\nScheduled: ' + result.scheduled_date + '\nPost ID: ' + result.post_id);
+    } else {
+      alert('❌ ' + (result.message || 'Publish failed'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+}
+
 </script>
+
+
+  <!-- IMAGE MANAGEMENT MODAL -->
+  <div class="modal-overlay" id="image-modal" style="display:none;">
+    <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">🖼 Manage Images: <span id="img-modal-title"></span></h3>
+        <button class="btn btn-grey" onclick="document.getElementById('image-modal').style.display='none'">✕</button>
+      </div>
+      <!-- Search -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="img-search-q" placeholder="Search images..." style="flex:1;" onkeydown="if(event.key==='Enter')searchArticleImages()">
+        <button class="btn btn-green" onclick="searchArticleImages()">🔍 Search</button>
+      </div>
+      <!-- Search results -->
+      <div id="img-search-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px;"></div>
+      <!-- Downloaded images -->
+      <h4 style="margin:0 0 8px;">Downloaded Images</h4>
+      <div id="img-downloaded" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;"></div>
+    </div>
+  </div>
+
+  <!-- PUBLISH MODAL -->
+  <div class="modal-overlay" id="publish-modal" style="display:none;">
+    <div class="modal" style="max-width:700px;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">📤 Publish to WordPress</h3>
+        <button class="btn btn-grey" onclick="document.getElementById('publish-modal').style.display='none'">✕</button>
+      </div>
+      <div id="publish-modal-content"></div>
+    </div>
+  </div>
+
 </body>
 </html>

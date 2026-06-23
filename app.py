@@ -1670,3 +1670,8 @@ async def api_save_article_with_prompt(req: SaveArticleWithPromptRequest):
         return JSONResponse({"status": "saved", "article_path": req.article_path})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ── WordPress Publishing ──────────────────────────────────────────
+from wp_routes import wp_router
+app.include_router(wp_router)
