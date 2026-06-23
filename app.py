@@ -1246,6 +1246,52 @@ from article_generator import gather_all_context, generate_article
 import hashlib
 article_jobs = {}  # job_id → result
 
+def _ensure_article_contexts_table():
+    from db import get_con
+    con = get_con(); con.execute("""CREATE TABLE IF NOT EXISTS article_contexts (
+        job_id TEXT PRIMARY KEY, title TEXT, idea TEXT, category TEXT,
+        focus_keyphrase TEXT, tone TEXT, word_count INTEGER, language TEXT, content_type TEXT,
+        freeform_notes TEXT, selected_facts TEXT, selected_questions TEXT,
+        selected_synth_kw TEXT, selected_kw_intel TEXT, wiki_excerpts TEXT,
+        seo_data TEXT, slug TEXT, saved_path TEXT, generated_at TIMESTAMP
+    )"""); con.close()
+
+def _save_article_context(job_id, idea, ctx, settings, result):
+    import json
+    _ensure_article_contexts_table()
+    from db import get_con
+    con = get_con()
+    con.execute("INSERT OR REPLACE INTO article_contexts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)", [
+        job_id, settings.get("title", idea), idea, ctx.get("category", ""),
+        settings.get("focus_keyphrase", ""), settings.get("tone", ""),
+        settings.get("word_count", 0), settings.get("language", ""), settings.get("content_type", ""),
+        settings.get("freeform_notes", ""),
+        json.dumps([_safe_json_item(f) for f in ctx.get("selected_facts", [])[:30]]),
+        json.dumps([_safe_json_item(q) for q in ctx.get("selected_questions", [])[:30]]),
+        json.dumps([_safe_json_item(s) for s in ctx.get("selected_synthesized_keywords", [])[:30]]),
+        json.dumps([_safe_json_item(k) for k in ctx.get("selected_keyword_intelligence", [])[:30]]),
+        json.dumps([w.get("excerpt","")[:200] for w in (ctx.get("wiki_context") or [])[:10]]),
+        json.dumps(result.get("seo", {})), result.get("slug", ""), result.get("saved_to", "")
+    ])
+    con.close()
+    logger.info(f"[Context] Saved article context for job {job_id}")
+
+def _safe_json_item(item):
+    if not item: return ""
+    if isinstance(item, str): return item[:300]
+    return (item.get("fact") or item.get("question") or item.get("keyword") or item.get("text") or str(item))[:300]
+
+def _get_context(job_id):
+    from db import get_con
+    con = get_con()
+    row = con.execute("SELECT * FROM article_contexts WHERE job_id = ?", [job_id]).fetchone()
+    con.close()
+    if not row: return JSONResponse({"error": "Context not found"}, status_code=404)
+    cols = ["job_id","title","idea","category","focus_keyphrase","tone","word_count","language","content_type",
+            "freeform_notes","selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
+            "wiki_excerpts","seo_data","slug","saved_path","generated_at"]
+    return JSONResponse({cols[i]: row[i] for i in range(len(cols))})
+
 
 # ── Keyword Intelligence for Article Generator ──
 @app.get("/api/keyword-intelligence/for-topic")
@@ -1316,6 +1362,7 @@ async def api_generate_article(
         try:
             result = generate_article(ctx, settings)
             article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
+            _save_article_context(job_id, req.idea, ctx, settings, result)
         except Exception as e:
             article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": str(e)}
     background_tasks.add_task(run_generation)
@@ -1328,6 +1375,23 @@ async def api_article_status(job_id: str):
     if not job:
         return JSONResponse({"status": "not_found"}, status_code=404)
     return JSONResponse(job)
+
+@app.get("/articles/context/{job_id}")
+async def api_article_context(job_id: str):
+    if job_id == "by-slug": return JSONResponse({"error": "Use ?slug= parameter"}, status_code=400)
+    return _get_context(job_id)
+
+@app.get("/articles/context")
+async def api_article_context_by_slug(slug: str = ""):
+    """Get article context by slug (matches saved_path)."""
+    _ensure_article_contexts_table()
+    from db import get_con
+    con = get_con()
+    row = con.execute("SELECT job_id FROM article_contexts WHERE slug = ? OR saved_path LIKE ?",
+                      [slug, f"%{slug}%"]).fetchone()
+    con.close()
+    if not row: return JSONResponse({"error": "Context not found for this slug"}, status_code=404)
+    return _get_context(row[0])
 
 @app.get("/articles/list")
 async def api_list_articles():

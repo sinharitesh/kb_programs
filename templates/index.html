@@ -3018,33 +3018,32 @@ async function loadGeneratedArticles() {
 
 async function viewArticleContext(path) {
   try {
-    var res = await fetch('/articles/file?path=' + encodeURIComponent(path));
+    var slug = path.split('/').pop().replace('.md', '');
+    var res = await fetch('/articles/context?slug=' + encodeURIComponent(slug));
     var data = await res.json();
-    if (!data.content) return alert('Could not read article');
-    var fmMatch = data.content.match(/^---([\s\S]*?)---/);
-    if (!fmMatch) return alert('No frontmatter found. Content: ' + data.content.slice(0,80));
-    var lines = fmMatch[1].split(/\r?\n/);
-    var ctx = {};
-    for (var i = 0; i < lines.length; i++) {
-      var colon = lines[i].indexOf(':');
-      if (colon < 0) continue;
-      var k = lines[i].slice(0, colon).trim(), v = lines[i].slice(colon+1).trim().replace(/^"|"$/g, '');
-      if (k.indexOf('context_') === 0) ctx[k.slice(8)] = v;
+    if (data.error) {
+      var res2 = await fetch('/articles/context/' + slug);
+      try { data = await res2.json(); } catch(e) {}
     }
-    var facts = _safeParse(ctx.facts), questions = _safeParse(ctx.questions), synth = _safeParse(ctx.synth_kw), kwintel = _safeParse(ctx.kw_intel);
+    if (data.error) return alert('No context saved for this article. Context is saved when an article is generated. Try regenerating.');
     var h = '<h3>📋 Article Inputs</h3>';
-    if (ctx.title) h += '<div style="font-size:0.85em;padding:3px 0;">📝 <strong>Title:</strong> ' + (ctx.title||'') + '</div>';
-    if (ctx.focus_keyphrase) h += '<div style="font-size:0.85em;padding:3px 0;">🔑 <strong>Keyphrase:</strong> ' + (ctx.focus_keyphrase||'') + '</div>';
-    if (ctx.category) h += '<div style="font-size:0.85em;padding:3px 0;">📁 <strong>Category:</strong> ' + (ctx.category||'') + '</div>';
-    if (ctx.language) h += '<div style="font-size:0.85em;padding:3px 0;">🌐 <strong>Language:</strong> ' + (ctx.language||'') + '</div>';
-    if (ctx.word_count) h += '<div style="font-size:0.85em;padding:3px 0;">📊 <strong>Words:</strong> ' + (ctx.word_count||'') + '</div>';
-    if (ctx.seo_score) h += '<div style="font-size:0.85em;padding:3px 0;">⭐ <strong>SEO:</strong> ' + (ctx.seo_score||'') + '/100</div>';
-    h += '<h3 style="margin-top:12px;">📋 Context Used</h3>';
-    if (facts.length) { h += '<h4 style="margin-top:12px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof f==='string'?f:f.fact||f||'')).slice(0,150) + '</div>'; }); }
-    if (questions.length) { h += '<h4 style="margin-top:12px;">❓ Questions (' + questions.length + ')</h4>'; questions.forEach(function(q) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof q==='string'?q:q.question||q||'')).slice(0,150) + '</div>'; }); }
-    if (synth.length) { h += '<h4 style="margin-top:12px;">✨ Synth Keywords (' + synth.length + ')</h4>'; synth.forEach(function(s) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof s==='string'?s:s.keyword||s||'')).slice(0,150) + '</div>'; }); }
-    if (kwintel.length) { h += '<h4 style="margin-top:12px;">🔑 KW Intelligence (' + kwintel.length + ')</h4>'; kwintel.forEach(function(k) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof k==='string'?k:k.text||k.keyword||k||'')).slice(0,150) + '</div>'; }); }
-    if (!facts.length && !questions.length && !synth.length && !kwintel.length) h += '<p style="color:#666;">No context was saved with this article (generated before this feature).</p>';
+    if (data.title) h += '<div style="font-size:0.85em;padding:3px 0;">📝 <strong>Title:</strong> ' + (data.title||'') + '</div>';
+    if (data.idea) h += '<div style="font-size:0.85em;padding:3px 0;">💡 <strong>Idea:</strong> ' + (data.idea||'') + '</div>';
+    if (data.focus_keyphrase) h += '<div style="font-size:0.85em;padding:3px 0;">🔑 <strong>Keyphrase:</strong> ' + (data.focus_keyphrase||'') + '</div>';
+    if (data.category) h += '<div style="font-size:0.85em;padding:3px 0;">📁 <strong>Category:</strong> ' + (data.category||'') + '</div>';
+    if (data.language) h += '<div style="font-size:0.85em;padding:3px 0;">🌐 <strong>Language:</strong> ' + (data.language||'') + '</div>';
+    if (data.word_count) h += '<div style="font-size:0.85em;padding:3px 0;">📊 <strong>Target Words:</strong> ' + (data.word_count||'') + '</div>';
+    if (data.tone) h += '<div style="font-size:0.85em;padding:3px 0;">🎭 <strong>Tone:</strong> ' + (data.tone||'') + '</div>';
+    if (data.content_type) h += '<div style="font-size:0.85em;padding:3px 0;">📄 <strong>Type:</strong> ' + (data.content_type||'') + '</div>';
+    if (data.freeform_notes) h += '<div style="font-size:0.85em;padding:3px 0;">📝 <strong>Notes:</strong> ' + (data.freeform_notes||'') + '</div>';
+    if (data.seo_data) { try { var seo = typeof data.seo_data==='string' ? JSON.parse(data.seo_data) : data.seo_data; if (seo.seo_score) h += '<div style="font-size:0.85em;padding:3px 0;">⭐ <strong>SEO Score:</strong> ' + seo.seo_score + '/100</div>'; } catch(e) {} }
+    var facts = _safeParse(data.selected_facts), questions = _safeParse(data.selected_questions), synth = _safeParse(data.selected_synth_kw), kwintel = _safeParse(data.selected_kw_intel);
+    h += '<h3 style="margin-top:12px;">📋 Selected Context</h3>';
+    if (facts.length) { h += '<h4 style="margin-top:10px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof f==='string'?f:f||'')).slice(0,150) + '</div>'; }); }
+    if (questions.length) { h += '<h4 style="margin-top:10px;">❓ Questions (' + questions.length + ')</h4>'; questions.forEach(function(q) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof q==='string'?q:q||'')).slice(0,150) + '</div>'; }); }
+    if (synth.length) { h += '<h4 style="margin-top:10px;">✨ Synth Keywords (' + synth.length + ')</h4>'; synth.forEach(function(s) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof s==='string'?s:s||'')).slice(0,150) + '</div>'; }); }
+    if (kwintel.length) { h += '<h4 style="margin-top:10px;">🔑 KW Intelligence (' + kwintel.length + ')</h4>'; kwintel.forEach(function(k) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof k==='string'?k:k||'')).slice(0,150) + '</div>'; }); }
+    if (!facts.length && !questions.length && !synth.length && !kwintel.length) h += '<p style="color:#666;">No context items were selected for this article.</p>';
     document.getElementById('wiki-modal-title').textContent = '📋 Context';
     document.getElementById('wiki-modal-rendered').innerHTML = h;
     document.getElementById('wiki-file-modal').style.display = 'flex';
