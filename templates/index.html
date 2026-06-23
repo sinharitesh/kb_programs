@@ -3114,29 +3114,32 @@ async function loadGeneratedArticles() {
     const res = await fetch('/articles/list');
     const data = await res.json();
     const div = document.getElementById('ag-articles-list');
-    
+
     if (!data.articles || !data.articles.length) {
       div.innerHTML = '<p style="color:#666;">No articles generated yet.</p>';
       return;
     }
-    
-    div.innerHTML = data.articles.map(a => `
+
+    // Store articles globally for Meta button lookup
+    window._articles = {};
+    data.articles.forEach(function(a) { window._articles[a.slug || a.file] = a; });
+
+    div.innerHTML = data.articles.map((a, i) => `
 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e0e0e0;font-size:0.9em;gap:8px;">
         <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${a.title}">${a.title}</div>
         <div style="color:#666;font-size:0.8em;flex-shrink:0;">${a.focus_keyphrase || ''} · ${a.word_count||0}w · SEO ${a.seo_score}/100</div>
         <div style="color:#888;font-size:0.78em;flex-shrink:0;">${a.generated_at ? new Date(a.generated_at).toLocaleDateString() : ''}</div>
-        ${a.wp_published_at ? `<div style="color:#1b5e20;background:#e8f5e9;font-size:0.75em;padding:2px 8px;border-radius:10px;flex-shrink:0;white-space:nowrap;">✅ Published ${new Date(a.wp_published_at).toLocaleDateString()}</div>` : ''}
+        ${a.wp_published_at ? '<div style="color:#1b5e20;background:#e8f5e9;font-size:0.75em;padding:2px 8px;border-radius:10px;flex-shrink:0;white-space:nowrap;">✅ Published ' + new Date(a.wp_published_at).toLocaleDateString() + '</div>' : ''}
         <div style="display:flex;gap:4px;flex-shrink:0;">
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticle('${a.file}')">👁 View</button>
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="editArticle('${a.file}')">✏️ Edit</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleBySlug('${(a.slug||'').replace(/'/g,"\\'")}')">👁 View</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="editArticleBySlug('${(a.slug||'').replace(/'/g,"\\'")}')">✏️ Edit</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleContext('${a.file}')">📋 Context</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="retryArticle('${a.file}')">🔄 Retry</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="deleteArticleFile('${a.file}')">🗑</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleMeta('${a.file}','${(a.title||'').replace(/'/g,"\\'")}','${a.slug||''}','${a.seo_score||0}','${(a.focus_keyphrase||'').replace(/'/g,"\\'")}','${a.word_count||0}','${a.language||''}','${(a.generated_at||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}','${(a.wp_published_at||'').replace(/'/g,"\\'")}','${(a.seo_title||'').replace(/'/g,"\\'")}','${(a.meta_description||'').replace(/'/g,"\\'")}','${(a.og_title||'').replace(/'/g,"\\'")}','${(a.og_description||'').replace(/'/g,"\\'")}','${(a.tags||'[]').replace(/'/g,"\\'")}')">📋 Meta</button>
-          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="downloadArticle('${a.file}')">⬇</button>
-          <button class="btn btn-blue" style="padding:2px 8px;font-size:0.8em;" onclick="openImageModal('${a.slug||''}','${(a.title||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}')">🖼 Images</button>
-          <button class="btn btn-green" style="padding:2px 8px;font-size:0.8em;" onclick="openPublishModal('${a.slug||''}','${(a.title||'').replace(/'/g,"\\'")}','${(a.category||'').replace(/'/g,"\\'")}')">📤 Publish</button>
+          <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticleMeta('${(a.slug||a.file||'').replace(/'/g,"\\'")}')">📋 Meta</button>
+          <button class="btn btn-blue" style="padding:2px 8px;font-size:0.8em;" onclick="openImageModalBySlug('${(a.slug||'').replace(/'/g,"\\'")}')">🖼 Images</button>
+          <button class="btn btn-green" style="padding:2px 8px;font-size:0.8em;" onclick="openPublishModalBySlug('${(a.slug||'').replace(/'/g,"\\'")}')">📤 Publish</button>
         </div>
       </div>
     `).join('');
@@ -3771,7 +3774,48 @@ async function publishToWP(slug, category) {
   }
 }
 
-async function viewArticleMeta(file, title, slug, seo, kw, words, lang, gen, cat, wp, seoTitle, metaDesc, ogTitle, ogDesc, tags) {
+async function viewArticleBySlug(slug) {
+  var a = window._articles && window._articles[slug];
+  if (a) viewArticle(a.file);
+}
+async function editArticleBySlug(slug) {
+  var a = window._articles && window._articles[slug];
+  if (a) editArticle(a.file);
+}
+function openImageModalBySlug(slug) {
+  var a = window._articles && window._articles[slug];
+  if (a) openImageModal(a.slug||'', a.title||'', a.category||'');
+}
+function openPublishModalBySlug(slug) {
+  var a = window._articles && window._articles[slug];
+  if (a) openPublishModal(a.slug||'', a.title||'', a.category||'');
+}
+
+async function viewArticleMeta(slugOrFile) {
+  var a = window._articles && window._articles[slugOrFile];
+  if (!a) {
+    // Try finding by file path
+    var all = window._articles || {};
+    for (var k in all) { if (all[k].file === slugOrFile) { a = all[k]; break; } }
+  }
+  if (!a) { alert('Article data not found. Refresh the page.'); return; }
+
+  var file = a.file || '';
+  var title = a.title || '';
+  var slug = a.slug || '';
+  var cat = a.category || '';
+  var seo = a.seo_score || '0';
+  var kw = a.focus_keyphrase || '';
+  var words = a.word_count || '0';
+  var lang = a.language || '';
+  var gen = a.generated_at || '';
+  var wp = a.wp_published_at || '';
+  var seoTitle = a.seo_title || '';
+  var metaDesc = a.meta_description || '';
+  var ogTitle = a.og_title || '';
+  var ogDesc = a.og_description || '';
+  var tags = a.tags || '[]';
+
   var h = '<div style="font-size:0.9em;line-height:1.6;">';
   h += '<div style="padding:4px 0;"><strong>📄 File:</strong> ' + (file||'') + '</div>';
   h += '<div style="padding:4px 0;"><strong>📝 Title:</strong> ' + (title||'') + '</div>';
