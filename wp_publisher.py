@@ -358,6 +358,17 @@ def publish_article(slug: str, category: str = "",
         # ── Set Yoast SEO ──
         set_yoast_meta(post_id, seo_data)
 
+        # ── Update article frontmatter with WP status ──
+        fm_text = md_path.read_text(encoding='utf-8', errors='ignore')
+        wp_fields = f'wp_post_id: {post_id}\nwp_post_url: "{post_url}"\nwp_published_at: "{scheduled_str}"'
+        if fm_text.startswith('---'):
+            end = fm_text.index('---', 3)
+            existing_fm = fm_text[3:end]
+            # Remove old wp_ fields if present
+            cleaned = '\n'.join(l for l in existing_fm.split('\n') if not l.strip().startswith('wp_'))
+            new_fm = f'---\n{cleaned}\n{wp_fields}\n---'
+            md_path.write_text(new_fm + fm_text[end+3:], encoding='utf-8')
+
         logger.info(f"Published: {title} (ID {post_id}) → {post_url} | Scheduled: {scheduled_str}")
         return {
             "status": "published",

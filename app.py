@@ -1498,7 +1498,9 @@ async def api_list_articles():
                     "context_facts": meta.get("context_facts", "[]"),
                     "context_questions": meta.get("context_questions", "[]"),
                     "context_synth_kw": meta.get("context_synth_kw", "[]"),
-                    "context_kw_intel": meta.get("context_kw_intel", "[]")
+                    "context_kw_intel": meta.get("context_kw_intel", "[]"),
+                    "wp_post_id": meta.get("wp_post_id", ""),
+                    "wp_published_at": meta.get("wp_published_at", ""),
                 })
         except Exception:
             continue

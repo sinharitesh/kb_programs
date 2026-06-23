@@ -3125,6 +3125,7 @@ async function loadGeneratedArticles() {
         <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${a.title}">${a.title}</div>
         <div style="color:#666;font-size:0.8em;flex-shrink:0;">${a.focus_keyphrase || ''} · ${a.word_count||0}w · SEO ${a.seo_score}/100</div>
         <div style="color:#888;font-size:0.78em;flex-shrink:0;">${a.generated_at ? new Date(a.generated_at).toLocaleDateString() : ''}</div>
+        ${a.wp_published_at ? `<div style="color:#1b5e20;background:#e8f5e9;font-size:0.75em;padding:2px 8px;border-radius:10px;flex-shrink:0;white-space:nowrap;">✅ Published ${new Date(a.wp_published_at).toLocaleDateString()}</div>` : ''}
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="viewArticle('${a.file}')">👁 View</button>
           <button class="btn btn-grey" style="padding:2px 8px;font-size:0.8em;" onclick="editArticle('${a.file}')">✏️ Edit</button>
