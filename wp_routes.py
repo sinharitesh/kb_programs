@@ -1,6 +1,7 @@
 """WordPress publishing API routes."""
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse
+from pathlib import Path
 
 wp_router = APIRouter(prefix="/articles", tags=["wordpress"])
 
@@ -40,6 +41,23 @@ async def api_article_image_download(slug: str, request: Request):
     if ok:
         return JSONResponse({"status": "ok", "path": str(save_path), "filename": save_path.name})
     return JSONResponse({"status": "error", "message": "Download failed"}, status_code=500)
+
+
+@wp_router.post("/{slug}/image-upload")
+async def api_article_image_upload(slug: str, file: UploadFile = File(...), category: str = Form("")):
+    """Upload a custom image for an article."""
+    from image_search import KB_ROOT as IMG_ROOT
+    img_dir = IMG_ROOT / "generated_articles" / category / "images" / slug
+    img_dir.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename).suffix.lower() or ".jpg"
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+    existing = list(img_dir.glob(f"{slug}_img*"))
+    idx = len(existing) + 1
+    save_path = img_dir / f"{slug}_img{idx}{ext}"
+    content = await file.read()
+    save_path.write_bytes(content)
+    return JSONResponse({"status": "ok", "path": str(save_path), "filename": save_path.name})
 
 
 @wp_router.get("/{slug}/images")
