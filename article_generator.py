@@ -449,7 +449,9 @@ def generate_article(context: dict, settings: dict) -> dict:
         "word_count": len(article_md.split()),
         "seo": seo_data,
         "saved_to": save_path,
-        "generated_at": datetime.now().isoformat()
+        "generated_at": datetime.now().isoformat(),
+        "generation_prompt": prompt,
+        "settings": settings
     }
 
 

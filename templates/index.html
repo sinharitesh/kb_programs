@@ -3037,6 +3037,15 @@ async function viewArticleContext(path) {
     if (data.content_type) h += '<div style="font-size:0.85em;padding:3px 0;">📄 <strong>Type:</strong> ' + (data.content_type||'') + '</div>';
     if (data.freeform_notes) h += '<div style="font-size:0.85em;padding:3px 0;">📝 <strong>Notes:</strong> ' + (data.freeform_notes||'') + '</div>';
     if (data.seo_data) { try { var seo = typeof data.seo_data==='string' ? JSON.parse(data.seo_data) : data.seo_data; if (seo.seo_score) h += '<div style="font-size:0.85em;padding:3px 0;">⭐ <strong>SEO Score:</strong> ' + seo.seo_score + '/100</div>'; } catch(e) {} }
+    if (data.settings_json) {
+      h += '<h3 style="margin-top:14px;">⚙️ Generation Settings</h3>';
+      var s = typeof data.settings_json==='string' ? JSON.parse(data.settings_json) : data.settings_json;
+      h += '<pre style="font-size:0.78em;background:#f8f9fa;padding:8px;border-radius:4px;max-height:150px;overflow:auto;">' + JSON.stringify(s, null, 2) + '</pre>';
+    }
+    if (data.generation_prompt) {
+      h += '<h3 style="margin-top:14px;">📝 Full Generation Prompt</h3>';
+      h += '<pre style="font-size:0.75em;background:#f8f9fa;padding:8px;border-radius:4px;max-height:300px;overflow:auto;white-space:pre-wrap;">' + (data.generation_prompt||'') + '</pre>';
+    }
     var facts = _safeParse(data.selected_facts), questions = _safeParse(data.selected_questions), synth = _safeParse(data.selected_synth_kw), kwintel = _safeParse(data.selected_kw_intel);
     h += '<h3 style="margin-top:12px;">📋 Selected Context</h3>';
     if (facts.length) { h += '<h4 style="margin-top:10px;">📊 Facts (' + facts.length + ')</h4>'; facts.forEach(function(f) { h += '<div style="font-size:0.85em;padding:3px 0;border-bottom:1px solid #f0f0f0;">✅ ' + ((typeof f==='string'?f:f||'')).slice(0,150) + '</div>'; }); }

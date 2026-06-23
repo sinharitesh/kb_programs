@@ -1253,7 +1253,8 @@ def _ensure_article_contexts_table():
         focus_keyphrase TEXT, tone TEXT, word_count INTEGER, language TEXT, content_type TEXT,
         freeform_notes TEXT, selected_facts TEXT, selected_questions TEXT,
         selected_synth_kw TEXT, selected_kw_intel TEXT, wiki_excerpts TEXT,
-        seo_data TEXT, slug TEXT, saved_path TEXT, generated_at TIMESTAMP
+        generation_prompt TEXT, settings_json TEXT, seo_data TEXT,
+        slug TEXT COLLATE NOCASE, saved_path TEXT, generated_at TIMESTAMP
     )"""); con.close()
 
 def _save_article_context(job_id, idea, ctx, settings, result):
@@ -1261,7 +1262,8 @@ def _save_article_context(job_id, idea, ctx, settings, result):
     _ensure_article_contexts_table()
     from db import get_con
     con = get_con()
-    con.execute("INSERT OR REPLACE INTO article_contexts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)", [
+    _migrate_article_contexts(con)
+    con.execute("INSERT OR REPLACE INTO article_contexts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)", [
         job_id, settings.get("title", idea), idea, ctx.get("category", ""),
         settings.get("focus_keyphrase", ""), settings.get("tone", ""),
         settings.get("word_count", 0), settings.get("language", ""), settings.get("content_type", ""),
@@ -1271,6 +1273,8 @@ def _save_article_context(job_id, idea, ctx, settings, result):
         json.dumps([_safe_json_item(s) for s in ctx.get("selected_synthesized_keywords", [])[:30]]),
         json.dumps([_safe_json_item(k) for k in ctx.get("selected_keyword_intelligence", [])[:30]]),
         json.dumps([w.get("excerpt","")[:200] for w in (ctx.get("wiki_context") or [])[:10]]),
+        result.get("generation_prompt", ""),
+        json.dumps(result.get("settings", {})),
         json.dumps(result.get("seo", {})), result.get("slug", ""), result.get("saved_to", "")
     ])
     con.close()
@@ -1281,6 +1285,12 @@ def _safe_json_item(item):
     if isinstance(item, str): return item[:300]
     return (item.get("fact") or item.get("question") or item.get("keyword") or item.get("text") or str(item))[:300]
 
+def _migrate_article_contexts(con):
+    "Add generation_prompt and settings_json columns if missing"
+    cols = {r[1] for r in con.execute("PRAGMA table_info(article_contexts)").fetchall()}
+    if 'generation_prompt' not in cols: con.execute("ALTER TABLE article_contexts ADD COLUMN generation_prompt TEXT")
+    if 'settings_json' not in cols: con.execute("ALTER TABLE article_contexts ADD COLUMN settings_json TEXT")
+
 def _get_context(job_id):
     import json
     from db import get_con
@@ -1290,14 +1300,15 @@ def _get_context(job_id):
     if not row: return JSONResponse({"error": "Context not found"}, status_code=404)
     cols = ["job_id","title","idea","category","focus_keyphrase","tone","word_count","language","content_type",
             "freeform_notes","selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
-            "wiki_excerpts","seo_data","slug","saved_path","generated_at"]
+            "wiki_excerpts","generation_prompt","settings_json","seo_data","slug","saved_path","generated_at"]
     d = {cols[i]: row[i] for i in range(len(cols))}
     # Convert datetime to iso string
     if d.get("generated_at"): d["generated_at"] = d["generated_at"].isoformat()
     # Parse JSON fields back to objects
-    for k in ["selected_facts","selected_questions","selected_synth_kw","selected_kw_intel","wiki_excerpts","seo_data"]:
+    for k in ["selected_facts","selected_questions","selected_synth_kw","selected_kw_intel",
+              "wiki_excerpts","seo_data","settings_json"]:
         try: d[k] = json.loads(d[k]) if isinstance(d[k], str) else d[k]
-        except: d[k] = []
+        except: d[k] = [] if k not in ("seo_data","settings_json") else {}
     return JSONResponse(d)
 
 
