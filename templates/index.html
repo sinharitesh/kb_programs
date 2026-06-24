@@ -4024,7 +4024,7 @@ async function syncPullWP(postId, slug) {
     if (data.status === 'pulled') {
       _wsyncStatus('✅ Pulled! File: ' + data.file, 'ok');
       alert('✅ Pulled!\n\nFile: ' + data.file + '\nTitle: ' + data.title);
-      await fetchWPSyncPosts();
+      await fetchWPSyncPosts(1, true);
     } else {
       _wsyncStatus('❌ ' + (data.message || 'Pull failed'), 'error');
       alert('❌ ' + (data.message || 'Pull failed'));
