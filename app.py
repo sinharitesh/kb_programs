@@ -1474,6 +1474,7 @@ async def api_list_articles():
     gen_root = Path(r"C:\knowledge-base") / "generated_articles"
     articles = []
     for md_file in gen_root.rglob("*.md"):
+        if "wp-imported" in str(md_file): continue
         try:
             content = md_file.read_text(encoding="utf-8", errors="ignore")
             # Parse frontmatter
