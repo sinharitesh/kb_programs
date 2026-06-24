@@ -192,10 +192,10 @@ async def api_publish_wp(slug: str, request: Request):
 
 # ── WP Sync Routes ────────────────────────────────────────────────────────────
 @wp_router.get("/wp-sync/posts")
-async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_page: int = 20):
+async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_page: int = 20, use_cache: int = 0):
     """Fetch WordPress posts and match with local generated articles."""
     from wp_publisher import fetch_wp_posts
-    result = fetch_wp_posts(status=status, page=page, per_page=per_page)
+    result = fetch_wp_posts(status=status, page=page, per_page=per_page, use_cache=bool(use_cache))
     return JSONResponse(result)
 
 

@@ -905,6 +905,7 @@
         </div>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-grey" style="font-size:0.8em;padding:4px 10px;" onclick="deleteWPSyncCache()">🗑 Delete Local</button>
+          <button class="btn btn-grey" style="font-size:0.8em;padding:4px 10px;" onclick="fetchWPSyncPosts(1, true)">🔄 Force Refresh</button>
           <button class="btn btn-green" onclick="fetchWPSyncPosts()">📥 Fetch WP Posts</button>
         </div>
       </div>
@@ -3897,12 +3898,14 @@ async function deleteWPSyncCache() {
 
 var _wpsyncPage = 1, _wpsyncTotalPages = 1;
 
-async function fetchWPSyncPosts(page) {
+async function fetchWPSyncPosts(page, force) {
   page = page || _wpsyncPage;
   var div = document.getElementById('wpsync-results');
   div.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">⏳ Fetching posts...</p>';
   try {
-    var res = await fetch('/articles/wp-sync/posts?per_page=20&page=' + page);
+    var url = '/articles/wp-sync/posts?per_page=20&page=' + page;
+    if (!force) url += '&use_cache=1';
+    var res = await fetch(url);
     var data = await res.json();
     if (data.status === 'error') {
       div.innerHTML = '<p style="color:#d93025;">' + data.message + '</p>';

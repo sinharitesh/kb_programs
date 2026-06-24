@@ -488,3 +488,19 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
             "yoast_og_description": yoast_og_desc,
             "yoast_schema_type": yoast_schema_type,
         })
+
+    result = {
+        "status": "ok",
+        "posts": result_posts,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "unmatched": sum(1 for p in result_posts if not p["synced"]),
+    }
+
+    # Save to JSON cache
+    _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    import json as _json_save2
+    cache_file.write_text(_json_save2.dumps(result, default=str))
+
+    return result
