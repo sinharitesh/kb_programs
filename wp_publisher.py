@@ -425,15 +425,21 @@ def update_wp_post(wp_post_id: int, title: str = None, content: str = None,
     if date is not None: post_data["date"] = date
     if featured_media is not None: post_data["featured_media"] = featured_media
 
-    if not post_data:
+    if not post_data and not seo_data:
         return {"status": "error", "message": "No fields to update"}
 
     try:
-        r = _wp_post(f"/wp-json/wp/v2/posts/{wp_post_id}", json_data=post_data, timeout=30)
-        if r.status_code != 200:
-            return {"status": "error", "message": f"WP returned {r.status_code}: {r.text[:200]}"}
+        result = {}
+        if post_data:
+            r = _wp_post(f"/wp-json/wp/v2/posts/{wp_post_id}", json_data=post_data, timeout=30)
+            if r.status_code != 200:
+                return {"status": "error", "message": f"WP returned {r.status_code}: {r.text[:200]}"}
+            result = r.json()
 
-        result = r.json()
+        if not result:
+            r2 = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}")
+            if r2.status_code == 200:
+                result = r2.json()
 
         # Update Yoast if provided
         if seo_data:
