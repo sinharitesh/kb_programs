@@ -143,7 +143,7 @@
     .filter-bar input, .filter-bar select { margin: 0; }
     .filter-bar label { margin-top: 0; }
 
-    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:200; }
+    .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:200; }
     .modal { background: #fff; border-radius: 12px; padding: 28px 32px; max-width: 520px; margin: 80px auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
     .modal h3 { margin-bottom: 16px; color: #202124; font-size: 1.15em; }
     .modal p { margin-bottom: 10px; font-size: 0.95em; color: #444; }
@@ -4091,6 +4091,7 @@ async function pollImproveJob(jobId, postId, slug, btn) {
   }
 }
 function showImprovePreview(data) {
+  console.log('[Improve] Preview called, data:', data);
   var div = document.getElementById('improve-preview-content');
   div.innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
