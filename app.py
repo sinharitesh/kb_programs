@@ -1682,3 +1682,10 @@ async def api_save_article_with_prompt(req: SaveArticleWithPromptRequest):
 # ── WordPress Publishing ──────────────────────────────────────────
 from wp_routes import wp_router
 app.include_router(wp_router)
+
+# Recover orphaned improve jobs on startup
+try:
+    from wp_publisher import recover_orphaned_improve_jobs
+    recover_orphaned_improve_jobs()
+except Exception:
+    pass

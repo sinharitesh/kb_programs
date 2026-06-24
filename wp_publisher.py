@@ -649,3 +649,22 @@ def get_improve_job_status(job_id):
     f = _IMPROVE_JOBS_DIR / f"{job_id}.json"
     if not f.exists(): return {"status":"not_found"}
     return _json_async.loads(f.read_text())
+
+
+def recover_orphaned_improve_jobs():
+    """On startup, re-queue any jobs that were interrupted by a restart."""
+    if not _IMPROVE_JOBS_DIR.exists():
+        return
+    for f in _IMPROVE_JOBS_DIR.glob("wp_improve_*.json"):
+        try:
+            data = _json_async.loads(f.read_text())
+            if data.get("status") in ("queued", "running"):
+                wp_id = data.get("wp_post_id")
+                slug = data.get("slug", "")
+                if wp_id:
+                    data["status"] = "queued"
+                    _save_improve_result(data["job_id"], data)
+                    t = _threading.Thread(target=_run_improve_job, args=(data["job_id"], wp_id, slug), daemon=True)
+                    t.start()
+        except:
+            pass
