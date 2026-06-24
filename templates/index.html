@@ -3968,7 +3968,9 @@ async function fetchWPSyncPosts(page, force, fromCache) {
         '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;" onclick="viewWPArticle(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">👁</button> ' +
         (p.synced ?
           '<button id="btn-improve-' + p.id + '" class="btn btn-blue" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>' +
-          '<button class="btn btn-green" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update</button>'
+          '<button class="btn btn-green" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update</button>' +
+          '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncImproveMetaWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔍 SEO</button>' +
+          '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncPushMetaWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 SEO</button>'
           :
           '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncPullWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📥 Pull</button>' +
           '<button id="btn-improve-' + p.id + '" class="btn btn-blue" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>'
@@ -4001,6 +4003,61 @@ async function fetchWPSyncPosts(page, force, fromCache) {
   } catch(e) {
     div.innerHTML = '<p style="color:#d93025;">Error: ' + e.message + '</p>';
   }
+}
+
+async function syncImproveMetaWP(postId, slug) {
+  _wsyncStatus("⏳ Improving SEO meta via LLM...");
+  try {
+    var res = await fetch("/articles/wp-sync/improve-meta/" + postId, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({slug: slug})
+    });
+    var data = await res.json();
+    if (data.status === "ok") {
+      showMetaPreview(postId, slug, data);
+    } else {
+      _wsyncStatus("❌ " + (data.message || "Failed"), "error");
+    }
+  } catch(e) { _wsyncStatus("❌ " + e.message, "error"); }
+}
+
+function showMetaPreview(postId, slug, data) {
+  var div = document.getElementById("improve-preview-content");
+  div.innerHTML =
+    '<div class="card" style="padding:12px;"><strong>🔍 SEO Meta Preview</strong></div>' +
+    '<div class="card" style="padding:12px;">' +
+    "<label>🔑 Focus Keyphrase:</label><input id=\"meta-fkw\" value=\"" + (data.focus_keyphrase||"").replace(/"/g,"&quot;") + "\">" +
+    "<label>🏷 SEO Title:</label><input id=\"meta-seotitle\" value=\"" + (data.seo_title||"").replace(/"/g,"&quot;") + "\">" +
+    "<label>📝 Meta Description:</label><textarea id=\"meta-desc\" style=\"height:60px;\">" + (data.meta_description||"") + "</textarea>" +
+    "<div style=\"font-size:0.85em;color:#1a73e8;margin-top:8px;\">SEO Score: " + (data.seo_score||"") + "/100</div></div>" +
+    "<div style=\"display:flex;gap:8px;margin-top:12px;\">" +
+    "<button class=\"btn btn-green\" onclick=\"syncPushMetaWP(" + postId + ",'" + (slug||"").replace(/'/g,"\\'") + "')\">📤 Push Meta to WP</button>" +
+    "<button class=\"btn btn-grey\" onclick=\"document.getElementById('improve-preview-modal').style.display='none'\">Cancel</button>" +
+    "</div>";
+  document.getElementById("improve-preview-modal").style.display = "flex";
+  document.getElementById("improve-preview-modal").classList.add("visible");
+}
+
+async function syncPushMetaWP(postId, slug) {
+  var fkw = document.getElementById("meta-fkw")?.value || "";
+  var seoTitle = document.getElementById("meta-seotitle")?.value || "";
+  var desc = document.getElementById("meta-desc")?.value || "";
+  if (!confirm("📤 Push SEO meta only to WP post #" + postId + "?")) return;
+  _wsyncStatus("⏳ Pushing meta...");
+  try {
+    var res = await fetch("/articles/wp-sync/push-meta/" + postId, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({focus_keyphrase: fkw, seo_title: seoTitle, meta_description: desc})
+    });
+    var r = await res.json();
+    if (r.status === "updated") {
+      _wsyncStatus("✅ Meta pushed!", "ok");
+      document.getElementById("improve-preview-modal").style.display = "none";
+      document.getElementById("improve-preview-modal").classList.remove("visible");
+    } else {
+      _wsyncStatus("❌ " + (r.message || "Failed"), "error");
+    }
+  } catch(e) { _wsyncStatus("❌ " + e.message, "error"); }
 }
 
 async function syncUpdateWP(postId, slug) {

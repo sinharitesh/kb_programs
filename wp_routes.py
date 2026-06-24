@@ -534,24 +534,6 @@ improved_from_wp_id: {wp_post_id}
 
 
 @wp_router.post("/wp-sync/improve-meta/{wp_post_id}")
-
-@wp_router.post("/wp-sync/push-meta/{wp_post_id}")
-async def api_wp_sync_push_meta(wp_post_id: int, request: Request):
-    """Push only SEO/Yoast meta to WP without changing article content."""
-    from wp_publisher import update_wp_post
-    data = await request.json()
-    seo_info = {}
-    if data.get("focus_keyphrase"): seo_info["focus_keyphrase"] = data["focus_keyphrase"]
-    if data.get("seo_title"): seo_info["seo_title"] = data["seo_title"]
-    if data.get("meta_description"): seo_info["meta_description"] = data["meta_description"]
-    if not seo_info:
-        return JSONResponse({"status": "error", "message": "No meta fields provided"})
-    try:
-        result = update_wp_post(wp_post_id=wp_post_id, seo_data=seo_info)
-        return JSONResponse(result)
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)})
-
 async def api_wp_sync_improve_meta(wp_post_id: int, request: Request):
     """Fetch WP article meta, improve Yoast fields via LLM."""
     import re as _re, json as _json
@@ -560,7 +542,6 @@ async def api_wp_sync_improve_meta(wp_post_id: int, request: Request):
     data = await request.json()
     slug = data.get("slug", "")
 
-    # Fetch current WP post meta
     r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=15)
     if r.status_code != 200:
         return JSONResponse({"status": "error", "message": f"WP fetch failed"}, status_code=500)
@@ -570,17 +551,15 @@ async def api_wp_sync_improve_meta(wp_post_id: int, request: Request):
     yoast = post.get("yoast_head_json", {}) or {}
     html_content = post.get("content", {}).get("rendered", "")
 
-    # Extract body text
     plain = _re.sub(r"<[^>]+>", "", html_content)
     plain = _re.sub(r"&[a-z]+;", " ", plain)
-    plain = _re.sub(r"\n{3,}", "\n\n", plain).strip()[:3000]
+    plain = _re.sub(r"\\n{3,}", "\\n\\n", plain).strip()[:3000]
 
-    # Build SEO improvement prompt
     prompt = f"""You are an expert SEO content analyst. Review this article and return improved Yoast fields.
 
 CURRENT FIELDS:
 Title: {current_title}
-Meta Description: {yoast.get("description", "(missing)")}  
+Meta Description: {yoast.get("description", "(missing)")}
 Focus Keyphrase: {yoast.get("og_title", yoast.get("title", "(missing)"))}
 
 ARTICLE EXCERPT:
@@ -603,9 +582,9 @@ Return ONLY valid JSON:
         resp.raise_for_status()
         raw = resp.json()['response']
         raw = _re.sub(r'<think>.*?</think>', '', raw, flags=_re.DOTALL).strip()
-        raw = _re.sub(r'^```(?:json)?\s*', '', raw, flags=_re.IGNORECASE)
-        raw = _re.sub(r'\s*```$', '', raw)
-        match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+        raw = _re.sub(r'^```(?:json)?\\s*', '', raw, flags=_re.IGNORECASE)
+        raw = _re.sub(r'\\s*```$', '', raw)
+        match = _re.search(r'\\{.*\\}', raw, _re.DOTALL)
         if not match:
             return JSONResponse({"status": "error", "message": "LLM response not valid JSON"})
         result = _json.loads(match.group())
@@ -613,6 +592,23 @@ Return ONLY valid JSON:
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)})
 
+
+@wp_router.post("/wp-sync/push-meta/{wp_post_id}")
+async def api_wp_sync_push_meta(wp_post_id: int, request: Request):
+    """Push only SEO/Yoast meta to WP without changing article content."""
+    from wp_publisher import update_wp_post
+    data = await request.json()
+    seo_info = {}
+    if data.get("focus_keyphrase"): seo_info["focus_keyphrase"] = data["focus_keyphrase"]
+    if data.get("seo_title"): seo_info["seo_title"] = data["seo_title"]
+    if data.get("meta_description"): seo_info["meta_description"] = data["meta_description"]
+    if not seo_info:
+        return JSONResponse({"status": "error", "message": "No meta fields provided"})
+    try:
+        result = update_wp_post(wp_post_id=wp_post_id, seo_data=seo_info)
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)})
 
 @wp_router.post("/wp-sync/accept/{wp_post_id}")
 async def api_wp_sync_accept(wp_post_id: int, request: Request):
