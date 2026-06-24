@@ -3942,13 +3942,6 @@ async function syncImproveWP(postId, slug) {
   } catch(e) { alert('❌ Error: ' + e.message); }
   btn.textContent = '🔧 Improve'; btn.disabled = false;
 }
-  } catch(e) {
-    alert('❌ Error: ' + e.message);
-  }
-  statusBtn.textContent = '🔧 Improve'; statusBtn.disabled = false;
-}
-
-// ── Improve Preview Modal ──
 function showImprovePreview(data) {
   var div = document.getElementById('improve-preview-content');
   div.innerHTML =
