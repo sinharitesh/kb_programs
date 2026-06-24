@@ -3855,8 +3855,17 @@ async function viewArticleMeta(slugOrFile) {
 }
 
 // ── WP Sync ──
+function _wsyncStatus(msg, type) {
+  var el = document.getElementById('wpsync-status');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.style.background = type === 'error' ? '#ffebee' : type === 'ok' ? '#e8f5e9' : '#e8f0fe';
+  el.style.color = type === 'error' ? '#c62828' : type === 'ok' ? '#2e7d32' : '#1a73e8';
+  el.textContent = msg;
+}
 async function loadWPSync() {
-  // Just show the initial state - fetch is manual
+  _wsyncStatus(null);
 }
 
 async function fetchWPSyncPosts() {
@@ -3880,6 +3889,7 @@ async function fetchWPSyncPosts() {
       '<div style="margin-bottom:12px;font-size:0.9em;color:#666;">' +
       data.total + ' posts total · ' + matched.length + ' matched · ' + unmatched.length + ' unmatched · Page ' + data.page + '/' + data.total_pages +
       '</div>' +
+      '<div id="wpsync-status" style="display:none;padding:8px 12px;margin-bottom:8px;border-radius:6px;background:#e8f0fe;color:#1a73e8;font-size:0.85em;"></div>' +
       '<table class="data-table" style="width:100%;">' +
       '<thead><tr><th>WP ID</th><th>Title</th><th style="max-width:100px;">Slug</th><th>Status</th><th>Scheduled</th><th>Modified</th><th>Local</th><th>Actions</th></tr></thead>' +
       '<tbody>' +
@@ -3890,7 +3900,7 @@ async function fetchWPSyncPosts() {
         return '<tr style="' + (p.synced ? '' : 'background:#fff3e0;') + '">' +
           '<td>' + p.id + '</td>' +
           '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (p.title||'').replace(/"/g,'&quot;') + '">' + (p.title||'') + '</td>' +
-          '<td>' + p.slug + '</td>' +
+          '<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (p.slug||'') + '">' + (p.slug||'') + '</td>' +
           '<td>' + statusBadge + '</td>' +
           '<td style="font-size:0.8em;">' + (p.date ? new Date(p.date).toLocaleDateString() : '') + '</td>' +
           '<td style="font-size:0.8em;">' + (p.modified ? new Date(p.modified).toLocaleDateString() : '') + '</td>' +
@@ -3933,19 +3943,26 @@ async function syncUpdateWP(postId, slug) {
 async function syncPullWP(postId, slug) {
   if (!confirm('📥 Pull WP post #' + postId + ' to local file?')) return;
   var btn = event.target; btn.textContent = '⏳...'; btn.disabled = true;
+  _wsyncStatus('⏳ Pulling post #' + postId + ' from WordPress...');
+  console.log('[WP Sync] Pulling post', postId, slug);
   try {
     var res = await fetch('/articles/wp-sync/pull/' + postId, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({slug: slug})
     });
     var data = await res.json();
+    console.log('[WP Sync] Pull result:', data);
     if (data.status === 'pulled') {
+      _wsyncStatus('✅ Pulled! File: ' + data.file, 'ok');
       alert('✅ Pulled!\n\nFile: ' + data.file + '\nTitle: ' + data.title);
       await fetchWPSyncPosts();
     } else {
+      _wsyncStatus('❌ ' + (data.message || 'Pull failed'), 'error');
       alert('❌ ' + (data.message || 'Pull failed'));
     }
   } catch(e) {
+    console.error('[WP Sync] Pull error:', e);
+    _wsyncStatus('❌ Error: ' + e.message, 'error');
     alert('❌ Error: ' + e.message);
   }
   btn.textContent = '📥 Pull to Local'; btn.disabled = false;
@@ -3954,18 +3971,27 @@ async function syncPullWP(postId, slug) {
 async function syncImproveWP(postId, slug) {
   if (!confirm('🔧 Improve WP post #' + postId + ' via LLM?')) return;
   var btn = event.target; btn.textContent = '⏳...'; btn.disabled = true;
+  _wsyncStatus('⏳ Improving post #' + postId + ' via LLM (this may take 30-60s)...');
+  console.log('[WP Sync] Improving post', postId, slug);
   try {
     var res = await fetch('/articles/wp-sync/improve/' + postId, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({slug: slug})
     });
     var data = await res.json();
+    console.log('[WP Sync] Improve result status:', data.status);
     if (data.status === 'preview') {
+      _wsyncStatus('✅ Improvement ready! Review the preview.', 'ok');
       showImprovePreview(data);
     } else {
+      _wsyncStatus('❌ ' + (data.message || 'Improvement failed'), 'error');
       alert('❌ ' + (data.message || 'Improvement failed'));
     }
-  } catch(e) { alert('❌ Error: ' + e.message); }
+  } catch(e) {
+    console.error('[WP Sync] Improve error:', e);
+    _wsyncStatus('❌ Error: ' + e.message, 'error');
+    alert('❌ Error: ' + e.message);
+  }
   btn.textContent = '🔧 Improve'; btn.disabled = false;
 }
 function showImprovePreview(data) {
