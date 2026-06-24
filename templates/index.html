@@ -4069,15 +4069,19 @@ async function pollImproveJob(jobId, postId, slug, btn) {
     var d = await r.json();
     if (d.status === 'done') {
       _wsyncStatus('✅ Improvement ready! Click "👁 View Improved" to review.', 'ok');
-      btn.textContent = '👁 View Improved';
-      btn.disabled = false;
-      btn.style.cursor = 'pointer';
-      btn.onclick = function() { showImprovePreview(d); };
+      // Replace button entirely to avoid stale reference issues
+      var newBtn = document.createElement('button');
+      newBtn.className = 'btn btn-green';
+      newBtn.style.cssText = 'font-size:0.72em;padding:1px 5px;margin-left:3px;';
+      newBtn.textContent = '👁 View Improved';
+      newBtn.onclick = function() { showImprovePreview(d); };
+      btn.parentNode.replaceChild(newBtn, btn);
       return;
     }
     if (d.status === 'error') {
       _wsyncStatus('❌ ' + (d.message || 'Failed'), 'error');
       btn.textContent = '🔧 Improve'; btn.disabled = false;
+      btn.style.cursor = 'pointer';
       return;
     }
     btn.textContent = '⏳ Running... (' + d.status + ')';
