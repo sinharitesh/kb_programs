@@ -3881,7 +3881,7 @@ async function fetchWPSyncPosts() {
       data.total + ' posts total · ' + matched.length + ' matched · ' + unmatched.length + ' unmatched · Page ' + data.page + '/' + data.total_pages +
       '</div>' +
       '<table class="data-table" style="width:100%;">' +
-      '<thead><tr><th>WP ID</th><th>Title</th><th>Slug</th><th>Status</th><th>Scheduled</th><th>Modified</th><th>Local</th><th>Actions</th></tr></thead>' +
+      '<thead><tr><th>WP ID</th><th>Title</th><th style="max-width:100px;">Slug</th><th>Status</th><th>Scheduled</th><th>Modified</th><th>Local</th><th>Actions</th></tr></thead>' +
       '<tbody>' +
       data.posts.map(function(p) {
         var statusBadge = p.status === 'publish' ? '<span style="color:#1b5e20;">● Published</span>' :
@@ -3926,25 +3926,67 @@ async function syncUpdateWP(postId, slug) {
 }
 
 async function syncImproveWP(postId, slug) {
-  if (!confirm('🔧 Improve WP post #' + postId + ' via LLM? This will fetch the current article, enhance it for better SEO, backup the old version, and push the improved version to WordPress.')) return;
-  var statusBtn = event.target;
-  statusBtn.textContent = '⏳...'; statusBtn.disabled = true;
+  if (!confirm('🔧 Improve WP post #' + postId + ' via LLM?')) return;
+  var btn = event.target; btn.textContent = '⏳...'; btn.disabled = true;
   try {
     var res = await fetch('/articles/wp-sync/improve/' + postId, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({slug: slug})
     });
-    var result = await res.json();
-    if (result.status === 'updated') {
-      alert('✅ Improved & Updated!\n\nTitle: ' + (result.improved_title||'') + '\nSEO Score: ' + (result.seo_score||'') + '/100\nLink: ' + result.link);
-      await fetchWPSyncPosts();
+    var data = await res.json();
+    if (data.status === 'preview') {
+      showImprovePreview(data);
     } else {
-      alert('❌ ' + (result.message || 'Improvement failed'));
+      alert('❌ ' + (data.message || 'Improvement failed'));
     }
+  } catch(e) { alert('❌ Error: ' + e.message); }
+  btn.textContent = '🔧 Improve'; btn.disabled = false;
+}
   } catch(e) {
     alert('❌ Error: ' + e.message);
   }
   statusBtn.textContent = '🔧 Improve'; statusBtn.disabled = false;
+}
+
+// ── Improve Preview Modal ──
+function showImprovePreview(data) {
+  var div = document.getElementById('improve-preview-content');
+  div.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+    '<div class="card" style="padding:12px;"><strong>📄 Current (WP)</strong><br><small>' + (data.current_title||'') + '</small>' +
+    '<textarea readonly id="improve-current" style="height:200px;font-size:0.8em;background:#f8f9fa;">' + (data.current_content||'').replace(/</g,'&lt;') + '</textarea></div>' +
+    '<div class="card" style="padding:12px;"><strong>✨ Improved</strong><br>' +
+    '<label>Title:</label><input id="improve-title" value="' + (data.improved_title||'').replace(/"/g,'&quot;') + '">' +
+    '<label>Focus KW:</label><input id="improve-fkw" value="' + (data.focus_keyphrase||'').replace(/"/g,'&quot;') + '">' +
+    '<label>Meta Desc:</label><textarea id="improve-meta" style="height:40px;font-size:0.8em;">' + (data.meta_description||'') + '</textarea>' +
+    '<label>Content:</label><textarea id="improve-content" style="height:200px;font-size:0.8em;">' + (data.improved_content||'').replace(/</g,'&lt;') + '</textarea>' +
+    '<div style="font-size:0.85em;color:#1a73e8;">SEO Score: ' + (data.seo_score||'') + '/100</div></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;">' +
+    '<button class="btn btn-green" onclick="acceptImprovedWP(' + data.wp_post_id + ',\'' + (data.slug||'').replace(/'/g,"\\'") + '\')">✅ Accept & Push to WP</button>' +
+    '<button class="btn btn-grey" onclick="document.getElementById(\'improve-preview-modal\').style.display=\'none\'">Cancel</button>' +
+    '</div>';
+  document.getElementById('improve-preview-modal').style.display = 'flex';
+}
+
+async function acceptImprovedWP(postId, slug) {
+  var title = document.getElementById('improve-title').value;
+  var fkw = document.getElementById('improve-fkw').value;
+  var meta = document.getElementById('improve-meta').value;
+  var content = document.getElementById('improve-content').value;
+  if (!confirm('✅ Push improved article to WP post #' + postId + '?')) return;
+  try {
+    var res = await fetch('/articles/wp-sync/accept/' + postId, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slug: slug, title: title, content: content, focus_keyphrase: fkw, meta_description: meta})
+    });
+    var r = await res.json();
+    if (r.status === 'updated') {
+      alert('✅ Published!\nLink: ' + r.link);
+      document.getElementById('improve-preview-modal').style.display = 'none';
+      await fetchWPSyncPosts();
+    } else { alert('❌ ' + (r.message || 'Failed')); }
+  } catch(e) { alert('❌ Error: ' + e.message); }
 }
 
 </script>

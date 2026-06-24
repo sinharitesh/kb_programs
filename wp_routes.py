@@ -330,7 +330,21 @@ Return ONLY valid JSON:
     focus_kw = improved.get("focus_keyphrase", "")
     seo_score = improved.get("seo_score", 0)
 
-    # 5. Backup old version to disk
+    # 5. Return preview (don't push yet — user accepts separately)
+    return JSONResponse({
+        "status": "preview",
+        "wp_post_id": wp_post_id,
+        "current_title": current_title,
+        "current_content": plain_text[:3000],
+        "improved_title": new_title,
+        "improved_content": new_content_md,
+        "meta_description": meta_desc,
+        "focus_keyphrase": focus_kw,
+        "seo_score": seo_score,
+        "slug": slug,
+    })
+
+    # OLD BACKUP+PUSH LOGIC REMOVED — see /wp-sync/accept endpoint
     if slug:
         gen_root = IMG_ROOT / "generated_articles"
         md_matches = list(gen_root.rglob(f"{slug}.md"))
@@ -366,9 +380,65 @@ improved_from_wp_id: {wp_post_id}
         wp_post_id=wp_post_id, title=new_title, content=html_content,
         status=data.get("status"), seo_data=seo_info,
     )
-    result["seo_score"] = seo_score
-    result["improved_title"] = new_title
-    return JSONResponse(result)
+
+@wp_router.post("/wp-sync/accept/{wp_post_id}")
+async def api_wp_sync_accept(wp_post_id: int, request: Request):
+    """Accept improved article: backup old, save new, push to WP."""
+    import json as _json
+    from wp_publisher import update_wp_post, md_to_html, enrich_with_fact_urls
+    from image_search import KB_ROOT as IMG_ROOT
+
+    data = await request.json()
+    slug = data.get("slug", "")
+    title = data.get("title", "")
+    content_md = data.get("content", "")
+    meta_desc = data.get("meta_description", "")
+    focus_kw = data.get("focus_keyphrase", "")
+    seo_score = data.get("seo_score", 0)
+
+    if not content_md:
+        return JSONResponse({"status": "error", "message": "No content provided"}, status_code=400)
+
+    # Backup old version
+    if slug:
+        gen_root = IMG_ROOT / "generated_articles"
+        md_matches = list(gen_root.rglob(f"{slug}.md"))
+        if md_matches:
+            from datetime import datetime as _dt
+            backup_path = md_matches[0].with_suffix(f".backup_{_dt.now().strftime('%Y%m%d_%H%M%S')}.md")
+            md_matches[0].rename(backup_path)
+            # Write improved version
+            new_fm = f"""---
+title: "{title}"
+slug: {slug}
+focus_keyphrase: "{focus_kw}"
+meta_description: "{meta_desc}"
+seo_score: {seo_score}
+generated_at: "{_dt.now().isoformat()}"
+improved_at: "{_dt.now().isoformat()}"
+improved_from_wp_id: {wp_post_id}
+---
+"""
+            backup_path.with_name(f"{slug}.md").write_text(
+                new_fm + "\n" + content_md, encoding='utf-8')
+
+    # Convert to HTML and push to WP
+    enriched_md = enrich_with_fact_urls(content_md, {"focus_keyphrase": focus_kw})
+    html_content = md_to_html(enriched_md)
+
+    seo_info = {
+        "seo_title": title, "meta_description": meta_desc,
+        "focus_keyphrase": focus_kw, "seo_score": seo_score,
+    }
+    try:
+        result = update_wp_post(
+            wp_post_id=wp_post_id, title=title, content=html_content,
+            seo_data=seo_info,
+        )
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
 
 
 @wp_router.get("/{slug}/frontmatter")
