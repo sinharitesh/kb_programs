@@ -146,30 +146,6 @@ async def api_publish_wp(slug: str, request: Request):
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
-
-
-# ── WP Sync Routes ────────────────────────────────────────────────────────────
-@wp_router.get("/wp-sync/posts")
-async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_page: int = 50):
-    """Fetch WordPress posts and match with local generated articles."""
-    from wp_publisher import fetch_wp_posts
-    result = fetch_wp_posts(status=status, page=page, per_page=per_page)
-    return JSONResponse(result)
-
-
-@wp_router.post("/wp-sync/update/{wp_post_id}")
-async def api_wp_sync_update(wp_post_id: int, request: Request):
-    """Update a WordPress post from local article data."""
-    from wp_publisher import update_wp_post, md_to_html, enrich_with_fact_urls, upload_wp_image
-    data = await request.json()
-    slug = data.get("slug", "")
-    category = data.get("category", "")
-
-    # Re-read the local article
-    title = data.get("title")
-    content = None
-    seo_data = {}
-
     if slug:
         from pathlib import Path
         from image_search import KB_ROOT as IMG_ROOT
@@ -212,6 +188,131 @@ async def api_wp_sync_update(wp_post_id: int, request: Request):
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@wp_router.post("/wp-sync/improve/{wp_post_id}")
+async def api_wp_sync_improve(wp_post_id: int, request: Request):
+    """Fetch WP article, improve via LLM, update SEO, backup old, push to WP."""
+    import re as _re, json as _json
+    from wp_publisher import (
+        _wp_get, _wp_post, set_yoast_meta, md_to_html,
+        enrich_with_fact_urls, upload_wp_image
+    )
+    from image_search import KB_ROOT as IMG_ROOT
+
+    data = await request.json()
+    slug = data.get("slug", "")
+
+    # 1. Fetch current WP post
+    r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=15)
+    if r.status_code != 200:
+        return JSONResponse({"status": "error", "message": f"WP fetch failed: {r.status_code}"}, status_code=500)
+
+    post = r.json()
+    html_content = post.get("content", {}).get("rendered", "")
+    current_title = post.get("title", {}).get("rendered", "")
+
+    # 2. Convert HTML to plain text (basic)
+    plain_text = html_content
+    plain_text = _re.sub(r'<figure[^>]*>.*?</figure>', '', plain_text, flags=_re.DOTALL)
+    plain_text = _re.sub(r'<img[^>]*/?>', '', plain_text)
+    plain_text = _re.sub(r'<[^>]+>', '', plain_text)
+    plain_text = _re.sub(r'&[a-z]+;', '', plain_text)
+    plain_text = _re.sub(r'\n{3,}', '\n\n', plain_text).strip()
+
+    if not plain_text or len(plain_text) < 100:
+        return JSONResponse({"status": "error", "message": "Not enough content to improve"})
+
+    # 3. Build improvement prompt
+    improve_prompt = f"""You are an expert SEO content improver. Take the following article and improve it for better engagement and SEO.
+
+IMPROVEMENT INSTRUCTIONS:
+- Make the hook more compelling
+- Improve readability with better paragraph structure and flow
+- Add 1-2 natural internal reference suggestions (use [suggested reference: ...] format)
+- Optimize the title for both SEO and click-through
+- Ensure the focus keyphrase appears naturally 2-3 times
+- Add alt text descriptions for images where missing
+- Keep the tone and core message intact
+- Improve the meta description to be under 155 characters
+
+CURRENT ARTICLE:
+Title: {current_title}
+
+{plain_text[:5000]}
+
+Return ONLY valid JSON:
+{{{{
+  "improved_title": "Better SEO title",
+  "improved_content": "Full improved article in markdown format",
+  "meta_description": "Compelling meta description under 155 chars",
+  "focus_keyphrase": "Main keyword phrase",
+  "seo_score": 85
+}}}}"""
+
+    # 4. Call Ollama
+    try:
+        import requests as _requests
+        resp = _requests.post("http://127.0.0.1:11434/api/generate",
+            json={'model': 'gemma3:12b', 'prompt': improve_prompt, 'stream': False,
+                  'options': {'temperature': 0.3}}, timeout=300)
+        resp.raise_for_status()
+        raw = resp.json()['response']
+        raw = _re.sub(r'<think>.*?</think>', '', raw, flags=_re.DOTALL).strip()
+        raw = _re.sub(r'^```(?:json)?\s*', '', raw, flags=_re.IGNORECASE)
+        raw = _re.sub(r'\s*```$', '', raw)
+        match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+        if not match:
+            return JSONResponse({"status": "error", "message": "LLM response not valid JSON"})
+        improved = _json.loads(match.group())
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"LLM error: {e}"})
+
+    new_title = improved.get("improved_title") or current_title
+    new_content_md = improved.get("improved_content") or plain_text
+    meta_desc = improved.get("meta_description", "")
+    focus_kw = improved.get("focus_keyphrase", "")
+    seo_score = improved.get("seo_score", 0)
+
+    # 5. Backup old version to disk
+    if slug:
+        gen_root = IMG_ROOT / "generated_articles"
+        md_matches = list(gen_root.rglob(f"{slug}.md"))
+        if md_matches:
+            from datetime import datetime as _dt
+            backup_path = md_matches[0].with_suffix(f".backup_{_dt.now().strftime('%Y%m%d_%H%M%S')}.md")
+            md_matches[0].rename(backup_path)
+            # Write improved version
+            new_fm = f"""---
+title: "{new_title}"
+slug: {slug}
+focus_keyphrase: "{focus_kw}"
+meta_description: "{meta_desc}"
+seo_score: {seo_score}
+generated_at: "{_dt.now().isoformat()}"
+improved_at: "{_dt.now().isoformat()}"
+improved_from_wp_id: {wp_post_id}
+---
+"""
+            backup_path.with_name(f"{slug}.md").write_text(
+                new_fm + "\n" + new_content_md, encoding='utf-8')
+
+    # 6. Convert to HTML and push to WP
+    enriched_md = enrich_with_fact_urls(new_content_md, {"focus_keyphrase": focus_kw})
+    html_content = md_to_html(enriched_md)
+
+    from wp_publisher import update_wp_post
+    seo_info = {
+        "seo_title": new_title, "meta_description": meta_desc,
+        "focus_keyphrase": focus_kw, "seo_score": seo_score,
+    }
+    result = update_wp_post(
+        wp_post_id=wp_post_id, title=new_title, content=html_content,
+        status=data.get("status"), seo_data=seo_info,
+    )
+    result["seo_score"] = seo_score
+    result["improved_title"] = new_title
+    return JSONResponse(result)
 
 
 @wp_router.get("/{slug}/frontmatter")

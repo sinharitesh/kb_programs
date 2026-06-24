@@ -3896,7 +3896,8 @@ async function fetchWPSyncPosts() {
           '<td style="font-size:0.8em;">' + (p.modified ? new Date(p.modified).toLocaleDateString() : '') + '</td>' +
           '<td style="font-size:0.8em;">' + (p.synced ? '✅ ' + (p.local_match||'') : '❓ Not matched') + '</td>' +
           '<td>' +
-          (p.synced ? '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update WP</button>' : '') +
+          (p.synced ? '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update WP</button>' +
+            '<button class="btn btn-green" style="font-size:0.75em;padding:2px 6px;margin-left:4px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>' : '') +
           '</td></tr>';
       }).join('') +
       '</tbody></table>';
@@ -3922,6 +3923,28 @@ async function syncUpdateWP(postId, slug) {
   } catch(e) {
     alert('❌ Error: ' + e.message);
   }
+}
+
+async function syncImproveWP(postId, slug) {
+  if (!confirm('🔧 Improve WP post #' + postId + ' via LLM? This will fetch the current article, enhance it for better SEO, backup the old version, and push the improved version to WordPress.')) return;
+  var statusBtn = event.target;
+  statusBtn.textContent = '⏳...'; statusBtn.disabled = true;
+  try {
+    var res = await fetch('/articles/wp-sync/improve/' + postId, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slug: slug})
+    });
+    var result = await res.json();
+    if (result.status === 'updated') {
+      alert('✅ Improved & Updated!\n\nTitle: ' + (result.improved_title||'') + '\nSEO Score: ' + (result.seo_score||'') + '/100\nLink: ' + result.link);
+      await fetchWPSyncPosts();
+    } else {
+      alert('❌ ' + (result.message || 'Improvement failed'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+  statusBtn.textContent = '🔧 Improve'; statusBtn.disabled = false;
 }
 
 </script>
