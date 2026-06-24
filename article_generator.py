@@ -260,13 +260,15 @@ def clean_article(text):
 # ── Prompt Building ───────────────────────────────────────────────────────────
 
 def build_facts_block(facts):
-    """Format selected facts for the article prompt, sorting by interest score."""
+    """Format selected facts for the article prompt, sorting by interest score. Includes source URLs for natural linking."""
     sorted_facts = sorted(facts, key=lambda f: f.get("interest_score", 5), reverse=True)
     lines = []
     for i, f in enumerate(sorted_facts, 1):
         source = f.get("source_title", f.get("source", "source"))
+        source_url = f.get("source_url", "")
+        url_hint = f" — link: {source_url}" if source_url else ""
         marker = "★ MOST INTERESTING FACT" if i == 1 else f"Fact {i}"
-        lines.append(f"[{marker} — via {source} | Interest ⭐{f.get('interest_score',5)}/10]\n{f['fact'].strip()}\n")
+        lines.append(f"[{marker} — via {source}{url_hint} | Interest ⭐{f.get('interest_score',5)}/10]\n{f['fact'].strip()}\n")
     return "\n".join(lines)
 
 
@@ -441,10 +443,28 @@ def generate_article(context: dict, settings: dict) -> dict:
     except Exception as e:
         logger.warning(f"SEO analysis error: {e}")
 
+    # ── Enrich article with verified fact URLs ──
+    try:
+        from db import get_con
+        focus_kw = seo_data.get('focus_keyphrase') or settings.get('focus_keyphrase', '') or context.get('idea', '')
+        con = get_con()
+        rows = con.execute("""
+            SELECT DISTINCT r.url, r.title FROM facts f
+            JOIN url_registry r ON r.id = f.url_id
+            WHERE f.verified = TRUE AND (f.fact ILIKE ? OR r.title ILIKE ?)
+            LIMIT 10
+        """, [f"%{focus_kw}%", f"%{focus_kw}%"]).fetchall()
+        con.close()
+        if rows:
+            links = "\n".join([f"- [{r[1] or 'Verified source'}]({r[0]})" for r in rows[:3]])
+            if "## References" not in article_md and "## Sources" not in article_md and "## Further Reading" not in article_md:
+                article_md += f"\n\n## References\n\n{links}\n"
+            logger.info(f"Enriched article with {min(3, len(rows))} reference links")
+    except Exception as e:
+        logger.warning(f"Link enrichment error: {e}")
+
     # Save to KB wiki
     save_path = save_article(article_md, context, settings, seo_data)
-
-    # Extract slug (same logic as save_article)
     slug = seo_data.get("slug", "")
     if not slug:
         slug = re.sub(r'[^a-z0-9]+', '-', context["idea"].lower())[:40].strip('-')
