@@ -397,6 +397,22 @@ def publish_article(slug: str, category: str = "",
 # ── WP Sync ───────────────────────────────────────────────────────────────────
 _WP_CACHE_DIR = KB_ROOT / "wp_sync_cache"
 
+_WP_INDIVIDUAL_DIR = _WP_CACHE_DIR / "individual"
+
+def _save_individual_post(post_id: str, post_data: dict):
+    """Save a single WP post JSON to disk for persistent offline access."""
+    _WP_INDIVIDUAL_DIR.mkdir(parents=True, exist_ok=True)
+    import json as _json_ind
+    (_WP_INDIVIDUAL_DIR / f"{post_id}.json").write_text(_json_ind.dumps(post_data, default=str))
+
+def load_individual_post(post_id: str) -> dict:
+    """Load a single cached WP post from disk."""
+    f = _WP_INDIVIDUAL_DIR / f"{post_id}.json"
+    if f.exists():
+        import json as _json_ind2
+        return _json_ind2.loads(f.read_text())
+    return {}
+
 def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int = 1, use_cache: bool = False) -> dict:
     """Fetch posts from WordPress REST API. Caches results to disk for offline use."""
     cache_key = f"posts_{status}_p{page}_pp{per_page}.json"
@@ -497,6 +513,11 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
         "total_pages": total_pages,
         "unmatched": sum(1 for p in result_posts if not p["synced"]),
     }
+
+    # Save individual post JSONs for offline access
+    for p in result_posts:
+        _save_individual_post(p["id"], p)
+
 
     # Save to JSON cache
     _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
