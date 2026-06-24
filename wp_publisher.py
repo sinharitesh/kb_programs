@@ -395,8 +395,21 @@ def publish_article(slug: str, category: str = "",
 
 
 # ── WP Sync ───────────────────────────────────────────────────────────────────
-def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int = 1) -> dict:
-    """Fetch posts from WordPress REST API."""
+_WP_CACHE_DIR = KB_ROOT / "wp_sync_cache"
+
+def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int = 1, use_cache: bool = False) -> dict:
+    """Fetch posts from WordPress REST API. Caches results to disk for offline use."""
+    cache_key = f"posts_{status}_p{page}_pp{per_page}.json"
+    cache_file = _WP_CACHE_DIR / cache_key
+
+    # Serve from cache if requested and fresh (<5 min)
+    if use_cache and cache_file.exists():
+        from datetime import datetime as _dt_cache
+        age = (_dt_cache.now() - _dt_cache.fromtimestamp(cache_file.stat().st_mtime)).total_seconds()
+        if age < 300:  # 5 min
+            import json as _json_cache
+            return _json_cache.loads(cache_file.read_text())
+
     params = {"status": status, "per_page": per_page, "page": page, "_fields": "id,title,slug,status,date,modified,link,yoast_head_json,featured_media"}
     r = _wp_get("/wp-json/wp/v2/posts", params=params, timeout=15)
     if r.status_code != 200:
@@ -441,6 +454,15 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
                     matched = ld
                     break
 
+        # Extract Yoast SEO score
+        yoast = p.get("yoast_head_json", {}) or {}
+        wp_seo_score = yoast.get("og_title", [""]) if isinstance(yoast.get("og_title"), list) else yoast.get("og_title", "")
+        # Try to get actual score; Yoast doesn't expose it directly in REST, estimate from data richness
+        has_meta = bool(yoast.get("description", ""))
+        has_og = bool(yoast.get("og_title", ""))
+        has_schema = bool(yoast.get("schema", {}).get("@graph", []))
+        wp_seo_score = 70 if has_meta and has_og else (50 if has_meta else 30)
+
         result_posts.append({
             "id": pid,
             "title": p.get("title", {}).get("rendered", ""),
@@ -452,9 +474,10 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
             "local_match": matched["file"] if matched else None,
             "local_slug": slug if matched else (matched_by_id["file"].split("/")[-1].replace(".md","") if matched_by_id else None),
             "synced": bool(matched),
+            "wp_seo_score": wp_seo_score,
         })
 
-    return {
+    result = {
         "status": "ok",
         "posts": result_posts,
         "total": total,
@@ -462,6 +485,13 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
         "total_pages": total_pages,
         "unmatched": sum(1 for p in result_posts if not p["synced"]),
     }
+
+    # Save to JSON cache
+    _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    import json as _json_save
+    cache_file.write_text(_json_save.dumps(result, default=str))
+
+    return result
 
 
 def update_wp_post(wp_post_id: int, title: str = None, content: str = None,

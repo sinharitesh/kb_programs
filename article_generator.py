@@ -356,7 +356,9 @@ Word Count       : approximately {word_count} words
    - Each fact gets its own section or paragraph
    - Follow each with "So what?" — why does it matter?
 
-4. STRUCTURE:
+4. PASSIVE VOICE: Keep passive voice under 10%. Use active verbs. ❌ "The temple was built by devotees" → ✅ "Devotees built the temple"
+
+5. STRUCTURE:
    ## [Attention-grabbing title that hints at the ★ fact]
    Lead paragraph expanding the ★ fact
    ## [Deeper context — how/why/what]  
@@ -366,7 +368,7 @@ Word Count       : approximately {word_count} words
    ## [Modern relevance or takeaway]
    ## [Conclusion — tie back to the opening fact]
 
-5. LANGUAGE:
+6. LANGUAGE:
    - First paragraph: punchy, declarative, zero fluff
    - Mix short punchy sentences with richer descriptive ones
    - Rhetorical questions throughout  
@@ -374,9 +376,9 @@ Word Count       : approximately {word_count} words
    - NO filler: "In conclusion", "It is important to note", "In today's world"
    - NO flowery intros: "As I sit...", "Imagine a world...", "In the annals of..."
 
-6. SEO — use keyphrase and keywords naturally, include unanswered questions in article body
+7. SEO — use keyphrase and keywords naturally, include unanswered questions in article body
 
-7. END with meta description as blockquote:
+8. END with meta description as blockquote:
    > **Meta:** [max 155 chars]
 
 Output ONLY the article markdown — nothing before the first heading.

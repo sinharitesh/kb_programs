@@ -899,8 +899,14 @@
     <h2>🔄 WordPress Sync</h2>
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <span style="color:#666;font-size:0.9em;">Fetch WordPress posts and sync updates from local articles.</span>
-        <button class="btn btn-green" onclick="fetchWPSyncPosts()">📥 Fetch WP Posts</button>
+        <div>
+          <span style="color:#666;font-size:0.9em;">Fetch WordPress posts and sync updates from local articles.</span>
+          <span id="wpsync-cache-info" style="font-size:0.8em;color:#888;margin-left:12px;"></span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-grey" style="font-size:0.8em;padding:4px 10px;" onclick="deleteWPSyncCache()">🗑 Delete Local</button>
+          <button class="btn btn-green" onclick="fetchWPSyncPosts()">📥 Fetch WP Posts</button>
+        </div>
       </div>
     </div>
     <div id="wpsync-results">
@@ -3866,13 +3872,37 @@ function _wsyncStatus(msg, type) {
 }
 async function loadWPSync() {
   _wsyncStatus(null);
+  showWPSyncCacheInfo();
+}
+async function showWPSyncCacheInfo() {
+  try {
+    var r = await fetch('/articles/wp-sync/cache-status');
+    var d = await r.json();
+    var el = document.getElementById('wpsync-cache-info');
+    if (el) {
+      el.textContent = d.cached ? '💾 ' + d.file_count + ' file(s) cached · ' + d.total_size_kb + ' KB' : '';
+    }
+  } catch(e) {}
+}
+async function deleteWPSyncCache() {
+  if (!confirm('Delete all cached WP Sync data from disk?')) return;
+  try {
+    await fetch('/articles/wp-sync/cache', {method: 'DELETE'});
+    document.getElementById('wpsync-cache-info').textContent = '';
+    _wsyncStatus('✅ Local cache deleted', 'ok');
+  } catch(e) {
+    _wsyncStatus('❌ Error: ' + e.message, 'error');
+  }
 }
 
-async function fetchWPSyncPosts() {
+var _wpsyncPage = 1, _wpsyncTotalPages = 1;
+
+async function fetchWPSyncPosts(page) {
+  page = page || _wpsyncPage;
   var div = document.getElementById('wpsync-results');
-  div.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">⏳ Fetching posts from WordPress...</p>';
+  div.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">⏳ Fetching posts...</p>';
   try {
-    var res = await fetch('/articles/wp-sync/posts?per_page=50');
+    var res = await fetch('/articles/wp-sync/posts?per_page=20&page=' + page);
     var data = await res.json();
     if (data.status === 'error') {
       div.innerHTML = '<p style="color:#d93025;">' + data.message + '</p>';
@@ -3882,40 +3912,57 @@ async function fetchWPSyncPosts() {
       div.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">No posts found on WordPress.</p>';
       return;
     }
+    _wpsyncPage = data.page;
+    _wpsyncTotalPages = data.total_pages;
     var matched = data.posts.filter(function(p){return p.synced;});
     var unmatched = data.posts.filter(function(p){return !p.synced;});
 
+    // Pagination controls
+    var pager = '';
+    if (_wpsyncTotalPages > 1) {
+      pager = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:0.85em;color:#666;">' +
+        '<button class="btn btn-grey" style="font-size:0.75em;padding:2px 10px;" onclick="fetchWPSyncPosts(' + Math.max(1, _wpsyncPage-1) + ')" ' + (_wpsyncPage <= 1 ? 'disabled' : '') + '>◀ Prev</button>' +
+        '<span>Page ' + _wpsyncPage + ' of ' + _wpsyncTotalPages + ' (' + data.total + ' posts)</span>' +
+        '<button class="btn btn-grey" style="font-size:0.75em;padding:2px 10px;" onclick="fetchWPSyncPosts(' + Math.min(_wpsyncTotalPages, _wpsyncPage+1) + ')" ' + (_wpsyncPage >= _wpsyncTotalPages ? 'disabled' : '') + '>Next ▶</button>' +
+      '</div>';
+    }
+
     div.innerHTML =
-      '<div style="margin-bottom:12px;font-size:0.9em;color:#666;">' +
-      data.total + ' posts total · ' + matched.length + ' matched · ' + unmatched.length + ' unmatched · Page ' + data.page + '/' + data.total_pages +
-      '</div>' +
+      pager +
+      '<div style="margin-bottom:8px;font-size:0.85em;color:#666;">' + data.total + ' total · ' + matched.length + ' matched · ' + unmatched.length + ' unmatched</div>' +
       '<div id="wpsync-status" style="display:none;padding:8px 12px;margin-bottom:8px;border-radius:6px;background:#e8f0fe;color:#1a73e8;font-size:0.85em;"></div>' +
       '<table class="data-table" style="width:100%;">' +
-      '<thead><tr><th>WP ID</th><th>Title</th><th style="max-width:100px;">Slug</th><th>Status</th><th>Scheduled</th><th>Modified</th><th>Local</th><th>Actions</th></tr></thead>' +
+      '<thead><tr><th>WP ID</th><th>Title</th><th style="max-width:100px;">Slug</th><th>SEO</th><th>Status</th><th>Modified</th><th>Local</th><th>Actions</th></tr></thead>' +
       '<tbody>' +
       data.posts.map(function(p) {
+        var seoHtml = '<span style="color:#888;">—</span>';
+        if (p.wp_seo_score) {
+          var c = p.wp_seo_score >= 70 ? '#1b5e20' : p.wp_seo_score >= 50 ? '#e65100' : '#d93025';
+          seoHtml = '<span style="color:' + c + ';font-weight:600;">' + p.wp_seo_score + '</span>';
+        }
         var statusBadge = p.status === 'publish' ? '<span style="color:#1b5e20;">● Published</span>' :
-                          p.status === 'future' ? '<span style="color:#e65100;">◉ Scheduled</span>' :
-                          p.status;
+                          p.status === 'future' ? '<span style="color:#e65100;">◉ Scheduled</span>' : p.status;
         return '<tr style="' + (p.synced ? '' : 'background:#fff3e0;') + '">' +
           '<td>' + p.id + '</td>' +
           '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (p.title||'').replace(/"/g,'&quot;') + '">' + (p.title||'') + '</td>' +
           '<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (p.slug||'') + '">' + (p.slug||'') + '</td>' +
+          '<td>' + seoHtml + '</td>' +
           '<td>' + statusBadge + '</td>' +
-          '<td style="font-size:0.8em;">' + (p.date ? new Date(p.date).toLocaleDateString() : '') + '</td>' +
           '<td style="font-size:0.8em;">' + (p.modified ? new Date(p.modified).toLocaleDateString() : '') + '</td>' +
           '<td style="font-size:0.8em;">' + (p.synced ? '✅ ' + (p.local_match||'') : '❓ Not matched') + '</td>' +
           '<td>' +
+          '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;" onclick="viewWPArticle(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">👁</button> ' +
           (p.synced ?
-            '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>' +
-            '<button class="btn btn-green" style="font-size:0.75em;padding:2px 6px;margin-left:4px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update WP</button>'
+            '<button class="btn btn-blue" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>' +
+            '<button class="btn btn-green" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update</button>'
             :
-            '<button class="btn btn-grey" style="font-size:0.75em;padding:2px 6px;" onclick="syncPullWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📥 Pull to Local</button>' +
-            '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;margin-left:4px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>'
+            '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncPullWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📥 Pull</button>' +
+            '<button class="btn btn-blue" style="font-size:0.72em;padding:1px 5px;margin-left:3px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>'
           ) +
           '</td></tr>';
       }).join('') +
-      '</tbody></table>';
+      '</tbody></table>' +
+      pager;
   } catch(e) {
     div.innerHTML = '<p style="color:#d93025;">Error: ' + e.message + '</p>';
   }
@@ -3937,6 +3984,20 @@ async function syncUpdateWP(postId, slug) {
     }
   } catch(e) {
     alert('❌ Error: ' + e.message);
+  }
+}
+
+async function viewWPArticle(postId, slug) {
+  var res = await fetch('/articles/wp-sync/view/' + postId + '?slug=' + encodeURIComponent(slug));
+  var data = await res.json();
+  if (data.content) {
+    document.getElementById('wiki-modal-title').textContent = '📄 WP: ' + (data.title||slug);
+    document.getElementById('wiki-modal-raw').value = data.content;
+    document.getElementById('wiki-modal-rendered').innerHTML = marked.parse(data.content);
+    document.getElementById('wiki-file-modal').style.display = 'flex';
+    wikiModalShowRendered();
+  } else {
+    alert('Could not load article');
   }
 }
 

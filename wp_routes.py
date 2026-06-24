@@ -192,11 +192,36 @@ async def api_publish_wp(slug: str, request: Request):
 
 # ── WP Sync Routes ────────────────────────────────────────────────────────────
 @wp_router.get("/wp-sync/posts")
-async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_page: int = 50):
+async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_page: int = 20):
     """Fetch WordPress posts and match with local generated articles."""
     from wp_publisher import fetch_wp_posts
     result = fetch_wp_posts(status=status, page=page, per_page=per_page)
     return JSONResponse(result)
+
+
+@wp_router.get("/wp-sync/cache-status")
+async def api_wp_sync_cache():
+    """Check cache status."""
+    from wp_publisher import _WP_CACHE_DIR
+    _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    files = list(_WP_CACHE_DIR.glob("posts_*.json"))
+    total_size = sum(f.stat().st_size for f in files)
+    return JSONResponse({
+        "cached": len(files) > 0,
+        "file_count": len(files),
+        "total_size_kb": round(total_size / 1024, 1),
+    })
+
+
+@wp_router.delete("/wp-sync/cache")
+async def api_wp_sync_clear_cache():
+    """Delete all cached WP sync data."""
+    from wp_publisher import _WP_CACHE_DIR
+    import shutil
+    if _WP_CACHE_DIR.exists():
+        shutil.rmtree(_WP_CACHE_DIR)
+    _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return JSONResponse({"status": "cleared"})
 
 
 @wp_router.post("/wp-sync/update/{wp_post_id}")
@@ -301,6 +326,28 @@ pulled_at: "{_dt.now().isoformat()}"
         "file": f"{cat_folder}/{file_slug}.md",
         "title": title,
     })
+
+
+@wp_router.get("/wp-sync/view/{wp_post_id}")
+async def api_wp_sync_view(wp_post_id: int, slug: str = ""):
+    """Fetch WP post content for preview."""
+    import re as _re
+    from wp_publisher import _wp_get
+    r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=10)
+    if r.status_code != 200:
+        return JSONResponse({"error": "Post not found"}, status_code=404)
+    post = r.json()
+    title = post.get("title", {}).get("rendered", "")
+    html = post.get("content", {}).get("rendered", "")
+    plain = _re.sub(r"<figure[^>]*>.*?</figure>", "", html, flags=_re.DOTALL)
+    plain = _re.sub(r"<img[^>]*/?>", "", plain)
+    plain = _re.sub(r"<h[1-6][^>]*>", "\n\n## ", plain)
+    plain = _re.sub(r"<br\s*/?>", "\n", plain)
+    plain = _re.sub(r"</p>", "\n\n", plain)
+    plain = _re.sub(r"<[^>]+>", "", plain)
+    plain = _re.sub(r"&[a-z]+;", " ", plain)
+    plain = _re.sub(r"\n{3,}", "\n\n", plain).strip()
+    return JSONResponse({"title": title, "content": plain})
 
 @wp_router.post("/wp-sync/improve/{wp_post_id}")
 async def api_wp_sync_improve(wp_post_id: int, request: Request):
