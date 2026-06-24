@@ -4038,30 +4038,53 @@ async function syncPullWP(postId, slug) {
 }
 
 async function syncImproveWP(postId, slug) {
-  if (!confirm('🔧 Improve WP post #' + postId + ' via LLM?')) return;
+  if (!confirm('🔧 Queue improvement for WP post #' + postId + '? The LLM will enrich with KB facts and questions.')) return;
   var btn = event.target; btn.textContent = '⏳...'; btn.disabled = true;
-  _wsyncStatus('⏳ Improving post #' + postId + ' via LLM (this may take 30-60s)...');
-  console.log('[WP Sync] Improving post', postId, slug);
+  _wsyncStatus('⏳ Queuing improvement job...');
   try {
-    var res = await fetch('/articles/wp-sync/improve/' + postId, {
+    var res = await fetch('/articles/wp-sync/improve-async/' + postId, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({slug: slug})
     });
     var data = await res.json();
-    console.log('[WP Sync] Improve result status:', data.status);
-    if (data.status === 'preview') {
-      _wsyncStatus('✅ Improvement ready! Review the preview.', 'ok');
-      showImprovePreview(data);
+    if (data.job_id) {
+      btn.textContent = '⏳ Running';
+      btn.disabled = true;
+      btn.style.cursor = 'default';
+      _wsyncStatus('⏳ Job ' + data.job_id.slice(-16) + ' queued. Polling every 3s...');
+      pollImproveJob(data.job_id, postId, slug, btn);
     } else {
-      _wsyncStatus('❌ ' + (data.message || 'Improvement failed'), 'error');
-      alert('❌ ' + (data.message || 'Improvement failed'));
+      _wsyncStatus('❌ ' + (data.message || 'Failed to queue'), 'error');
+      btn.textContent = '🔧 Improve'; btn.disabled = false;
     }
   } catch(e) {
-    console.error('[WP Sync] Improve error:', e);
     _wsyncStatus('❌ Error: ' + e.message, 'error');
-    alert('❌ Error: ' + e.message);
+    btn.textContent = '🔧 Improve'; btn.disabled = false;
   }
-  btn.textContent = '🔧 Improve'; btn.disabled = false;
+}
+
+async function pollImproveJob(jobId, postId, slug, btn) {
+  try {
+    var r = await fetch('/articles/wp-sync/improve-async/' + jobId);
+    var d = await r.json();
+    if (d.status === 'done') {
+      _wsyncStatus('✅ Improvement ready! Click "👁 View Improved" to review.', 'ok');
+      btn.textContent = '👁 View Improved';
+      btn.disabled = false;
+      btn.style.cursor = 'pointer';
+      btn.onclick = function() { showImprovePreview(d); };
+      return;
+    }
+    if (d.status === 'error') {
+      _wsyncStatus('❌ ' + (d.message || 'Failed'), 'error');
+      btn.textContent = '🔧 Improve'; btn.disabled = false;
+      return;
+    }
+    btn.textContent = '⏳ Running... (' + d.status + ')';
+    setTimeout(function() { pollImproveJob(jobId, postId, slug, btn); }, 3000);
+  } catch(e) {
+    setTimeout(function() { pollImproveJob(jobId, postId, slug, btn); }, 5000);
+  }
 }
 function showImprovePreview(data) {
   var div = document.getElementById('improve-preview-content');
