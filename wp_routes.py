@@ -599,31 +599,31 @@ Return ONLY valid JSON:
 @wp_router.post("/wp-sync/accept/{wp_post_id}")
 async def api_wp_sync_accept(wp_post_id: int, request: Request):
     """Accept improved article: backup old, save new, push to WP."""
-    import json as _json
-    from wp_publisher import update_wp_post, md_to_html, enrich_with_fact_urls
-    from image_search import KB_ROOT as IMG_ROOT
+    try:
+        import json as _json
+        from wp_publisher import update_wp_post, md_to_html, enrich_with_fact_urls
+        from image_search import KB_ROOT as IMG_ROOT
 
-    data = await request.json()
-    slug = data.get("slug", "")
-    title = data.get("title", "")
-    content_md = data.get("content", "")
-    meta_desc = data.get("meta_description", "")
-    focus_kw = data.get("focus_keyphrase", "")
-    seo_score = data.get("seo_score", 0)
+        data = await request.json()
+        slug = data.get("slug", "")
+        title = data.get("title", "")
+        content_md = data.get("content", "")
+        meta_desc = data.get("meta_description", "")
+        focus_kw = data.get("focus_keyphrase", "")
+        seo_score = data.get("seo_score", 0)
 
-    if not content_md:
-        return JSONResponse({"status": "error", "message": "No content provided"}, status_code=400)
+        if not content_md:
+            return JSONResponse({"status": "error", "message": "No content provided"})
 
-    # Backup old version
-    if slug:
-        gen_root = IMG_ROOT / "generated_articles"
-        md_matches = list(gen_root.rglob(f"{slug}.md"))
-        if md_matches:
-            from datetime import datetime as _dt
-            backup_path = md_matches[0].with_suffix(f".backup_{_dt.now().strftime('%Y%m%d_%H%M%S')}.md")
-            md_matches[0].rename(backup_path)
-            # Write improved version
-            new_fm = f"""---
+        # Backup old version
+        if slug:
+            gen_root = IMG_ROOT / "generated_articles"
+            md_matches = list(gen_root.rglob(f"{slug}.md"))
+            if md_matches:
+                from datetime import datetime as _dt
+                backup_path = md_matches[0].with_suffix(f".backup_{_dt.now().strftime('%Y%m%d_%H%M%S')}.md")
+                md_matches[0].rename(backup_path)
+                new_fm = f"""---
 title: "{title}"
 slug: {slug}
 focus_keyphrase: "{focus_kw}"
@@ -634,25 +634,26 @@ improved_at: "{_dt.now().isoformat()}"
 improved_from_wp_id: {wp_post_id}
 ---
 """
-            backup_path.with_name(f"{slug}.md").write_text(
-                new_fm + "\n" + content_md, encoding='utf-8')
+                backup_path.with_name(f"{slug}.md").write_text(
+                    new_fm + "\n" + content_md, encoding='utf-8')
 
-    # Convert to HTML and push to WP
-    enriched_md = enrich_with_fact_urls(content_md, {"focus_keyphrase": focus_kw})
-    html_content = md_to_html(enriched_md)
+        # Convert to HTML and push to WP
+        enriched_md = enrich_with_fact_urls(content_md, {"focus_keyphrase": focus_kw})
+        html_content = md_to_html(enriched_md)
 
-    seo_info = {
-        "seo_title": title, "meta_description": meta_desc,
-        "focus_keyphrase": focus_kw, "seo_score": seo_score,
-    }
-    try:
+        seo_info = {
+            "seo_title": title, "meta_description": meta_desc,
+            "focus_keyphrase": focus_kw, "seo_score": seo_score,
+        }
         result = update_wp_post(
             wp_post_id=wp_post_id, title=title, content=html_content,
             seo_data=seo_info,
         )
         return JSONResponse(result)
     except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"status": "error", "message": str(e)})
 
 
 
