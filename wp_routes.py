@@ -199,6 +199,24 @@ async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_p
     return JSONResponse(result)
 
 
+
+@wp_router.get("/wp-sync/improve-status/{wp_post_id}")
+async def api_wp_sync_improve_check(wp_post_id: int):
+    """Check if there's a completed improve job for this post."""
+    from wp_publisher import _IMPROVE_JOBS_DIR
+    import json
+    _IMPROVE_JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    best = None
+    for f in sorted(_IMPROVE_JOBS_DIR.glob(f"wp_improve_{wp_post_id}_*.json"), reverse=True):
+        try:
+            d = json.loads(f.read_text())
+            if d.get("status") == "done":
+                best = d
+                break
+        except: pass
+    return JSONResponse(best or {"status": "not_found"})
+
+
 @wp_router.get("/wp-sync/cache-status")
 async def api_wp_sync_cache():
     """Check cache status - list all cached files."""
