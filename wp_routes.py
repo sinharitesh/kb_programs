@@ -246,6 +246,62 @@ async def api_wp_sync_update(wp_post_id: int, request: Request):
         return JSONResponse(result)
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+@wp_router.post("/wp-sync/pull/{wp_post_id}")
+async def api_wp_sync_pull(wp_post_id: int, request: Request):
+    """Pull a WordPress post down to a local .md file."""
+    import re as _re
+    from wp_publisher import _wp_get
+    from image_search import KB_ROOT as IMG_ROOT
+    from datetime import datetime as _dt
+
+    data = await request.json()
+    slug = data.get("slug", "")
+    category = data.get("category", "")
+
+    r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=15)
+    if r.status_code != 200:
+        return JSONResponse({"status": "error", "message": f"WP fetch failed: {r.status_code}"})
+
+    post = r.json()
+    title = post.get("title", {}).get("rendered", "")
+    html_content = post.get("content", {}).get("rendered", "")
+    wp_slug = post.get("slug", slug)
+    wp_status = post.get("status", "")
+    wp_date = post.get("date", "")
+
+    # Basic HTML to text
+    plain = _re.sub(r'<figure[^>]*>.*?</figure>', '', html_content, flags=_re.DOTALL)
+    plain = _re.sub(r'<img[^>]*/?>', '', plain)
+    plain = _re.sub(r'<h[1-6][^>]*>', '\n\n## ', plain)
+    plain = _re.sub(r'<br\s*/?>', '\n', plain)
+    plain = _re.sub(r'</p>', '\n\n', plain)
+    plain = _re.sub(r'<[^>]+>', '', plain)
+    plain = _re.sub(r'&[a-z]+;', ' ', plain)
+    plain = _re.sub(r'\n{3,}', '\n\n', plain).strip()
+
+    cat_folder = category or "wp-imported"
+    gen_root = IMG_ROOT / "generated_articles" / cat_folder
+    gen_root.mkdir(parents=True, exist_ok=True)
+
+    file_slug = wp_slug or _re.sub(r'[^a-z0-9]+', '-', title.lower())[:40].strip('-')
+    fm = f"""---
+title: "{title}"
+slug: {file_slug}
+category: {cat_folder}
+wp_post_id: {wp_post_id}
+wp_status: {wp_status}
+wp_date: "{wp_date}"
+pulled_at: "{_dt.now().isoformat()}"
+---
+"""
+    (gen_root / f"{file_slug}.md").write_text(fm + "\n" + plain, encoding='utf-8')
+    return JSONResponse({
+        "status": "pulled",
+        "slug": file_slug,
+        "file": f"{cat_folder}/{file_slug}.md",
+        "title": title,
+    })
+
 @wp_router.post("/wp-sync/improve/{wp_post_id}")
 async def api_wp_sync_improve(wp_post_id: int, request: Request):
     """Fetch WP article, improve via LLM, update SEO, backup old, push to WP."""

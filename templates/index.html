@@ -3896,8 +3896,13 @@ async function fetchWPSyncPosts() {
           '<td style="font-size:0.8em;">' + (p.modified ? new Date(p.modified).toLocaleDateString() : '') + '</td>' +
           '<td style="font-size:0.8em;">' + (p.synced ? '✅ ' + (p.local_match||'') : '❓ Not matched') + '</td>' +
           '<td>' +
-          (p.synced ? '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update WP</button>' +
-            '<button class="btn btn-green" style="font-size:0.75em;padding:2px 6px;margin-left:4px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>' : '') +
+          (p.synced ?
+            '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>' +
+            '<button class="btn btn-green" style="font-size:0.75em;padding:2px 6px;margin-left:4px;" onclick="syncUpdateWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📤 Update WP</button>'
+            :
+            '<button class="btn btn-grey" style="font-size:0.75em;padding:2px 6px;" onclick="syncPullWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">📥 Pull to Local</button>' +
+            '<button class="btn btn-blue" style="font-size:0.75em;padding:2px 6px;margin-left:4px;" onclick="syncImproveWP(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">🔧 Improve</button>'
+          ) +
           '</td></tr>';
       }).join('') +
       '</tbody></table>';
@@ -3923,6 +3928,27 @@ async function syncUpdateWP(postId, slug) {
   } catch(e) {
     alert('❌ Error: ' + e.message);
   }
+}
+
+async function syncPullWP(postId, slug) {
+  if (!confirm('📥 Pull WP post #' + postId + ' to local file?')) return;
+  var btn = event.target; btn.textContent = '⏳...'; btn.disabled = true;
+  try {
+    var res = await fetch('/articles/wp-sync/pull/' + postId, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slug: slug})
+    });
+    var data = await res.json();
+    if (data.status === 'pulled') {
+      alert('✅ Pulled!\n\nFile: ' + data.file + '\nTitle: ' + data.title);
+      await fetchWPSyncPosts();
+    } else {
+      alert('❌ ' + (data.message || 'Pull failed'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+  btn.textContent = '📥 Pull to Local'; btn.disabled = false;
 }
 
 async function syncImproveWP(postId, slug) {
