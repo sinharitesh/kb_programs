@@ -514,6 +514,25 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
         "unmatched": sum(1 for p in result_posts if not p["synced"]),
     }
 
+
+    # Merge into master all_posts.json cache
+    all_cache = _WP_CACHE_DIR / "all_posts.json"
+    import json as _json_all
+    existing = {}
+    if all_cache.exists():
+        try: existing = _json_all.loads(all_cache.read_text())
+        except: pass
+    existing_posts = existing.get("posts", [])
+    existing_ids = {p["id"] for p in existing_posts}
+    for p in result_posts:
+        if p["id"] not in existing_ids:
+            existing_posts.append(p)
+            existing_ids.add(p["id"])
+    existing["posts"] = existing_posts
+    existing["total"] = len(existing_posts)
+    existing["updated_at"] = __import__("datetime").datetime.now().isoformat()
+    all_cache.write_text(_json_all.dumps(existing, default=str))
+
     # Save individual post JSONs for offline access
     for p in result_posts:
         _save_individual_post(p["id"], p)
