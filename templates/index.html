@@ -3881,7 +3881,12 @@ async function showWPSyncCacheInfo() {
     var d = await r.json();
     var el = document.getElementById('wpsync-cache-info');
     if (el) {
-      el.textContent = d.cached ? '💾 ' + d.file_count + ' file(s) cached · ' + d.total_size_kb + ' KB' : '';
+      if (d.cached) {
+        el.innerHTML = '💾 <b>' + d.file_count + '</b> cached · ' + d.total_size_kb + ' KB';
+        el.title = d.files.map(function(f){return f.name + ': ' + f.posted_count + ' posts (page ' + f.page + ', ' + f.age_minutes + 'm old)';}).join('\\n');
+      } else {
+        el.textContent = '';
+      }
     }
   } catch(e) {}
 }

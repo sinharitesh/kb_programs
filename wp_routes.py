@@ -201,16 +201,33 @@ async def api_wp_sync_posts(status: str = "future,publish", page: int = 1, per_p
 
 @wp_router.get("/wp-sync/cache-status")
 async def api_wp_sync_cache():
-    """Check cache status."""
+    """Check cache status - list all cached files."""
     from wp_publisher import _WP_CACHE_DIR
     _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    files = list(_WP_CACHE_DIR.glob("posts_*.json"))
+    files = sorted(_WP_CACHE_DIR.glob("posts_*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
     total_size = sum(f.stat().st_size for f in files)
     return JSONResponse({
         "cached": len(files) > 0,
         "file_count": len(files),
         "total_size_kb": round(total_size / 1024, 1),
+        "files": [
+            {
+                "name": f.name,
+                "page": int(f.stem.split("_p")[1].split("_pp")[0]) if "_p" in f.stem else 1,
+                "posted_count": _count_cached_posts(f),
+                "size_kb": round(f.stat().st_size / 1024, 1),
+                "age_minutes": round((__import__("time").time() - f.stat().st_mtime) / 60),
+            }
+            for f in files[:20]
+        ]
     })
+
+def _count_cached_posts(filepath):
+    try:
+        d = __import__("json").loads(filepath.read_text())
+        return len(d.get("posts", []))
+    except:
+        return 0
 
 
 @wp_router.delete("/wp-sync/cache")
