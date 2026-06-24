@@ -544,3 +544,108 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
     cache_file.write_text(_json_save2.dumps(result, default=str))
 
     return result
+
+# ── Async Improve System ──────────────────────────────────────────────────────
+import threading as _threading, json as _json_async, re as _re_imp, time as _time_clean
+from datetime import datetime as _dt_async
+
+_IMPROVE_JOBS_DIR = KB_ROOT / "wp_improve_jobs"
+
+def _get_related_kb_context(title: str, content: str) -> str:
+    from db import get_con
+    words = _re_imp.findall(r"[A-Z][a-z]{3,}|[a-z]{5,}", title + " " + content[:500])
+    terms = list(dict.fromkeys(w.lower() for w in words if len(w) > 3))[:5]
+    if not terms: return ""
+    con = get_con(); context_parts = []
+    like = " OR ".join(["f.fact ILIKE ?" for _ in terms])
+    params = [f"%{t}%" for t in terms]
+    try:
+        rows = con.execute(f"SELECT f.fact, r.title, r.url FROM facts f JOIN url_registry r ON r.id=f.url_id WHERE f.verified=TRUE AND ({like}) LIMIT 5", params).fetchall()
+        if rows:
+            context_parts.append("━━━ VERIFIED FACTS ━━━")
+            for ft, rt, ru in rows:
+                context_parts.append(f"- [{rt or 'Source'}]({ru})\n  {ft[:200]}")
+    except: pass
+    try:
+        rows = con.execute(f"SELECT question, answer FROM questions_research WHERE ({like}) LIMIT 3", params).fetchall()
+        if rows:
+            context_parts.append("━━━ RELATED QUESTIONS ━━━")
+            for q, a in rows:
+                context_parts.append(f"Q: {q}\nA: {a[:200] if a else '(unanswered)'}")
+    except: pass
+    con.close()
+    return "\n\n".join(context_parts)
+
+def _run_improve_job(job_id, wp_post_id, slug):
+    result = {"job_id": job_id, "status": "running", "wp_post_id": wp_post_id}
+    try:
+        r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=15)
+        if r.status_code != 200:
+            result.update({"status": "error", "message": f"WP fetch: {r.status_code}"})
+            return _save_improve_result(job_id, result)
+        post = r.json()
+        html = post.get("content",{}).get("rendered","")
+        title = post.get("title",{}).get("rendered","")
+        plain = _re_imp.sub(r"<figure[^>]*>.*?</figure>","",html,flags=_re_imp.DOTALL)
+        plain = _re_imp.sub(r"<[^>]+>","",plain)
+        plain = _re_imp.sub(r"&[a-z]+;"," ",plain)
+        plain = _re_imp.sub(r"\n{3,}","\n\n",plain).strip()
+        if len(plain) < 100:
+            result.update({"status":"error","message":"Not enough content"})
+            return _save_improve_result(job_id, result)
+        kb = _get_related_kb_context(title, plain)
+        kb_section = "\n━━━ KB CONTEXT ━━━\n" + kb if kb else ""
+        prompt = f"""You are an expert SEO content improver. Improve this article.
+- Better hook, readability, paragraph flow
+- Add 2-3 reference links from KB context
+- Optimize title for SEO + CTR
+- Focus keyphrase 2-3x naturally
+- Passive voice < 10%, use active verbs
+- Meta description < 155 chars
+- Weave KB answers where appropriate
+{kb_section}
+
+TITLE: {title}
+{plain[:5000]}
+
+Return ONLY valid JSON:
+{{{{"improved_title":"...","improved_content":"...","meta_description":"...","focus_keyphrase":"...","seo_score":85}}}}"""
+        import requests as _req
+        resp = _req.post("http://127.0.0.1:11434/api/generate",
+            json={"model":"gemma3:12b","prompt":prompt,"stream":False,"options":{"temperature":0.3}},timeout=300)
+        resp.raise_for_status()
+        raw = resp.json()["response"]
+        raw = _re_imp.sub(r"<think>.*?</think>","",raw,flags=_re_imp.DOTALL).strip()
+        raw = _re_imp.sub(r"^```(?:json)?\s*","",raw,flags=_re_imp.IGNORECASE)
+        raw = _re_imp.sub(r"\s*```$","",raw)
+        m = _re_imp.search(r"\{.*\}",raw,_re_imp.DOTALL)
+        if not m:
+            result.update({"status":"error","message":"Invalid LLM response"})
+            return _save_improve_result(job_id, result)
+        imp = _json_async.loads(m.group())
+        result.update({"status":"done","current_title":title,"current_content":plain[:3000],
+            "improved_title":imp.get("improved_title",title),
+            "improved_content":imp.get("improved_content",plain),
+            "meta_description":imp.get("meta_description",""),
+            "focus_keyphrase":imp.get("focus_keyphrase",""),
+            "seo_score":imp.get("seo_score",0),"slug":slug})
+    except Exception as e:
+        result = {"job_id":job_id,"status":"error","message":str(e)}
+    _save_improve_result(job_id, result)
+
+def _save_improve_result(job_id, result):
+    _IMPROVE_JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    (_IMPROVE_JOBS_DIR / f"{job_id}.json").write_text(_json_async.dumps(result, default=str))
+
+def queue_improve_job(wp_post_id, slug=""):
+    job_id = f"wp_improve_{wp_post_id}_{_dt_async.now().strftime('%Y%m%d_%H%M%S')}"
+    result = {"job_id":job_id,"status":"queued","wp_post_id":wp_post_id}
+    _save_improve_result(job_id, result)
+    t = _threading.Thread(target=_run_improve_job, args=(job_id, wp_post_id, slug), daemon=True)
+    t.start()
+    return result
+
+def get_improve_job_status(job_id):
+    f = _IMPROVE_JOBS_DIR / f"{job_id}.json"
+    if not f.exists(): return {"status":"not_found"}
+    return _json_async.loads(f.read_text())

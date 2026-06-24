@@ -366,6 +366,19 @@ async def api_wp_sync_view(wp_post_id: int, slug: str = ""):
     plain = _re.sub(r"\n{3,}", "\n\n", plain).strip()
     return JSONResponse({"title": title, "content": plain})
 
+
+@wp_router.post("/wp-sync/improve-async/{wp_post_id}")
+async def api_wp_sync_improve_async(wp_post_id: int, request: Request):
+    data = await request.json()
+    from wp_publisher import queue_improve_job
+    return JSONResponse(queue_improve_job(wp_post_id, data.get("slug","")))
+
+@wp_router.get("/wp-sync/improve-async/{job_id}")
+async def api_wp_sync_improve_status(job_id: str):
+    from wp_publisher import get_improve_job_status
+    return JSONResponse(get_improve_job_status(job_id))
+
+
 @wp_router.post("/wp-sync/improve/{wp_post_id}")
 async def api_wp_sync_improve(wp_post_id: int, request: Request):
     """Fetch WP article, improve via LLM, update SEO, backup old, push to WP."""
