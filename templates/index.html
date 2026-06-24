@@ -4131,6 +4131,16 @@ async function acceptImprovedWP(postId, slug) {
       </div>
       <div id="publish-modal-content"></div>
     </div>
+  <!-- IMPROVE PREVIEW MODAL -->
+  <div class="modal-overlay" id="improve-preview-modal" style="display:none;align-items:center;justify-content:center;">
+    <div class="modal" style="max-width:900px;width:90%;max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;">🔧 Improved Article Preview</h3>
+        <button class="btn btn-grey" style="padding:4px 12px;" onclick="document.getElementById('improve-preview-modal').style.display='none'">✕</button>
+      </div>
+      <div id="improve-preview-content"></div>
+    </div>
+  </div>
   </div>
 
 

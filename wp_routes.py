@@ -484,6 +484,70 @@ improved_from_wp_id: {wp_post_id}
         status=data.get("status"), seo_data=seo_info,
     )
 
+
+@wp_router.post("/wp-sync/improve-meta/{wp_post_id}")
+async def api_wp_sync_improve_meta(wp_post_id: int, request: Request):
+    """Fetch WP article meta, improve Yoast fields via LLM."""
+    import re as _re, json as _json
+    from wp_publisher import _wp_get
+
+    data = await request.json()
+    slug = data.get("slug", "")
+
+    # Fetch current WP post meta
+    r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=15)
+    if r.status_code != 200:
+        return JSONResponse({"status": "error", "message": f"WP fetch failed"}, status_code=500)
+
+    post = r.json()
+    current_title = post.get("title", {}).get("rendered", "")
+    yoast = post.get("yoast_head_json", {}) or {}
+    html_content = post.get("content", {}).get("rendered", "")
+
+    # Extract body text
+    plain = _re.sub(r"<[^>]+>", "", html_content)
+    plain = _re.sub(r"&[a-z]+;", " ", plain)
+    plain = _re.sub(r"\n{3,}", "\n\n", plain).strip()[:3000]
+
+    # Build SEO improvement prompt
+    prompt = f"""You are an expert SEO content analyst. Review this article and return improved Yoast fields.
+
+CURRENT FIELDS:
+Title: {current_title}
+Meta Description: {yoast.get("description", "(missing)")}  
+Focus Keyphrase: {yoast.get("og_title", yoast.get("title", "(missing)"))}
+
+ARTICLE EXCERPT:
+{plain[:2000]}
+
+Return ONLY valid JSON:
+{{{{
+  "focus_keyphrase": "Best primary keyphrase (3-6 words)",
+  "seo_title": "SEO-optimized title (max 60 chars, click-worthy)",
+  "meta_description": "Compelling description (max 155 chars)",
+  "seo_score": 85,
+  "tags": ["tag1", "tag2", "tag3"]
+}}}}"""
+
+    try:
+        import requests as _requests
+        resp = _requests.post("http://127.0.0.1:11434/api/generate",
+            json={'model': 'gemma3:12b', 'prompt': prompt, 'stream': False,
+                  'options': {'temperature': 0.2}}, timeout=120)
+        resp.raise_for_status()
+        raw = resp.json()['response']
+        raw = _re.sub(r'<think>.*?</think>', '', raw, flags=_re.DOTALL).strip()
+        raw = _re.sub(r'^```(?:json)?\s*', '', raw, flags=_re.IGNORECASE)
+        raw = _re.sub(r'\s*```$', '', raw)
+        match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+        if not match:
+            return JSONResponse({"status": "error", "message": "LLM response not valid JSON"})
+        result = _json.loads(match.group())
+        return JSONResponse({"status": "ok", **result})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)})
+
+
 @wp_router.post("/wp-sync/accept/{wp_post_id}")
 async def api_wp_sync_accept(wp_post_id: int, request: Request):
     """Accept improved article: backup old, save new, push to WP."""

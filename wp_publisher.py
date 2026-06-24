@@ -454,14 +454,21 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
                     matched = ld
                     break
 
-        # Extract Yoast SEO score
+        # Extract Yoast SEO meta fields
         yoast = p.get("yoast_head_json", {}) or {}
-        wp_seo_score = yoast.get("og_title", [""]) if isinstance(yoast.get("og_title"), list) else yoast.get("og_title", "")
-        # Try to get actual score; Yoast doesn't expose it directly in REST, estimate from data richness
-        has_meta = bool(yoast.get("description", ""))
-        has_og = bool(yoast.get("og_title", ""))
-        has_schema = bool(yoast.get("schema", {}).get("@graph", []))
-        wp_seo_score = 70 if has_meta and has_og else (50 if has_meta else 30)
+        yoast_title = yoast.get("title", "")
+        yoast_desc = yoast.get("description", "")
+        yoast_og_title = yoast.get("og_title", "")
+        yoast_og_desc = yoast.get("og_description", "")
+        yoast_schema = yoast.get("schema", {}).get("@graph", [])
+        yoast_schema_type = yoast_schema[0].get("@type", "") if yoast_schema else ""
+        # Estimate SEO score from Yoast field completeness
+        score = 30
+        if yoast_title: score += 20
+        if yoast_desc: score += 20
+        if yoast_og_title: score += 15
+        if yoast_schema_type: score += 15
+        wp_seo_score = min(score, 95)
 
         result_posts.append({
             "id": pid,
@@ -475,58 +482,9 @@ def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int
             "local_slug": slug if matched else (matched_by_id["file"].split("/")[-1].replace(".md","") if matched_by_id else None),
             "synced": bool(matched),
             "wp_seo_score": wp_seo_score,
+            "yoast_title": yoast_title,
+            "yoast_meta_description": yoast_desc,
+            "yoast_og_title": yoast_og_title,
+            "yoast_og_description": yoast_og_desc,
+            "yoast_schema_type": yoast_schema_type,
         })
-
-    result = {
-        "status": "ok",
-        "posts": result_posts,
-        "total": total,
-        "page": page,
-        "total_pages": total_pages,
-        "unmatched": sum(1 for p in result_posts if not p["synced"]),
-    }
-
-    # Save to JSON cache
-    _WP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    import json as _json_save
-    cache_file.write_text(_json_save.dumps(result, default=str))
-
-    return result
-
-
-def update_wp_post(wp_post_id: int, title: str = None, content: str = None,
-                   slug: str = None, status: str = None, date: str = None,
-                   featured_media: int = None, seo_data: dict = None) -> dict:
-    """Update an existing WordPress post."""
-    post_data = {}
-    if title is not None: post_data["title"] = title
-    if content is not None: post_data["content"] = content
-    if slug is not None: post_data["slug"] = slug
-    if status is not None: post_data["status"] = status
-    if date is not None: post_data["date"] = date
-    if featured_media is not None: post_data["featured_media"] = featured_media
-
-    if not post_data:
-        return {"status": "error", "message": "No fields to update"}
-
-    try:
-        r = _wp_post(f"/wp-json/wp/v2/posts/{wp_post_id}", json_data=post_data, timeout=30)
-        if r.status_code != 200:
-            return {"status": "error", "message": f"WP returned {r.status_code}: {r.text[:200]}"}
-
-        result = r.json()
-
-        # Update Yoast if provided
-        if seo_data:
-            set_yoast_meta(wp_post_id, seo_data)
-
-        logger.info(f"Updated WP post {wp_post_id}: {title or result.get('title',{}).get('rendered','')}")
-        return {
-            "status": "updated",
-            "post_id": result["id"],
-            "link": result.get("link", ""),
-            "modified": result.get("modified", ""),
-        }
-    except Exception as e:
-        logger.error(f"WP update error: {e}")
-        return {"status": "error", "message": str(e)}
