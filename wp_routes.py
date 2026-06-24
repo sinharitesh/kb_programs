@@ -584,7 +584,7 @@ Return ONLY valid JSON:
         raw = _re.sub(r'<think>.*?</think>', '', raw, flags=_re.DOTALL).strip()
         raw = _re.sub(r'^```(?:json)?\\s*', '', raw, flags=_re.IGNORECASE)
         raw = _re.sub(r'\\s*```$', '', raw)
-        match = _re.search(r'\\{.*\\}', raw, _re.DOTALL)
+        match = _re.search(r'\{.*\}', raw, _re.DOTALL)
         if not match:
             return JSONResponse({"status": "error", "message": "LLM response not valid JSON"})
         result = _json.loads(match.group())
