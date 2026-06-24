@@ -143,7 +143,8 @@
     .filter-bar input, .filter-bar select { margin: 0; }
     .filter-bar label { margin-top: 0; }
 
-    .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:200; }
+    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:200; align-items:center; justify-content:center; }
+    .modal-overlay.visible { display:flex; }
     .modal { background: #fff; border-radius: 12px; padding: 28px 32px; max-width: 520px; margin: 80px auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
     .modal h3 { margin-bottom: 16px; color: #202124; font-size: 1.15em; }
     .modal p { margin-bottom: 10px; font-size: 0.95em; color: #444; }
@@ -4109,6 +4110,7 @@ function showImprovePreview(data) {
     '<button class="btn btn-grey" onclick="document.getElementById(\'improve-preview-modal\').style.display=\'none\'">Cancel</button>' +
     '</div>';
   document.getElementById('improve-preview-modal').style.display = 'flex';
+  document.getElementById('improve-preview-modal').classList.add('visible');
 }
 
 async function acceptImprovedWP(postId, slug) {
@@ -4126,6 +4128,7 @@ async function acceptImprovedWP(postId, slug) {
     if (r.status === 'updated') {
       alert('✅ Published!\nLink: ' + r.link);
       document.getElementById('improve-preview-modal').style.display = 'none';
+      document.getElementById('improve-preview-modal').classList.remove('visible');
       await fetchWPSyncPosts();
     } else { alert('❌ ' + (r.message || 'Failed')); }
   } catch(e) { alert('❌ Error: ' + e.message); }
