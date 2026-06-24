@@ -413,6 +413,44 @@ def load_individual_post(post_id: str) -> dict:
         return _json_ind2.loads(f.read_text())
     return {}
 
+def update_wp_post(wp_post_id: int, title: str = None, content: str = None,
+                   slug: str = None, status: str = None, date: str = None,
+                   featured_media: int = None, seo_data: dict = None) -> dict:
+    """Update an existing WordPress post via REST API."""
+    post_data = {}
+    if title is not None: post_data["title"] = title
+    if content is not None: post_data["content"] = content
+    if slug is not None: post_data["slug"] = slug
+    if status is not None: post_data["status"] = status
+    if date is not None: post_data["date"] = date
+    if featured_media is not None: post_data["featured_media"] = featured_media
+
+    if not post_data:
+        return {"status": "error", "message": "No fields to update"}
+
+    try:
+        r = _wp_post(f"/wp-json/wp/v2/posts/{wp_post_id}", json_data=post_data, timeout=30)
+        if r.status_code != 200:
+            return {"status": "error", "message": f"WP returned {r.status_code}: {r.text[:200]}"}
+
+        result = r.json()
+
+        # Update Yoast if provided
+        if seo_data:
+            set_yoast_meta(wp_post_id, seo_data)
+
+        logger.info(f"Updated WP post {wp_post_id}")
+        return {
+            "status": "updated",
+            "post_id": result["id"],
+            "link": result.get("link", ""),
+            "modified": result.get("modified", ""),
+        }
+    except Exception as e:
+        logger.error(f"WP update error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 def fetch_wp_posts(status: str = "future,publish", per_page: int = 50, page: int = 1, use_cache: bool = False) -> dict:
     """Fetch posts from WordPress REST API. Caches results to disk for offline use."""
     cache_key = f"posts_{status}_p{page}_pp{per_page}.json"

@@ -4124,7 +4124,7 @@ function showImprovePreview(data) {
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
     '<div class="card" style="padding:12px;"><strong>📄 Current (WP)</strong><br><small>' + (data.current_title||'') + '</small>' +
     '<textarea readonly id="improve-current" style="height:200px;font-size:0.8em;background:#f8f9fa;">' + (data.current_content||'').replace(/</g,'&lt;') + '</textarea></div>' +
-    '<div class="card" style="padding:12px;"><strong>✨ Improved</strong><br>' +
+    '<div class="card" style="padding:12px;"><strong>✨ Improved (Editable)</strong><br>' +
     '<label>Title:</label><input id="improve-title" value="' + (data.improved_title||'').replace(/"/g,'&quot;') + '">' +
     '<label>Focus KW:</label><input id="improve-fkw" value="' + (data.focus_keyphrase||'').replace(/"/g,'&quot;') + '">' +
     '<label>Meta Desc:</label><textarea id="improve-meta" style="height:40px;font-size:0.8em;">' + (data.meta_description||'') + '</textarea>' +
