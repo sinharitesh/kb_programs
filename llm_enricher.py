@@ -503,6 +503,29 @@ def verify_unverified_facts(batch_size=1000, sleep_between=60):
     if verified_count: log(f"[Verify] Verified {verified_count}/{len(facts)} facts via Wikipedia")
     return verified_count
 
+def enrich_facts(fact_texts: list) -> list:
+    """Rewrite facts to be clearer, more accurate, and well-structured using LLM."""
+    combined = "\n".join([f"{i+1}. {t}" for i, t in enumerate(fact_texts)])
+    prompt = f"""You are a fact editor. Rewrite each fact below to be clearer, more concise, and grammatically correct while preserving the original meaning. Keep each fact to 1-2 sentences.
+
+FACTS:
+{combined}
+
+Return ONLY valid JSON:
+{{"enriched": ["fact 1 rewritten", "fact 2 rewritten", ...]}}"""
+
+    try:
+        raw = call_ollama(prompt)
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            enriched = json.loads(match.group()).get("enriched", [])
+            # Ensure same length; fall back to originals if mismatch
+            if len(enriched) == len(fact_texts):
+                return enriched
+    except Exception as e:
+        log(f"[Fact-enrich] Error: {e}")
+    return fact_texts  # fallback: return originals unchanged
+
 def start_background_verifier():
     "Start a daemon thread that continuously verifies facts with 30s+ delays"
     import threading, time

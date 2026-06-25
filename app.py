@@ -885,10 +885,16 @@ Generate keywords that include:
 Return ONLY valid JSON in this format:
 {{
   "suggested_keywords": [
-    {{"keyword": "example long tail keyword", "intent": "informational", "rationale": "why this works"}},
+    {{"keyword": "example long tail keyword", "intent": "informational", "rationale": "[example] short reason (max 10 words)"}},
     ...
   ]
-}}"""
+}}
+RATIONALE RULES:
+- Start with [keyword_abbreviation] in brackets
+- Max 10 words total (including brackets)
+- Be concrete: say WHY this keyword matters for this topic
+- Example: "[yoga poses] helps beginners find starter content"
+"""
 
         raw = call_ollama(prompt)
 
@@ -1164,6 +1170,31 @@ async def api_delete_facts_bulk(ids: List[int]):
 @app.get("/facts/explorer")
 async def api_facts_explorer(verified: str = "all", search: str = "", source: str = ""):
     return JSONResponse({"facts": get_facts_for_explorer(verified, search, source)})
+
+@app.post("/facts/enrich-bulk")
+async def api_enrich_facts_bulk(ids: List[int]):
+    """Rewrite selected facts to be clearer using LLM."""
+    if not ids:
+        return JSONResponse({"status": "error", "message": "No facts selected"}, status_code=400)
+    con = get_con()
+    placeholders = ",".join(["?" for _ in ids])
+    rows = con.execute(f"SELECT id, fact FROM facts WHERE id IN ({placeholders})", ids).fetchall()
+    if not rows:
+        con.close()
+        return JSONResponse({"status": "error", "message": "No matching facts found"}, status_code=404)
+
+    from llm_enricher import enrich_facts
+    fact_texts = [r[1] for r in rows]
+    enriched = enrich_facts(fact_texts)
+
+    # Update DB with enriched facts
+    updated = 0
+    for (fid, _), new_text in zip(rows, enriched):
+        if new_text and new_text != _:
+            con.execute("UPDATE facts SET fact = ? WHERE id = ?", [new_text, fid])
+            updated += 1
+    con.close()
+    return JSONResponse({"status": "ok", "enriched": updated, "total": len(rows)})
 
 @app.get("/questions/search")
 async def api_search_questions(q: str = "", category: str = "", limit: int = 30):

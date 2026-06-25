@@ -694,6 +694,7 @@
         <div style="display:flex;align-items:flex-end;gap:8px">
           <button class="btn btn-grey" onclick="loadFacts()">↺ Reset</button>
           <button class="btn btn-red" onclick="deleteSelectedFacts()">🗑 Delete Selected</button>
+          <button class="btn btn-blue" onclick="enrichSelectedFacts()">✨ Enrich Selected</button>
         </div>
       </div>
     </div>
@@ -800,6 +801,17 @@
       </div>
         <div>
           <label>Article Notes / Freeform Instructions</label>
+          <select id="ag-notes-preset" onchange="onArticleNotesPreset()" style="width:auto;min-width:200px;padding:6px 10px;margin-bottom:4px;">
+            <option value="">-- Choose template (or type below) --</option>
+            <option value="Include a FAQ section with detailed answers">Include FAQ section</option>
+            <option value="Add a comparison table if applicable">Add comparison table</option>
+            <option value="Use a storytelling/narrative approach">Storytelling approach</option>
+            <option value="Include expert tips or a pro-tip box">Include expert tips</option>
+            <option value="Start with a compelling hook or statistic">Compelling hook/statistic</option>
+            <option value="Target featured snippet (definition-style answer)">Target featured snippet</option>
+            <option value="Add practical step-by-step instructions">Step-by-step instructions</option>
+            <option value="Keep it beginner-friendly, avoid jargon">Beginner-friendly</option>
+          </select>
           <textarea id="ag-freeform-notes" placeholder="Write any specific instructions, angles, or notes for the article..." style="height:120px;font-size:0.85em;"></textarea>
         </div>
       <div style="margin-top:16px;">
@@ -909,6 +921,21 @@
           <button class="btn btn-grey" style="font-size:0.8em;padding:4px 10px;" onclick="fetchWPSyncPosts(1, true)">🔄 Force Refresh</button>
           <button class="btn btn-green" onclick="fetchWPSyncPosts()">📥 Fetch WP Posts</button>
         </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:0.85em;color:#666;">Improve instructions:</span>
+        <select id="imp-instr-preset" onchange="onImprovePresetChange()" style="width:auto;min-width:180px;padding:6px 10px;">
+          <option value="">-- Choose (or type custom) --</option>
+          <option value="Improve readability and paragraph flow">Improve readability & flow</option>
+          <option value="Add more KB facts and data">Add more KB facts</option>
+          <option value="Expand FAQ section with detailed answers">Expand FAQ section</option>
+          <option value="Improve the hook/intro to be more compelling">Improve hook/intro</option>
+          <option value="Optimize for featured snippet">Optimize for featured snippet</option>
+          <option value="Add comparison table if applicable">Add comparison table</option>
+          <option value="Improve title for SEO and CTR">Improve title for SEO + CTR</option>
+          <option value="Reduce passive voice, use more active verbs">More active voice</option>
+        </select>
+        <input type="text" id="imp-instr-custom" placeholder="Or type custom instructions..." style="flex:1;min-width:200px;padding:6px 10px;">
       </div>
     </div>
     <div id="wpsync-results">
@@ -1657,6 +1684,34 @@ async function deleteSelectedFacts() {
   );
 }
 
+async function enrichSelectedFacts() {
+  const ids = [...document.querySelectorAll('.fact-chk:checked')].map(c => +c.dataset.id);
+  if (!ids.length) { alert('No facts selected.'); return; }
+  if (!confirm(`✨ Enrich ${ids.length} facts? The LLM will rewrite them for clarity.`)) return;
+  
+  const btn = event.target;
+  btn.textContent = '⏳ Enriching...'; btn.disabled = true;
+  
+  try {
+    const res = await fetch('/facts/enrich-bulk', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(ids)
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      await fetchFacts(
+        document.getElementById('facts-topic-search').value,
+        document.getElementById('facts-verified-filter').value
+      );
+    } else {
+      alert('Enrichment failed: ' + (data.message || 'unknown error'));
+    }
+  } catch(e) {
+    alert('Enrichment error: ' + e.message);
+  }
+  btn.textContent = '✨ Enrich Selected'; btn.disabled = false;
+}
+
 async function confirmFactsCategory() {
   const url = document.getElementById('facts-cat-url').value;
   const existingCat = document.getElementById('facts-cat-select').value;
@@ -1817,6 +1872,10 @@ function renderQuestions(questions) {
   const catBtns = cats.map(c => `<button class="btn btn-red" style="font-size:0.8em;padding:5px 10px"
     onclick="deleteQuestionsByCategory('${c.replace(/'/g,"\\'")}')">🗑 All in ${c}</button>`).join(' ');
   div.innerHTML = `
+    <div style="margin-bottom:8px;font-size:0.85em;color:#666">
+      ${questions.length} questions — <label><input type="checkbox" onchange="toggleAllQuestions(this)"> Select All</label>
+      <button class="btn btn-red" style="font-size:0.8em;padding:5px 10px;margin-left:12px" onclick="deleteSelectedQuestions()">🗑 Delete Selected</button>
+    </div>
     <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <span style="font-size:0.85em;color:#666">Delete by category:</span>${catBtns}
     </div>
@@ -1824,6 +1883,7 @@ function renderQuestions(questions) {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
       <thead style="background:#f1f3f4">
         <tr>
+          <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666;width:30px"></th>
           <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Question</th>
           <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Category</th>
           <th style="padding:10px 14px;text-align:left;font-size:0.85em;color:#666">Keyphrase</th>
@@ -1834,6 +1894,7 @@ function renderQuestions(questions) {
       <tbody>
         ${questions.map(q => `
         <tr style="border-top:1px solid #e0e0e0">
+          <td style="padding:10px 14px"><input type="checkbox" class="q-chk" data-id="${q.id}"></td>
           <td style="padding:10px 14px;font-size:0.9em">${q.question}</td>
           <td style="padding:10px 14px"><span class="tag">${q.category||''}</span></td>
           <td style="padding:10px 14px;font-size:0.85em;color:#666">${q.keyphrase||''}</td>
@@ -1866,6 +1927,22 @@ async function deleteQuestion(id, btn) {
 async function deleteQuestionsByCategory(category) {
   if (!confirm(`Delete ALL questions in category "${category}"?`)) return;
   await fetch(`/questions/category/${encodeURIComponent(category)}`, {method: 'DELETE'});
+  loadQuestions();
+}
+
+function toggleAllQuestions(chk) {
+  document.querySelectorAll('.q-chk').forEach(c => c.checked = chk.checked);
+}
+
+async function deleteSelectedQuestions() {
+  const ids = [...document.querySelectorAll('.q-chk:checked')].map(c => +c.dataset.id);
+  if (!ids.length) { alert('No questions selected.'); return; }
+  if (!confirm(`Delete ${ids.length} questions?`)) return;
+  await fetch('/questions/delete-bulk', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(ids)
+  });
   loadQuestions();
 }
 
@@ -3280,6 +3357,14 @@ async function retryArticle(path) {
         if (k === 'title') idea = v;
         if (k === 'focus_keyphrase') document.getElementById('ag-keyphrase').value = v;
         if (k === 'category') document.getElementById('ag-category').value = v;
+        if (k === 'context_synth_kw' || k === 'context_kw_intel') {
+          var arr = JSON.parse(v || '[]');
+          if (Array.isArray(arr) && arr.length > 0) {
+            var existing = document.getElementById('ag-phrases').value;
+            var newPhrases = arr.join(', ');
+            document.getElementById('ag-phrases').value = existing ? existing + ', ' + newPhrases : newPhrases;
+          }
+        }
       }
     }
   }
@@ -4122,13 +4207,15 @@ async function syncPullWP(postId, slug) {
 }
 
 async function syncImproveWP(postId, slug) {
-  if (!confirm('🔧 Queue improvement for WP post #' + postId + '? The LLM will enrich with KB facts and questions.')) return;
+  var instr = getImproveInstructions();
+  if (!confirm('🔧 Queue improvement for WP post #' + postId + '?' +
+    (instr ? '\n\nInstructions: ' + instr : '') + '\n\nThe LLM will enrich with KB facts and questions.')) return;
   var btn = event.target; btn.textContent = '⏳...'; btn.disabled = true;
   _wsyncStatus('⏳ Queuing improvement job...');
   try {
     var res = await fetch('/articles/wp-sync/improve-async/' + postId, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({slug: slug})
+      body: JSON.stringify({slug: slug, instructions: instr})
     });
     var data = await res.json();
     if (data.job_id) {
@@ -4144,6 +4231,30 @@ async function syncImproveWP(postId, slug) {
   } catch(e) {
     _wsyncStatus('❌ Error: ' + e.message, 'error');
     btn.textContent = '🔧 Improve'; btn.disabled = false;
+  }
+}
+
+function getImproveInstructions() {
+  var custom = document.getElementById('imp-instr-custom').value.trim();
+  if (custom) return custom;
+  var preset = document.getElementById('imp-instr-preset').value;
+  return preset;
+}
+function onImprovePresetChange() {
+  var v = document.getElementById('imp-instr-preset').value;
+  if (v) document.getElementById('imp-instr-custom').value = v;
+}
+
+function onArticleNotesPreset() {
+  var v = document.getElementById('ag-notes-preset').value;
+  var existing = document.getElementById('ag-freeform-notes').value;
+  if (v && existing.indexOf(v) === -1) {
+    document.getElementById('ag-freeform-notes').value = existing ? existing + '\n' + v : v;
+    document.getElementById('ag-notes-preset').value = '';
+  }
+}
+
+async function pollImproveJob(jobId, postId, slug, btn) {
   }
 }
 

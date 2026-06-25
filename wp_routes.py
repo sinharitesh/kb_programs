@@ -389,7 +389,7 @@ async def api_wp_sync_view(wp_post_id: int, slug: str = ""):
 async def api_wp_sync_improve_async(wp_post_id: int, request: Request):
     data = await request.json()
     from wp_publisher import queue_improve_job
-    return JSONResponse(queue_improve_job(wp_post_id, data.get("slug","")))
+    return JSONResponse(queue_improve_job(wp_post_id, data.get("slug",""), data.get("instructions","")))
 
 @wp_router.get("/wp-sync/improve-async/{job_id}")
 async def api_wp_sync_improve_status(job_id: str):

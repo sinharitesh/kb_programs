@@ -414,6 +414,83 @@ Return ONLY a valid JSON object with these keys:
 Do not include any explanation, markdown, or code fences. Just the raw JSON object."""
 
 
+def calculate_seo_score(article_md: str, keyphrase: str, meta_desc: str = "") -> int:
+    """Calculate deterministic SEO score (0-100) based on measurable factors."""
+    import re
+    score = 0
+    text = article_md.lower()
+    kp = keyphrase.lower().strip()
+    words = article_md.split()
+    word_count = len(words)
+    
+    # 1. Focus keyphrase in title (10 pts)
+    title_match = re.search(r'^#\s+(.+)$', article_md, re.MULTILINE)
+    if title_match and kp in title_match.group(1).lower():
+        score += 10
+    
+    # 2. Keyphrase in first paragraph (10 pts)
+    paragraphs = [p.strip() for p in article_md.split('\n\n') if p.strip()]
+    if paragraphs and kp in paragraphs[0].lower():
+        score += 10
+    
+    # 3. Keyphrase density 1-2% (15 pts)
+    if kp:
+        kw_count = text.count(kp)
+        density = (kw_count / word_count * 100) if word_count else 0
+        if 1 <= density <= 2:
+            score += 15
+        elif 0.5 <= density < 1 or 2 < density <= 3:
+            score += 8
+    
+    # 4. Meta description length 120-155 chars (10 pts)
+    if meta_desc and 120 <= len(meta_desc) <= 155:
+        score += 10
+    elif meta_desc and 100 <= len(meta_desc) < 120:
+        score += 5
+    
+    # 5. H2/H3 structure (10 pts)
+    h2_count = len(re.findall(r'^##\s+', article_md, re.MULTILINE))
+    h3_count = len(re.findall(r'^###\s+', article_md, re.MULTILINE))
+    if h2_count >= 2 and h3_count >= 1:
+        score += 10
+    elif h2_count >= 2:
+        score += 5
+    
+    # 6. Word count adequacy (10 pts)
+    if word_count >= 800:
+        score += 10
+    elif word_count >= 500:
+        score += 6
+    elif word_count >= 300:
+        score += 3
+    
+    # 7. Internal links present (10 pts)
+    internal_links = len(re.findall(r'\[.+?\]\(/[^)]+\)', article_md))
+    if internal_links >= 2:
+        score += 10
+    elif internal_links >= 1:
+        score += 5
+    
+    # 8. Outbound links present (5 pts)
+    outbound_links = len(re.findall(r'\[.+?\]\(https?://[^)]+\)', article_md))
+    if outbound_links >= 1:
+        score += 5
+    
+    # 9. Readability - avg sentence length (10 pts)
+    sentences = re.split(r'[.!?]+', article_md)
+    avg_sentence = len(words) / len(sentences) if sentences else 0
+    if 10 <= avg_sentence <= 20:
+        score += 10
+    elif avg_sentence < 10 or avg_sentence <= 25:
+        score += 5
+    
+    # 10. FAQ section present (10 pts)
+    if re.search(r'##\s*(?:faq|frequently asked)', article_md, re.IGNORECASE):
+        score += 10
+    
+    return min(score, 100)
+
+
 # ── Article Generation Pipeline ───────────────────────────────────────────────
 
 def generate_article(context: dict, settings: dict) -> dict:
@@ -431,8 +508,14 @@ def generate_article(context: dict, settings: dict) -> dict:
     # SEO analysis
     logger.info("Running SEO analysis...")
     keywords = settings.get("keywords", context["idea"])
+    keyphrase = settings.get("focus_keyphrase", keywords.split(",")[0].strip() if "," in keywords else keywords)
+    
+    # Calculate deterministic SEO score
+    det_score = calculate_seo_score(article_md, keyphrase)
+    logger.info(f"Deterministic SEO Score: {det_score}")
+    
     seo_prompt = build_seo_prompt(article_md, keywords)
-    seo_data = {}
+    seo_data = {"seo_score": det_score}  # Start with deterministic score
     try:
         raw_seo = ollama_generate(seo_prompt, temperature=0.0)
         cleaned = raw_seo.strip()
@@ -440,8 +523,11 @@ def generate_article(context: dict, settings: dict) -> dict:
         cleaned = re.sub(r'\s*```$', '', cleaned)
         match = re.search(r'\{.*\}', cleaned, re.DOTALL)
         if match:
-            seo_data = json.loads(match.group())
-            logger.info(f"SEO Score: {seo_data.get('seo_score', 'N/A')}")
+            llm_seo_data = json.loads(match.group())
+            # Use deterministic score, keep other LLM suggestions
+            llm_seo_data["seo_score"] = det_score
+            seo_data = llm_seo_data
+            logger.info(f"SEO Score: {det_score} (deterministic)")
     except Exception as e:
         logger.warning(f"SEO analysis error: {e}")
 

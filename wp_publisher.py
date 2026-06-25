@@ -620,7 +620,7 @@ def _get_related_kb_context(title: str, content: str) -> str:
     con.close()
     return "\n\n".join(context_parts)
 
-def _run_improve_job(job_id, wp_post_id, slug):
+def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
     result = {"job_id": job_id, "status": "running", "wp_post_id": wp_post_id}
     try:
         r = _wp_get(f"/wp-json/wp/v2/posts/{wp_post_id}?_embed", timeout=15)
@@ -639,6 +639,7 @@ def _run_improve_job(job_id, wp_post_id, slug):
             return _save_improve_result(job_id, result)
         kb = _get_related_kb_context(title, plain)
         kb_section = "\n━━━ KB CONTEXT ━━━\n" + kb if kb else ""
+        instr_line = f"\nSPECIFIC INSTRUCTIONS: {instructions}" if instructions else ""
         prompt = f"""You are an expert SEO content improver. Improve this article.
 - Better hook, readability, paragraph flow
 - Add 2-3 reference links from KB context
@@ -646,7 +647,7 @@ def _run_improve_job(job_id, wp_post_id, slug):
 - Focus keyphrase 2-3x naturally
 - Passive voice < 10%, use active verbs
 - Meta description < 155 chars
-- Weave KB answers where appropriate
+- Weave KB answers where appropriate{instr_line}
 {kb_section}
 
 TITLE: {title}
@@ -681,11 +682,11 @@ def _save_improve_result(job_id, result):
     _IMPROVE_JOBS_DIR.mkdir(parents=True, exist_ok=True)
     (_IMPROVE_JOBS_DIR / f"{job_id}.json").write_text(_json_async.dumps(result, default=str))
 
-def queue_improve_job(wp_post_id, slug=""):
+def queue_improve_job(wp_post_id, slug="", instructions=""):
     job_id = f"wp_improve_{wp_post_id}_{_dt_async.now().strftime('%Y%m%d_%H%M%S')}"
     result = {"job_id":job_id,"status":"queued","wp_post_id":wp_post_id}
     _save_improve_result(job_id, result)
-    t = _threading.Thread(target=_run_improve_job, args=(job_id, wp_post_id, slug), daemon=True)
+    t = _threading.Thread(target=_run_improve_job, args=(job_id, wp_post_id, slug, instructions), daemon=True)
     t.start()
     return result
 
