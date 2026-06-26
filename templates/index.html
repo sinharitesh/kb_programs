@@ -3358,7 +3358,9 @@ async function retryArticle(path) {
         if (k === 'focus_keyphrase') document.getElementById('ag-keyphrase').value = v;
         if (k === 'category') document.getElementById('ag-category').value = v;
         if (k === 'context_synth_kw' || k === 'context_kw_intel') {
-          var arr = JSON.parse(v || '[]');
+          var arr = [];
+          try { arr = JSON.parse(v || '[]'); }
+          catch(e) { arr = (v || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); }
           if (Array.isArray(arr) && arr.length > 0) {
             var existing = document.getElementById('ag-phrases').value;
             var newPhrases = arr.join(', ');
