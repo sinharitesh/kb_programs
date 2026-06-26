@@ -3360,7 +3360,10 @@ async function retryArticle(path) {
         if (k === 'context_synth_kw' || k === 'context_kw_intel') {
           var arr = [];
           try { arr = JSON.parse(v || '[]'); }
-          catch(e) { arr = (v || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); }
+          catch(e) {
+            var raw = (v || '').replace(/^\[|\]$/g, '').replace(/"/g, '');
+            arr = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+          }
           if (Array.isArray(arr) && arr.length > 0) {
             var existing = document.getElementById('ag-phrases').value;
             var newPhrases = arr.join('\n');
