@@ -1469,7 +1469,10 @@ async def api_generate_article(
             article_jobs[job_id] = {**article_jobs[job_id], "status": "done", **result}
             _save_article_context(job_id, req.idea, ctx, settings, result)
         except Exception as e:
-            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": str(e)}
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"Article generation failed:\n{tb}")
+            article_jobs[job_id] = {**article_jobs[job_id], "status": "error", "message": tb[-600:]}
     background_tasks.add_task(run_generation)
     return JSONResponse({"job_id": job_id, "status": "generating"})
 
