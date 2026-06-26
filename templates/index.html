@@ -4063,15 +4063,37 @@ async function viewArticleMeta(slugOrFile) {
 
 async function refreshInternalUrls() {
   var statusEl = document.getElementById('il-status');
-  statusEl.innerHTML = '⏳ Fetching sitemap and scraping URLs...';
+  statusEl.innerHTML = '⏳ Starting...';
+  var btn = document.querySelector('#internallinks .btn-green');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing...'; }
   try {
     var res = await fetch('/internal-urls/refresh', {method: 'POST'});
     var data = await res.json();
-    statusEl.innerHTML = '✅ Refreshed! ' + data.count + ' URLs loaded.';
-    loadInternalUrls();
+    if (data.job_id) pollRefreshStatus(data.job_id);
   } catch(e) {
     statusEl.innerHTML = '❌ Error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
   }
+}
+
+function pollRefreshStatus(jobId) {
+  var statusEl = document.getElementById('il-status');
+  var btn = document.querySelector('#internallinks .btn-green');
+  fetch('/internal-urls/refresh-status/' + jobId).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.status === 'done') {
+      statusEl.innerHTML = '✅ Refreshed! ' + d.count + ' URLs loaded.';
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+      loadInternalUrls();
+    } else if (d.status === 'error') {
+      statusEl.innerHTML = '❌ ' + (d.message || 'Error');
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+    } else {
+      statusEl.innerHTML = '⏳ ' + d.status + '... ' + (d.done || 0) + ' of ' + (d.total || '?') + ' URLs scraped';
+      setTimeout(function() { pollRefreshStatus(jobId); }, 2000);
+    }
+  }).catch(function(e) {
+    statusEl.innerHTML = '❌ ' + e.message;
+  });
 }
 async function loadInternalUrls() {
   var search = document.getElementById('il-search')?.value || '';
@@ -4109,15 +4131,37 @@ function renderInternalUrls(urls) {
 // ── Internal Links ──
 async function refreshInternalUrls() {
   var statusEl = document.getElementById('il-status');
-  statusEl.innerHTML = '⏳ Fetching sitemap and scraping URLs...';
+  statusEl.innerHTML = '⏳ Starting...';
+  var btn = document.querySelector('#internallinks .btn-green');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing...'; }
   try {
     var res = await fetch('/internal-urls/refresh', {method: 'POST'});
     var data = await res.json();
-    statusEl.innerHTML = '✅ Refreshed! ' + data.count + ' URLs loaded.';
-    loadInternalUrls();
+    if (data.job_id) pollRefreshStatus(data.job_id);
   } catch(e) {
     statusEl.innerHTML = '❌ Error: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
   }
+}
+
+function pollRefreshStatus(jobId) {
+  var statusEl = document.getElementById('il-status');
+  var btn = document.querySelector('#internallinks .btn-green');
+  fetch('/internal-urls/refresh-status/' + jobId).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.status === 'done') {
+      statusEl.innerHTML = '✅ Refreshed! ' + d.count + ' URLs loaded.';
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+      loadInternalUrls();
+    } else if (d.status === 'error') {
+      statusEl.innerHTML = '❌ ' + (d.message || 'Error');
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+    } else {
+      statusEl.innerHTML = '⏳ ' + d.status + '... ' + (d.done || 0) + ' of ' + (d.total || '?') + ' URLs scraped';
+      setTimeout(function() { pollRefreshStatus(jobId); }, 2000);
+    }
+  }).catch(function(e) {
+    statusEl.innerHTML = '❌ ' + e.message;
+  });
 }
 
 async function loadInternalUrls() {
