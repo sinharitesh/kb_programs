@@ -332,32 +332,6 @@ def _build_article_prompt(context: dict, settings: dict) -> str:
     # Gather internal + external links
     links_block = _get_prompt_links(context["idea"], context.get("selected_facts") or context.get("facts") or [])
 
-
-def _get_prompt_links(idea, facts):
-    """Get matching internal + external links for the article prompt."""
-    import json as _json_il
-    links = []
-    # Internal links from ritsin.com sitemap
-    try:
-        f = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
-        if f.exists():
-            data = _json_il.loads(f.read_text())
-            words = set(idea.lower().split())
-            scored = [(len(words & set(u["title"].lower().split())), u) for u in data]
-            scored.sort(key=lambda x: x[0], reverse=True)
-            for _, u in scored[:2]:
-                links.append(f"- [{u['title']}]({u['url']})  ← ritsin.com internal link")
-    except: pass
-    # External links from gathered facts
-    seen = set()
-    for fct in (facts or [])[:5]:
-        url = fct.get("source_url", "")
-        title = fct.get("source_title", "") or url.split("/")[-1]
-        if url.startswith("http") and url not in seen:
-            seen.add(url)
-            links.append(f"- [{title}]({url})  ← external reference")
-    return "\n".join(links[:4]) if links else "No links available"
-
     return f"""You are a world-class content writer known for writing articles that feel alive — the kind readers cannot stop halfway through.
 
 Write a compelling {content_type} in {lang_instruction}.
@@ -429,6 +403,33 @@ Word Count       : approximately {word_count} words
 
 Output ONLY the article markdown — nothing before the first heading.
 """
+
+
+def _get_prompt_links(idea, facts):
+    """Get matching internal + external links for the article prompt."""
+    import json as _json_il
+    links = []
+    # Internal links from ritsin.com sitemap
+    try:
+        f = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
+        if f.exists():
+            data = _json_il.loads(f.read_text())
+            words = set(idea.lower().split())
+            scored = [(len(words & set(u["title"].lower().split())), u) for u in data]
+            scored.sort(key=lambda x: x[0], reverse=True)
+            for _, u in scored[:2]:
+                links.append(f"- [{u['title']}]({u['url']})  ← ritsin.com internal link")
+    except: pass
+    # External links from gathered facts
+    seen = set()
+    for fct in (facts or [])[:5]:
+        url = fct.get("source_url", "")
+        title = fct.get("source_title", "") or url.split("/")[-1]
+        if url.startswith("http") and url not in seen:
+            seen.add(url)
+            links.append(f"- [{title}]({url})  ← external reference")
+    return "\n".join(links[:4]) if links else "No links available"
+
 
 
 def build_seo_prompt(article_md: str, keywords: str) -> str:
