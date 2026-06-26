@@ -255,6 +255,12 @@
   <div class="nav-item" onclick="showTab('wpsync', this)">
     <span class="nav-icon">🔄</span> WP Sync
   </div>
+  <div class="nav-item" onclick="showTab('internallinks', this)">
+    <span class="nav-icon">🔗</span> Internal Links
+  </div>
+  <div class="nav-item" onclick="showTab('internallinks', this)">
+    <span class="nav-icon">🔗</span> Internal Links
+  </div>
   <div class="nav-item" onclick="showTab('indexrebuild', this)">
     <span class="nav-icon">🔄</span> Index
   </div>
@@ -888,6 +894,7 @@
       <div id="ag-article-rendered" class="wiki-rendered" style="border:1px solid #e0e0e0;padding:20px;border-radius:8px;"></div>
       <textarea id="ag-article-md" style="display:none;height:500px;"></textarea>
       <div id="ag-seo-info" style="margin-top:16px;padding:12px;background:#e8f5e9;border-radius:8px;font-size:0.9em;"></div>
+      <div id="ag-internal-links" style="margin-top:12px;display:none;"></div>
     </div>
   </div>
 
@@ -943,6 +950,51 @@
     </div>
   </div>
 
+
+  <div id="internallinks" class="section">
+    <h2>🔗 Internal Links (ritsin.com)</h2>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span style="color:#666;font-size:0.9em;">Manage internal URLs from sitemap for article linking.</span>
+        <button class="btn btn-green" onclick="refreshInternalUrls()">🔄 Refresh from Sitemap</button>
+      </div>
+      <div id="il-status" style="margin-top:8px;font-size:0.85em;color:#666;"></div>
+    </div>
+    <div id="il-count" style="margin-bottom:8px;font-size:0.85em;color:#666;"></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input type="text" id="il-search" placeholder="🔍 Search titles or snippets..." oninput="loadInternalUrls()" style="flex:1;min-width:200px;">
+      <select id="il-category" onchange="loadInternalUrls()" style="width:auto;min-width:150px;">
+        <option value="">All Categories</option>
+      </select>
+    </div>
+    <div id="il-list">
+      <p style="color:#666;text-align:center;padding:40px;">Click "🔄 Refresh from Sitemap" to load URLs.</p>
+    </div>
+  </div>
+
+
+  <!-- INTERNAL LINKS -->
+  <div id="internallinks" class="section">
+    <h2>🔗 Internal Links (ritsin.com)</h2>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span style="color:#666;font-size:0.9em;">Manage internal URLs from sitemap for article linking.</span>
+        <button class="btn btn-green" onclick="refreshInternalUrls()">🔄 Refresh from Sitemap</button>
+      </div>
+      <div id="il-status" style="margin-top:8px;font-size:0.85em;color:#666;"></div>
+    </div>
+    <div id="il-count" style="margin-bottom:8px;font-size:0.85em;color:#666;"></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input type="text" id="il-search" placeholder="🔍 Search titles or snippets..." oninput="loadInternalUrls()" style="flex:1;min-width:200px;">
+      <select id="il-category" onchange="loadInternalUrls()" style="width:auto;min-width:150px;">
+        <option value="">All Categories</option>
+      </select>
+    </div>
+    <div id="il-list">
+      <p style="color:#666;text-align:center;padding:40px;">Click "🔄 Refresh from Sitemap" to load URLs.</p>
+    </div>
+  </div>
+  
   <!-- INDEX MANAGEMENT -->
   <div id="indexrebuild" class="section">
     <h2>🗂️ Index Management</h2>
@@ -1223,6 +1275,7 @@ function _showTabImpl(name, el) {
   if (name === 'wpsync') loadWPSync();
   if (name === 'discovered') loadDiscoveredURLs();
   if (name === 'indexrebuild') loadIndexSummary();
+  if (name === 'internallinks') loadInternalUrls();
 }
 showTab = _showTabImpl;
 
@@ -3113,6 +3166,40 @@ async function pollArticleStatus() {
   }
 }
 
+async function loadInternalLinkMatches(text) {
+  try {
+    var res = await fetch('/internal-urls/match', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    var d = await res.json();
+    var matches = d.matches || [];
+    if (!matches.length) return;
+    var div = document.getElementById('ag-internal-links');
+    div.style.display = 'block';
+    div.innerHTML = '<h4 style="margin-bottom:8px;">🔗 Suggested Internal Links</h4>' +
+      matches.map(function(m, i) {
+        return '<label style="display:flex;align-items:center;gap:6px;font-size:0.85em;margin-bottom:4px;cursor:pointer;">' +
+          '<input type="checkbox" class="il-match-cb" data-url="' + m.url + '" data-title="' + (m.title||'').replace(/"/g,'&quot;') + '"> ' +
+          (m.title||m.url.split('/').pop()) + ' <span style="color:#888;font-size:0.8em;">(' + m.url.split('/').pop() + ')</span></label>';
+      }).join('') +
+      '<button class="btn btn-blue" style="font-size:0.8em;padding:4px 10px;margin-top:6px;" onclick="insertSelectedInternalLinks()">📎 Insert Selected Links</button>';
+  } catch(e) {}
+}
+
+function insertSelectedInternalLinks() {
+  var cbs = document.querySelectorAll('.il-match-cb:checked');
+  if (!cbs.length) return;
+  var links = [];
+  cbs.forEach(function(cb) {
+    links.push('- [' + cb.getAttribute('data-title') + '](' + cb.getAttribute('data-url') + ')');
+  });
+  var md = document.getElementById('ag-article-md');
+  md.value = md.value + '\n\n' + links.join('\n');
+  document.getElementById('ag-article-rendered').innerHTML = marked.parse(md.value);
+  alert('✅ Added ' + links.length + ' internal link(s)');
+}
+
 function showArticleResult(data) {
   document.getElementById('ag-preview').style.display = 'block';
   document.getElementById('ag-article-md').value = data.article_md;
@@ -3136,6 +3223,8 @@ function showArticleResult(data) {
     imgHtml += '</div>';
     document.getElementById('ag-seo-info').innerHTML += imgHtml;
   }
+  // Fetch internal link suggestions
+  loadInternalLinkMatches(data.article_md);
 }
 
 function toggleArticleView(mode) {
@@ -3957,6 +4046,107 @@ async function viewArticleMeta(slugOrFile) {
   document.getElementById('meta-modal-content').innerHTML = h;
   document.getElementById('meta-modal').style.display = 'flex';
 }
+
+
+async function refreshInternalUrls() {
+  var statusEl = document.getElementById('il-status');
+  statusEl.innerHTML = '⏳ Fetching sitemap and scraping URLs...';
+  try {
+    var res = await fetch('/internal-urls/refresh', {method: 'POST'});
+    var data = await res.json();
+    statusEl.innerHTML = '✅ Refreshed! ' + data.count + ' URLs loaded.';
+    loadInternalUrls();
+  } catch(e) {
+    statusEl.innerHTML = '❌ Error: ' + e.message;
+  }
+}
+async function loadInternalUrls() {
+  var search = document.getElementById('il-search')?.value || '';
+  var category = document.getElementById('il-category')?.value || '';
+  var params = new URLSearchParams({search: search, category: category});
+  var res = await fetch('/internal-urls?' + params);
+  var data = await res.json();
+  var urls = data.urls || [];
+  document.getElementById('il-count').textContent = urls.length + ' URLs';
+  var cats = [...new Set(urls.map(function(u) { return u.category; }).filter(Boolean))].sort();
+  var catSelect = document.getElementById('il-category');
+  if (catSelect && catSelect.options.length <= 1) {
+    catSelect.innerHTML = '<option value="">All Categories</option>' +
+      cats.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+  }
+  renderInternalUrls(urls);
+}
+function renderInternalUrls(urls) {
+  var div = document.getElementById('il-list');
+  if (!urls.length) {
+    div.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">No URLs found.</p>';
+    return;
+  }
+  div.innerHTML = '<table class="data-table" style="width:100%;"><thead><tr>' +
+    '<th>URL</th><th>Title</th><th>Snippet</th><th>Category</th></tr></thead><tbody>' +
+    urls.map(function(u) {
+      return '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.8em;"><a href="' + u.url + '" target="_blank">' + u.url.split('/').pop() + '</a></td>' +
+        '<td style="font-size:0.85em;">' + (u.title||'') + '</td>' +
+        '<td style="font-size:0.8em;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (u.snippet||'') + '</td>' +
+        '<td><span class="tag">' + (u.category||'') + '</span></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+
+// ── Internal Links ──
+async function refreshInternalUrls() {
+  var statusEl = document.getElementById('il-status');
+  statusEl.innerHTML = '⏳ Fetching sitemap and scraping URLs...';
+  try {
+    var res = await fetch('/internal-urls/refresh', {method: 'POST'});
+    var data = await res.json();
+    statusEl.innerHTML = '✅ Refreshed! ' + data.count + ' URLs loaded.';
+    loadInternalUrls();
+  } catch(e) {
+    statusEl.innerHTML = '❌ Error: ' + e.message;
+  }
+}
+
+async function loadInternalUrls() {
+  var search = document.getElementById('il-search')?.value || '';
+  var category = document.getElementById('il-category')?.value || '';
+  var params = new URLSearchParams({search: search, category: category});
+  var res = await fetch('/internal-urls?' + params);
+  var data = await res.json();
+  var urls = data.urls || [];
+
+  document.getElementById('il-count').textContent = urls.length + ' URLs';
+
+  // Populate category dropdown
+  var cats = [...new Set(urls.map(function(u) { return u.category; }).filter(Boolean))].sort();
+  var catSelect = document.getElementById('il-category');
+  if (catSelect && catSelect.options.length <= 1) {
+    catSelect.innerHTML = '<option value="">All Categories</option>' +
+      cats.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+  }
+
+  renderInternalUrls(urls);
+}
+
+function renderInternalUrls(urls) {
+  var div = document.getElementById('il-list');
+  if (!urls.length) {
+    div.innerHTML = '<p style="color:#666;text-align:center;padding:40px;">No URLs found. Click "🔄 Refresh from Sitemap".</p>';
+    return;
+  }
+  div.innerHTML = '<table class="data-table" style="width:100%;"><thead><tr>' +
+    '<th>URL</th><th>Title</th><th>Snippet</th><th>Category</th></tr></thead><tbody>' +
+    urls.map(function(u) {
+      return '<tr>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.8em;"><a href="' + u.url + '" target="_blank">' + u.url.split('/').pop() + '</a></td>' +
+        '<td style="font-size:0.85em;">' + (u.title||'') + '</td>' +
+        '<td style="font-size:0.8em;color:#666;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (u.snippet||'') + '</td>' +
+        '<td><span class="tag">' + (u.category||'') + '</span></td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table>';
+}
+
 
 // ── WP Sync ──
 function _wsyncStatus(msg, type) {

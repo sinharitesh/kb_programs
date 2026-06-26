@@ -620,6 +620,26 @@ def _get_related_kb_context(title: str, content: str) -> str:
     con.close()
     return "\n\n".join(context_parts)
 
+
+
+def _get_internal_links(text):
+    """Match article text against internal URLs JSON. Returns formatted markdown links."""
+    import json as _json_imp
+    try:
+        f = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
+        if not f.exists(): return ""
+        data = _json_imp.loads(f.read_text())
+        words = set(text.lower().split())
+        scored = []
+        for u in data:
+            title_words = set(u["title"].lower().split()) | set(u.get("snippet","").lower().split())
+            s = len(words & title_words)
+            if s > 0: scored.append((s, u))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        links = [f"- [{u['title']}]({u['url']})" for _,u in scored[:3]]
+        return "\n".join(links)
+    except: return ""
+
 def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
     result = {"job_id": job_id, "status": "running", "wp_post_id": wp_post_id}
     try:
@@ -639,6 +659,8 @@ def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
             return _save_improve_result(job_id, result)
         kb = _get_related_kb_context(title, plain)
         kb_section = "\n━━━ KB CONTEXT ━━━\n" + kb if kb else ""
+        internal_links = _get_internal_links(plain[:2000] + " " + title)
+        il_section = "\n━━━ SUGGESTED INTERNAL LINKS (ritsin.com) ━━━\n" + internal_links if internal_links else ""
         instr_line = f"\nSPECIFIC INSTRUCTIONS: {instructions}" if instructions else ""
         prompt = f"""You are an expert SEO content improver. Improve this article.
 - Better hook, readability, paragraph flow
@@ -648,7 +670,7 @@ def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
 - Passive voice < 10%, use active verbs
 - Meta description < 155 chars
 - Weave KB answers where appropriate{instr_line}
-{kb_section}
+{kb_section}{il_section}
 
 TITLE: {title}
 {plain[:5000]}

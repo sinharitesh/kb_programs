@@ -1712,6 +1712,138 @@ async def api_save_article_with_prompt(req: SaveArticleWithPromptRequest):
 
 
 # ── WordPress Publishing ──────────────────────────────────────────
+
+# ── Internal Links ────────────────────────────────────────────────────────────
+import xml.etree.ElementTree as ET
+
+INTERNAL_URLS_FILE = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
+
+@app.post("/internal-urls/refresh")
+async def refresh_internal_urls():
+    """Fetch sitemap, scrape each URL for title+snippet, save to JSON."""
+    INTERNAL_URLS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    r = httpx.get("https://ritsin.com/post-sitemap.xml", timeout=30)
+    root = ET.fromstring(r.text)
+    ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    urls = [el.text for el in root.findall(".//ns:loc", ns)]
+    results = []
+    for url in urls:
+        try:
+            resp = httpx.get(url, timeout=15)
+            html = resp.text
+            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
+            title = title_match.group(1) if title_match else url.split("/")[-1].replace("-", " ")
+            body = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+            body = re.sub(r"<style.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
+            body = re.sub(r"<[^>]+>", " ", body)
+            body = re.sub(r"\s+", " ", body).strip()
+            snippet = body[:250]
+            parts = url.replace("https://ritsin.com/", "").split("/")
+            category = parts[0] if parts[0] else "uncategorized"
+            results.append({"url": url, "title": title, "snippet": snippet, "category": category})
+        except:
+            results.append({"url": url, "title": url, "snippet": "", "category": ""})
+    with open(INTERNAL_URLS_FILE, "w") as f:
+        json.dump(results, f, indent=2)
+    return JSONResponse({"status": "ok", "count": len(results)})
+
+@app.get("/internal-urls")
+async def get_internal_urls(search: str = "", category: str = ""):
+    if not INTERNAL_URLS_FILE.exists():
+        return JSONResponse({"urls": []})
+    data = json.loads(INTERNAL_URLS_FILE.read_text())
+    if search:
+        s = search.lower()
+        data = [u for u in data if s in u["title"].lower() or s in u["snippet"].lower()]
+    if category:
+        data = [u for u in data if u["category"] == category]
+    return JSONResponse({"urls": data})
+
+@app.post("/internal-urls/match")
+async def match_internal_urls(request: Request):
+    body = await request.json()
+    text = body.get("text", "").lower()
+    if not text or not INTERNAL_URLS_FILE.exists():
+        return JSONResponse({"matches": []})
+    data = json.loads(INTERNAL_URLS_FILE.read_text())
+    words = set(text.split())
+    scored = []
+    for u in data:
+        title_words = set(u["title"].lower().split()) | set(u["snippet"].lower().split())
+        score = len(words & title_words)
+        if score > 0:
+            scored.append({**u, "score": score})
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return JSONResponse({"matches": scored[:5]})
+
+
+
+
+# ── Internal Links ────────────────────────────────────────────────────────────
+import xml.etree.ElementTree as ET
+import httpx
+
+INTERNAL_URLS_FILE = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
+
+@app.post("/internal-urls/refresh")
+async def refresh_internal_urls():
+    """Fetch sitemap, scrape each URL for title+snippet, save to JSON."""
+    INTERNAL_URLS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    r = httpx.get("https://ritsin.com/post-sitemap.xml", timeout=30)
+    root = ET.fromstring(r.text)
+    ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    urls = [el.text for el in root.findall(".//ns:loc", ns)]
+    results = []
+    for url in urls:
+        try:
+            resp = httpx.get(url, timeout=15)
+            html = resp.text
+            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
+            title = title_match.group(1) if title_match else url.split("/")[-1].replace("-", " ")
+            body = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+            body = re.sub(r"<style.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
+            body = re.sub(r"<[^>]+>", " ", body)
+            body = re.sub(r"\s+", " ", body).strip()
+            snippet = body[:250]
+            parts = url.replace("https://ritsin.com/", "").split("/")
+            category = parts[0] if parts[0] else "uncategorized"
+            results.append({"url": url, "title": title, "snippet": snippet, "category": category})
+        except:
+            results.append({"url": url, "title": url, "snippet": "", "category": ""})
+    with open(INTERNAL_URLS_FILE, "w") as f:
+        json.dump(results, f, indent=2)
+    return JSONResponse({"status": "ok", "count": len(results)})
+
+@app.get("/internal-urls")
+async def get_internal_urls(search: str = "", category: str = ""):
+    if not INTERNAL_URLS_FILE.exists():
+        return JSONResponse({"urls": []})
+    data = json.loads(INTERNAL_URLS_FILE.read_text())
+    if search:
+        s = search.lower()
+        data = [u for u in data if s in u["title"].lower() or s in u["snippet"].lower()]
+    if category:
+        data = [u for u in data if u["category"] == category]
+    return JSONResponse({"urls": data})
+
+@app.post("/internal-urls/match")
+async def match_internal_urls(request: Request):
+    body = await request.json()
+    text = body.get("text", "").lower()
+    if not text or not INTERNAL_URLS_FILE.exists():
+        return JSONResponse({"matches": []})
+    data = json.loads(INTERNAL_URLS_FILE.read_text())
+    words = set(text.split())
+    scored = []
+    for u in data:
+        title_words = set(u["title"].lower().split()) | set(u["snippet"].lower().split())
+        score = len(words & title_words)
+        if score > 0:
+            scored.append({**u, "score": score})
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return JSONResponse({"matches": scored[:5]})
+
+
 from wp_routes import wp_router
 app.include_router(wp_router)
 
