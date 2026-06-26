@@ -320,6 +320,35 @@ def build_article_prompt(context: dict, settings: dict) -> str:
     }
     lang_instruction = LANG_MAP.get(language, 'English')
 
+
+def _get_prompt_links(idea, facts):
+    """Get matching internal + external links for the article prompt."""
+    import json as _json_il
+    links = []
+    # Internal links from ritsin.com sitemap
+    try:
+        f = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
+        if f.exists():
+            data = _json_il.loads(f.read_text())
+            words = set(idea.lower().split())
+            scored = [(len(words & set(u["title"].lower().split())), u) for u in data]
+            scored.sort(key=lambda x: x[0], reverse=True)
+            for _, u in scored[:2]:
+                links.append(f"- [{u['title']}]({u['url']})  ← ritsin.com internal link")
+    except: pass
+    # External links from gathered facts
+    seen = set()
+    for fct in (facts or [])[:5]:
+        url = fct.get("source_url", "")
+        title = fct.get("source_title", "") or url.split("/")[-1]
+        if url.startswith("http") and url not in seen:
+            seen.add(url)
+            links.append(f"- [{title}]({url})  ← external reference")
+    return "\n".join(links[:4]) if links else "No links available"
+
+    # Gather internal + external links
+    links_block = _get_prompt_links(context["idea"], context.get("selected_facts", context.get("facts", [])))
+
     return f"""You are a world-class content writer known for writing articles that feel alive — the kind readers cannot stop halfway through.
 
 Write a compelling {content_type} in {lang_instruction}.
@@ -339,6 +368,9 @@ Word Count       : approximately {word_count} words
 
 ━━━ QUESTIONS & ANSWERS ━━━
 {questions_block}
+
+━━━ AVAILABLE LINKS (you MUST use at least 2 of these as markdown links) ━━━
+{links_block}
 
 ━━━ CROSS-REFERENCE INSTRUCTIONS ━━━
 1. Link facts to KB context when they align — e.g., if a fact says "Thawe temple is 400 years old" and KB context mentions Thawe, connect them naturally.
@@ -378,9 +410,9 @@ Word Count       : approximately {word_count} words
 
 7. SEO REQUIREMENTS (these directly affect your quality score):
    - The FOCUS KEYPHRASE "{focus_keyphrase}" MUST appear verbatim in the title (H1) and first paragraph
-   - Use the keyphrase 2-3 more times naturally throughout the article (1-2% density)
-   - Include at least 2 markdown links to other relevant articles (use [descriptive text](URL) format)  
-   - Include at least 1 external reference link to a trusted source
+   - Use the keyphrase 2-3 more times naturally (1-2% density)
+   - Use at least 2 links from the AVAILABLE LINKS section above as markdown links [text](URL)
+   - Include at least 1 external reference link (also from AVAILABLE LINKS)
    - End the article with a FAQ subsection under ## Frequently Asked Questions
 
 8. END with meta description as blockquote:
