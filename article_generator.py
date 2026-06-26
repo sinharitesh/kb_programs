@@ -376,7 +376,12 @@ Word Count       : approximately {word_count} words
    - NO filler: "In conclusion", "It is important to note", "In today's world"
    - NO flowery intros: "As I sit...", "Imagine a world...", "In the annals of..."
 
-7. SEO — use keyphrase and keywords naturally, include unanswered questions in article body
+7. SEO REQUIREMENTS (these directly affect your quality score):
+   - The FOCUS KEYPHRASE "{focus_keyphrase}" MUST appear verbatim in the title (H1) and first paragraph
+   - Use the keyphrase 2-3 more times naturally throughout the article (1-2% density)
+   - Include at least 2 markdown links to other relevant articles (use [descriptive text](URL) format)  
+   - Include at least 1 external reference link to a trusted source
+   - End the article with a FAQ subsection under ## Frequently Asked Questions
 
 8. END with meta description as blockquote:
    > **Meta:** [max 155 chars]
@@ -443,6 +448,10 @@ def calculate_seo_score(article_md: str, keyphrase: str, meta_desc: str = "") ->
             score += 8
     
     # 4. Meta description length 120-155 chars (10 pts)
+    # If no meta_desc provided, try extracting from article body
+    if not meta_desc:
+        meta_match = re.search(r'> \*\*Meta:\*\* (.+)$', article_md, re.MULTILINE)
+        if meta_match: meta_desc = meta_match.group(1).strip()
     if meta_desc and 120 <= len(meta_desc) <= 155:
         score += 10
     elif meta_desc and 100 <= len(meta_desc) < 120:
