@@ -629,6 +629,12 @@ async def api_wp_sync_accept(wp_post_id: int, request: Request):
         if not content_md:
             return JSONResponse({"status": "error", "message": "No content provided"})
 
+        # Delete completed improve jobs so button resets to "🔧 Improve"
+        from wp_publisher import _IMPROVE_JOBS_DIR
+        import glob
+        for f in glob.glob(str(_IMPROVE_JOBS_DIR / f"wp_improve_{wp_post_id}_*.json")):
+            Path(f).unlink()
+
         # Backup old version
         if slug:
             gen_root = IMG_ROOT / "generated_articles"
