@@ -639,6 +639,46 @@ def _get_internal_links(text):
         links = [f"- [{u['title']}]({u['url']})" for _,u in scored[:3]]
         return "\n".join(links)
     except: return ""
+def _get_external_links(text, limit=2):
+    """Extract relevant external URLs from KB facts matching the text."""
+    from db import get_con
+    import re as _re_ext
+    words = _re_ext.findall(r"[A-Z][a-z]{3,}|[a-z]{5,}", text[:500])
+    terms = list(dict.fromkeys(w.lower() for w in words if len(w) > 3))[:5]
+    if not terms: return ""
+    try:
+        con = get_con()
+        like = " OR ".join(["f.fact ILIKE ?" for _ in terms])
+        rows = con.execute(
+            f"SELECT DISTINCT r.title, r.url FROM facts f JOIN url_registry r ON r.id=f.url_id WHERE r.url LIKE 'http%%' AND ({like}) LIMIT ?",
+            [f"%%{t}%%" for t in terms] + [limit]
+        ).fetchall()
+        con.close()
+        if rows:
+            return "\n".join([f"- [{r[0] or 'Source'}]({r[1]})" for r in rows])
+    except: pass
+    return ""
+
+def _get_external_links(text, limit=2):
+    """Extract relevant external URLs from KB facts matching the text."""
+    from db import get_con
+    import re as _re_ext
+    words = _re_ext.findall(r"[A-Z][a-z]{3,}|[a-z]{5,}", text[:500])
+    terms = list(dict.fromkeys(w.lower() for w in words if len(w) > 3))[:5]
+    if not terms: return ""
+    try:
+        con = get_con()
+        like = " OR ".join(["f.fact ILIKE ?" for _ in terms])
+        rows = con.execute(
+            f"SELECT DISTINCT r.title, r.url FROM facts f JOIN url_registry r ON r.id=f.url_id WHERE r.url LIKE 'http%%' AND ({like}) LIMIT ?",
+            [f"%%{t}%%" for t in terms] + [limit]
+        ).fetchall()
+        con.close()
+        if rows:
+            return "\n".join([f"- [{r[0] or 'Source'}]({r[1]})" for r in rows])
+    except: pass
+    return ""
+
 
 def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
     result = {"job_id": job_id, "status": "running", "wp_post_id": wp_post_id}
@@ -661,6 +701,10 @@ def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
         kb_section = "\n━━━ KB CONTEXT ━━━\n" + kb if kb else ""
         internal_links = _get_internal_links(plain[:2000] + " " + title)
         il_section = "\n━━━ SUGGESTED INTERNAL LINKS (ritsin.com) ━━━\n" + internal_links if internal_links else ""
+        external_links = _get_external_links(plain[:2000] + " " + title)
+        el_section = "\n━━━ SUGGESTED EXTERNAL LINKS ━━━\n" + external_links if external_links else ""
+        external_links = _get_external_links(plain[:2000] + " " + title)
+        el_section = "\n━━━ SUGGESTED EXTERNAL LINKS ━━━\n" + external_links if external_links else ""
         instr_line = f"\nSPECIFIC INSTRUCTIONS: {instructions}" if instructions else ""
         prompt = f"""You are an expert SEO content improver. Improve this article.
 - Better hook, readability, paragraph flow
@@ -670,7 +714,7 @@ def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
 - Passive voice < 10%, use active verbs
 - Meta description < 155 chars
 - Weave KB answers where appropriate{instr_line}
-{kb_section}{il_section}
+{kb_section}{il_section}{el_section}
 
 TITLE: {title}
 {plain[:5000]}

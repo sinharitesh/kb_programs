@@ -3174,14 +3174,27 @@ async function loadInternalLinkMatches(text) {
     });
     var d = await res.json();
     var matches = d.matches || [];
-    if (!matches.length) return;
+    // Also collect external links from gathered facts
+    var externalLinks = [];
+    var seenUrls = {};
+    (gatheredContext.facts || []).forEach(function(f) {
+      if (f.source_url && f.source_url.startsWith('http') && !seenUrls[f.source_url]) {
+        seenUrls[f.source_url] = true;
+        externalLinks.push({url: f.source_url, title: f.source_title || f.source_url.split('/').pop(), type: 'external'});
+      }
+    });
+    // Deduplicate internal vs external
+    matches.forEach(function(m) { seenUrls[m.url] = true; });
+    var allMatches = matches.map(function(m) { m.type = 'internal'; return m; }).concat(externalLinks.slice(0, 2));
+    if (!allMatches.length) return;
     var div = document.getElementById('ag-internal-links');
     div.style.display = 'block';
-    div.innerHTML = '<h4 style="margin-bottom:8px;">🔗 Suggested Internal Links</h4>' +
-      matches.map(function(m, i) {
+    div.innerHTML = '<h4 style="margin-bottom:8px;">🔗 Suggested Links</h4>' +
+      allMatches.map(function(m, i) {
+        var icon = m.type === 'external' ? '🌐' : '🔗';
         return '<label style="display:flex;align-items:center;gap:6px;font-size:0.85em;margin-bottom:4px;cursor:pointer;">' +
-          '<input type="checkbox" class="il-match-cb" data-url="' + m.url + '" data-title="' + (m.title||'').replace(/"/g,'&quot;') + '"> ' +
-          (m.title||m.url.split('/').pop()) + ' <span style="color:#888;font-size:0.8em;">(' + m.url.split('/').pop() + ')</span></label>';
+          '<input type="checkbox" class="il-match-cb" data-url="' + m.url + '" data-title="' + (m.title||'').replace(/"/g,'&quot;') + '" ' + (m.type==='internal'?'checked':'') + '> ' +
+          icon + ' ' + (m.title||m.url.split('/').pop()) + ' <span style="color:#888;font-size:0.8em;">(' + (m.type==='external'?'external':'ritsin.com') + ')</span></label>';
       }).join('') +
       '<button class="btn btn-blue" style="font-size:0.8em;padding:4px 10px;margin-top:6px;" onclick="insertSelectedInternalLinks()">📎 Insert Selected Links</button>';
   } catch(e) {}
