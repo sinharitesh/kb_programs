@@ -974,26 +974,6 @@
 
 
   <!-- INTERNAL LINKS -->
-  <div id="internallinks" class="section">
-    <h2>🔗 Internal Links (ritsin.com)</h2>
-    <div class="card" style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <span style="color:#666;font-size:0.9em;">Manage internal URLs from sitemap for article linking.</span>
-        <button class="btn btn-green" onclick="refreshInternalUrls()">🔄 Refresh from Sitemap</button>
-      </div>
-      <div id="il-status" style="margin-top:8px;font-size:0.85em;color:#666;"></div>
-    </div>
-    <div id="il-count" style="margin-bottom:8px;font-size:0.85em;color:#666;"></div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-      <input type="text" id="il-search" placeholder="🔍 Search titles or snippets..." oninput="loadInternalUrls()" style="flex:1;min-width:200px;">
-      <select id="il-category" onchange="loadInternalUrls()" style="width:auto;min-width:150px;">
-        <option value="">All Categories</option>
-      </select>
-    </div>
-    <div id="il-list">
-      <p style="color:#666;text-align:center;padding:40px;">Click "🔄 Refresh from Sitemap" to load URLs.</p>
-    </div>
-  </div>
   
   <!-- INDEX MANAGEMENT -->
   <div id="indexrebuild" class="section">

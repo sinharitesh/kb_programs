@@ -275,6 +275,7 @@ def build_facts_block(facts):
 
 def build_questions_block(questions):
     """Format selected questions for the article prompt."""
+    if not questions: return "(No questions available)"
     answered = []
     unanswered = []
     for q in questions:
