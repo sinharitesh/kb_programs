@@ -261,6 +261,7 @@ def clean_article(text):
 
 def build_facts_block(facts):
     """Format selected facts for the article prompt, sorting by interest score. Includes source URLs for natural linking."""
+    facts = facts or []
     sorted_facts = sorted(facts, key=lambda f: f.get("interest_score", 5), reverse=True)
     lines = []
     for i, f in enumerate(sorted_facts, 1):
@@ -347,7 +348,7 @@ def _get_prompt_links(idea, facts):
     return "\n".join(links[:4]) if links else "No links available"
 
     # Gather internal + external links
-    links_block = _get_prompt_links(context["idea"], context.get("selected_facts", context.get("facts", [])))
+    links_block = _get_prompt_links(context["idea"], context.get("selected_facts") or context.get("facts") or [])
 
     return f"""You are a world-class content writer known for writing articles that feel alive — the kind readers cannot stop halfway through.
 
