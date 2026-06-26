@@ -4234,7 +4234,7 @@ async function syncImproveWP(postId, slug) {
       btn.disabled = true;
       btn.style.cursor = 'default';
       _wsyncStatus('⏳ Job ' + data.job_id.slice(-16) + ' queued. Polling every 3s...');
-      pollImproveJob(data.job_id, postId, slug, btn);
+      pollImproveJob(data.job_id, postId, slug);
     } else {
       _wsyncStatus('❌ ' + (data.message || 'Failed to queue'), 'error');
       btn.textContent = '🔧 Improve'; btn.disabled = false;
@@ -4266,31 +4266,36 @@ function onArticleNotesPreset() {
 }
 
 
-async function pollImproveJob(jobId, postId, slug, btn) {
+async function pollImproveJob(jobId, postId, slug) {
+  var btn = document.getElementById('btn-improve-' + postId);
+  // If button no longer exists (tab switched), stop polling — status check on re-render will pick it up
+  if (!btn) return;
   try {
     var r = await fetch('/articles/wp-sync/improve-async/' + jobId);
     var d = await r.json();
     if (d.status === 'done') {
       _wsyncStatus('✅ Improvement ready! Click "👁 View Improved" to review.', 'ok');
-      // Replace button entirely to avoid stale reference issues
-      var newBtn = document.createElement('button');
-      newBtn.className = 'btn btn-green';
-      newBtn.style.cssText = 'font-size:0.72em;padding:1px 5px;margin-left:3px;';
-      newBtn.textContent = '👁 View Improved';
-      newBtn.onclick = function() { showImprovePreview(d); };
-      btn.parentNode.replaceChild(newBtn, btn);
+      btn = document.getElementById('btn-improve-' + postId);
+      if (btn) {
+        var newBtn = document.createElement('button');
+        newBtn.className = 'btn btn-green';
+        newBtn.style.cssText = 'font-size:0.72em;padding:1px 5px;margin-left:3px;';
+        newBtn.textContent = '👁 View Improved';
+        newBtn.onclick = function() { showImprovePreview(d); };
+        btn.parentNode.replaceChild(newBtn, btn);
+      }
       return;
     }
     if (d.status === 'error') {
       _wsyncStatus('❌ ' + (d.message || 'Failed'), 'error');
-      btn.textContent = '🔧 Improve'; btn.disabled = false;
-      btn.style.cursor = 'pointer';
+      btn = document.getElementById('btn-improve-' + postId);
+      if (btn) { btn.textContent = '🔧 Improve'; btn.disabled = false; btn.style.cursor = 'pointer'; }
       return;
     }
-    btn.textContent = '⏳ Running... (' + d.status + ')';
-    setTimeout(function() { pollImproveJob(jobId, postId, slug, btn); }, 3000);
+    if (btn) btn.textContent = '⏳ Running... (' + d.status + ')';
+    setTimeout(function() { pollImproveJob(jobId, postId, slug); }, 3000);
   } catch(e) {
-    setTimeout(function() { pollImproveJob(jobId, postId, slug, btn); }, 5000);
+    setTimeout(function() { pollImproveJob(jobId, postId, slug); }, 5000);
   }
 }
 function showImprovePreview(data) {
