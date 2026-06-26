@@ -3375,9 +3375,13 @@ async function retryArticle(path) {
   }
   document.getElementById('ag-idea').value = idea;
   _showTabImpl('articlegen', document.querySelector('[onclick*="articlegen"]'));
-  // Apply category after tab switch (select options load async)
+  // Wait for categories to load, then apply saved value
+  await loadArticleGenCategories();
   var catSaved = document.getElementById('ag-category').getAttribute('data-retry-cat');
-  if (catSaved) document.getElementById('ag-category').value = catSaved;
+  if (catSaved) {
+    document.getElementById('ag-category').value = catSaved;
+    document.getElementById('ag-category').removeAttribute('data-retry-cat');
+  }
 }
 
 
