@@ -303,6 +303,13 @@ def build_wiki_context_block(wiki_context):
 
 
 def build_article_prompt(context: dict, settings: dict) -> str:
+    import traceback
+    try: return _build_article_prompt(context, settings)
+    except Exception:
+        logger.error(f"build_article_prompt failed:\n{traceback.format_exc()}")
+        raise
+
+def _build_article_prompt(context: dict, settings: dict) -> str:
     """Build the full article generation prompt from gathered context and user settings."""
     facts_block = build_facts_block(context.get("selected_facts") or context.get("facts") or [])
     questions_block = build_questions_block(context.get("selected_questions") or context.get("questions") or [])
