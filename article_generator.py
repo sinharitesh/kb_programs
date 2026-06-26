@@ -329,6 +329,9 @@ def _build_article_prompt(context: dict, settings: dict) -> str:
     }
     lang_instruction = LANG_MAP.get(language, 'English')
 
+    # Gather internal + external links
+    links_block = _get_prompt_links(context["idea"], context.get("selected_facts") or context.get("facts") or [])
+
 
 def _get_prompt_links(idea, facts):
     """Get matching internal + external links for the article prompt."""
@@ -354,9 +357,6 @@ def _get_prompt_links(idea, facts):
             seen.add(url)
             links.append(f"- [{title}]({url})  ← external reference")
     return "\n".join(links[:4]) if links else "No links available"
-
-    # Gather internal + external links
-    links_block = _get_prompt_links(context["idea"], context.get("selected_facts") or context.get("facts") or [])
 
     return f"""You are a world-class content writer known for writing articles that feel alive — the kind readers cannot stop halfway through.
 
