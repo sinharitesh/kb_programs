@@ -1734,8 +1734,12 @@ async def refresh_internal_urls():
         try:
             resp = httpx.get(url, timeout=15)
             html = resp.text
-            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
-            title = title_match.group(1) if title_match else url.split("/")[-1].replace("-", " ")
+            title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.DOTALL | re.IGNORECASE)
+            if title_match:
+                title = re.sub(r"\s+", " ", title_match.group(1)).strip()
+            else:
+                slug = url.rstrip("/").split("/")[-1]
+                title = slug.replace("-", " ").title()
             body = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
             body = re.sub(r"<style.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
             body = re.sub(r"<[^>]+>", " ", body)
@@ -1801,8 +1805,12 @@ async def refresh_internal_urls():
         try:
             resp = httpx.get(url, timeout=15)
             html = resp.text
-            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
-            title = title_match.group(1) if title_match else url.split("/")[-1].replace("-", " ")
+            title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.DOTALL | re.IGNORECASE)
+            if title_match:
+                title = re.sub(r"\s+", " ", title_match.group(1)).strip()
+            else:
+                slug = url.rstrip("/").split("/")[-1]
+                title = slug.replace("-", " ").title()
             body = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
             body = re.sub(r"<style.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
             body = re.sub(r"<[^>]+>", " ", body)
