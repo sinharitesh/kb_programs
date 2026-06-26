@@ -3346,10 +3346,12 @@ async function retryArticle(path) {
   const res = await fetch('/articles/file?path=' + encodeURIComponent(path));
   const data = await res.json();
   if (!data.content) return;
+  document.getElementById('ag-phrases').value = '';  // clear before retry
   var idea = path.split('/').pop().replace('.md', '').replace(/-/g, ' ');
   var fmMatch = data.content.match(/^---([\s\S]*?)---/);
   if (fmMatch) {
     var lines = fmMatch[1].split('\n');
+    var phrasesParts = [];
     for (var i = 0; i < lines.length; i++) {
       var parts = lines[i].split(':', 2);
       if (parts.length === 2) {
@@ -3364,14 +3366,11 @@ async function retryArticle(path) {
             var raw = (v || '').replace(/^\[|\]$/g, '').replace(/"/g, '');
             arr = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
           }
-          if (Array.isArray(arr) && arr.length > 0) {
-            var existing = document.getElementById('ag-phrases').value;
-            var newPhrases = arr.join('\n');
-            document.getElementById('ag-phrases').value = existing ? existing + '\n' + newPhrases : newPhrases;
-          }
+          if (Array.isArray(arr) && arr.length > 0) phrasesParts = phrasesParts.concat(arr);
         }
       }
     }
+    if (phrasesParts.length > 0) document.getElementById('ag-phrases').value = phrasesParts.join('\n');
   }
   document.getElementById('ag-idea').value = idea;
   _showTabImpl('articlegen', document.querySelector('[onclick*="articlegen"]'));
