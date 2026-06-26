@@ -760,7 +760,7 @@
         </div>
         <div>
           <label>Search Phrases (comma-separated)</label>
-          <input type="text" id="ag-phrases" placeholder="e.g., krishna shishupala, mahabharata curse">
+          <textarea id="ag-phrases" placeholder="Enter search phrases, one per line..." style="height:80px;font-size:0.85em;"></textarea>
         </div>
         <div>
           <label>Focus Keyphrase (for SEO)</label>
@@ -3042,7 +3042,7 @@ async function generateArticle() {
   const payload = {
     idea: document.getElementById('ag-idea').value.trim(),
     category: document.getElementById('ag-category').value,
-    search_phrases: document.getElementById('ag-phrases').value.trim().split(',').map(p => p.trim()),
+    search_phrases: document.getElementById('ag-phrases').value.trim().split('\n').map(p => p.trim()).filter(p => p),
     focus_keyphrase: document.getElementById('ag-keyphrase').value.trim(),
     tone: document.getElementById('ag-tone').value,
     word_count: parseInt(document.getElementById('ag-wordcount').value),
@@ -3356,15 +3356,15 @@ async function retryArticle(path) {
         var k = parts[0].trim(), v = parts[1].trim().replace(/"/g, '');
         if (k === 'title') idea = v;
         if (k === 'focus_keyphrase') document.getElementById('ag-keyphrase').value = v;
-        if (k === 'category') document.getElementById('ag-category').value = v;
+        if (k === 'category') document.getElementById('ag-category').setAttribute('data-retry-cat', v);
         if (k === 'context_synth_kw' || k === 'context_kw_intel') {
           var arr = [];
           try { arr = JSON.parse(v || '[]'); }
           catch(e) { arr = (v || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean); }
           if (Array.isArray(arr) && arr.length > 0) {
             var existing = document.getElementById('ag-phrases').value;
-            var newPhrases = arr.join(', ');
-            document.getElementById('ag-phrases').value = existing ? existing + ', ' + newPhrases : newPhrases;
+            var newPhrases = arr.join('\n');
+            document.getElementById('ag-phrases').value = existing ? existing + '\n' + newPhrases : newPhrases;
           }
         }
       }
@@ -3372,6 +3372,9 @@ async function retryArticle(path) {
   }
   document.getElementById('ag-idea').value = idea;
   _showTabImpl('articlegen', document.querySelector('[onclick*="articlegen"]'));
+  // Apply category after tab switch (select options load async)
+  var catSaved = document.getElementById('ag-category').getAttribute('data-retry-cat');
+  if (catSaved) document.getElementById('ag-category').value = catSaved;
 }
 
 
@@ -3597,7 +3600,7 @@ async function optimizePrompt() {
   const status = document.getElementById('ag-prompt-status');
   const idea = document.getElementById('ag-idea').value.trim();
   const keyphrase = document.getElementById('ag-keyphrase').value.trim();
-  const phrases = document.getElementById('ag-phrases').value.trim().split(',').map(p => p.trim()).filter(p => p);
+  const phrases = document.getElementById('ag-phrases').value.trim().split('\n').map(p => p.trim()).filter(p => p).filter(p => p);
   const category = document.getElementById('ag-category').value;
   const tone = document.getElementById('ag-tone').value;
   const contentType = document.getElementById('ag-type').value;
