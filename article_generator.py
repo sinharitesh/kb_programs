@@ -323,6 +323,26 @@ def _build_article_prompt(context: dict, settings: dict) -> str:
     language = settings.get("language", "en")
     content_type = settings.get("content_type", "Blog Post")
 
+    # Type-specific prompt overrides
+    if content_type == "Incident":
+        type_rules = "━━━ INCIDENT / STORY RULES ━━━\n" + (
+            "Choose the single MOST DRAMATIC incident from the Verified Facts above. The ENTIRE article revolves around this one incident.\n"
+            "1. OPEN with the incident itself — who, what, when, where. Start in the middle of the action.\n"
+            "2. Tell the story chronologically: what led up to it, the climax, the aftermath\n"
+            "3. Use vivid sensory details — sights, sounds, emotions. Show, don't tell.\n"
+            "4. Include direct quotes or dialogue if present in the facts\n"
+            "5. Close with a Legacy or Why This Matters Today section")
+    elif content_type == "7 Facts Series":
+        type_rules = "━━━ 7 FACTS SERIES RULES ━━━\n" + (
+            "Write exactly 7 distinct, surprising facts about this topic. Structure:\n"
+            "1. INTRO paragraph (3-4 sentences) teasing what's coming\n"
+            "2. For EACH fact: ## [Bold fact statement as heading] → 1 paragraph explanation → 💡 Why it matters: one-liner\n"
+            "3. Rank from interesting to MIND-BLOWING (save the best for #7)\n"
+            "4. Each fact must be a standalone revelation — someone should be able to screenshot and share it\n"
+            "5. Close with a Which fact surprised you most? question")
+    else:
+        type_rules = ""
+
     LANG_MAP = {
         'hi': 'Hindi (Devanagari script). Use English for headings only.',
         'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
@@ -360,7 +380,7 @@ Word Count       : approximately {word_count} words
 2. Weave answers from Q&A into sections where a reader would ask those questions.
 3. If the KB context and facts disagree, note the ambiguity or give the most authoritative version.
 
-━━━ STRICT WRITING RULES ━━━
+{type_rules}\n\n━━━ STRICT WRITING RULES ━━━
 
 1. FIRST SENTENCE = the ★ MOST INTERESTING FACT above. State it directly. No setup. No narrative preamble. No "Imagine..." or "As I sit...". Just the fact, delivered like a headline.
 
