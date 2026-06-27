@@ -953,7 +953,8 @@
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <span style="color:#666;font-size:0.9em;">Manage internal URLs from sitemap for article linking.</span>
-        <button class="btn btn-green" onclick="refreshInternalUrls()">🔄 Refresh from Sitemap</button>
+        <button class="btn btn-grey" onclick="refreshInternalUrls(10)">🔍 Try 10</button>
+        <button class="btn btn-green" onclick="refreshInternalUrls()">🔄 Full Refresh</button>
       </div>
       <div id="il-status" style="margin-top:8px;font-size:0.85em;color:#666;"></div>
     </div>
@@ -4038,18 +4039,20 @@ async function viewArticleMeta(slugOrFile) {
 }
 
 
-async function refreshInternalUrls() {
+async function refreshInternalUrls(limit) {
   var statusEl = document.getElementById('il-status');
   statusEl.innerHTML = '⏳ Starting...';
-  var btn = document.querySelector('#internallinks .btn-green');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing...'; }
+  var btns = document.querySelectorAll('#internallinks button');
+  btns.forEach(function(b) { b.disabled = true; });
   try {
-    var res = await fetch('/internal-urls/refresh', {method: 'POST'});
+    var url = '/internal-urls/refresh';
+    if (limit) url += '?limit=' + limit;
+    var res = await fetch(url, {method: 'POST'});
     var data = await res.json();
     if (data.job_id) pollRefreshStatus(data.job_id);
   } catch(e) {
     statusEl.innerHTML = '❌ Error: ' + e.message;
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+    var btns = document.querySelectorAll('#internallinks button'); btns.forEach(function(b) { b.disabled = false; });
   }
 }
 
@@ -4059,13 +4062,13 @@ function pollRefreshStatus(jobId) {
   fetch('/internal-urls/refresh-status/' + jobId).then(function(r) { return r.json(); }).then(function(d) {
     if (d.status === 'done') {
       statusEl.innerHTML = '✅ Refreshed! ' + d.count + ' URLs loaded.';
-      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+      var btns = document.querySelectorAll('#internallinks button'); btns.forEach(function(b) { b.disabled = false; });
       loadInternalUrls();
     } else if (d.status === 'error') {
       statusEl.innerHTML = '❌ ' + (d.message || 'Error');
-      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+      var btns = document.querySelectorAll('#internallinks button'); btns.forEach(function(b) { b.disabled = false; });
     } else {
-      statusEl.innerHTML = '⏳ ' + d.status + '... ' + (d.done || 0) + ' of ' + (d.total || '?') + ' URLs scraped';
+      var extra = d.already_done ? ' (' + d.already_done + ' already done)' : ''; statusEl.innerHTML = '⏳ ' + d.status + '... ' + (d.done || 0) + ' of ' + (d.total || '?') + ' URLs scraped' + extra;
       setTimeout(function() { pollRefreshStatus(jobId); }, 2000);
     }
   }).catch(function(e) {
@@ -4106,18 +4109,20 @@ function renderInternalUrls(urls) {
 
 
 // ── Internal Links ──
-async function refreshInternalUrls() {
+async function refreshInternalUrls(limit) {
   var statusEl = document.getElementById('il-status');
   statusEl.innerHTML = '⏳ Starting...';
-  var btn = document.querySelector('#internallinks .btn-green');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing...'; }
+  var btns = document.querySelectorAll('#internallinks button');
+  btns.forEach(function(b) { b.disabled = true; });
   try {
-    var res = await fetch('/internal-urls/refresh', {method: 'POST'});
+    var url = '/internal-urls/refresh';
+    if (limit) url += '?limit=' + limit;
+    var res = await fetch(url, {method: 'POST'});
     var data = await res.json();
     if (data.job_id) pollRefreshStatus(data.job_id);
   } catch(e) {
     statusEl.innerHTML = '❌ Error: ' + e.message;
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+    var btns = document.querySelectorAll('#internallinks button'); btns.forEach(function(b) { b.disabled = false; });
   }
 }
 
@@ -4127,13 +4132,13 @@ function pollRefreshStatus(jobId) {
   fetch('/internal-urls/refresh-status/' + jobId).then(function(r) { return r.json(); }).then(function(d) {
     if (d.status === 'done') {
       statusEl.innerHTML = '✅ Refreshed! ' + d.count + ' URLs loaded.';
-      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+      var btns = document.querySelectorAll('#internallinks button'); btns.forEach(function(b) { b.disabled = false; });
       loadInternalUrls();
     } else if (d.status === 'error') {
       statusEl.innerHTML = '❌ ' + (d.message || 'Error');
-      if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh from Sitemap'; }
+      var btns = document.querySelectorAll('#internallinks button'); btns.forEach(function(b) { b.disabled = false; });
     } else {
-      statusEl.innerHTML = '⏳ ' + d.status + '... ' + (d.done || 0) + ' of ' + (d.total || '?') + ' URLs scraped';
+      var extra = d.already_done ? ' (' + d.already_done + ' already done)' : ''; statusEl.innerHTML = '⏳ ' + d.status + '... ' + (d.done || 0) + ' of ' + (d.total || '?') + ' URLs scraped' + extra;
       setTimeout(function() { pollRefreshStatus(jobId); }, 2000);
     }
   }).catch(function(e) {

@@ -1747,9 +1747,19 @@ async def refresh_internal_urls():
             snippet = body[:250]
             parts = url.replace("https://ritsin.com/", "").split("/")
             category = parts[0] if parts[0] else "uncategorized"
-            results.append({"url": url, "title": title, "snippet": snippet, "category": category})
+            entry = {"url": url, "title": title, "snippet": snippet, "category": category}
+            if url in existing_idx:
+                results[existing_idx[url]] = entry
+            else:
+                results.append(entry)
+                existing_idx[url] = len(results) - 1
         except:
-            results.append({"url": url, "title": url, "snippet": "", "category": ""})
+            entry = {"url": url, "title": url, "snippet": "", "category": ""}
+            if url in existing_idx:
+                results[existing_idx[url]] = entry
+            else:
+                results.append(entry)
+                existing_idx[url] = len(results) - 1
     with open(INTERNAL_URLS_FILE, "w") as f:
         json.dump(results, f, indent=2)
     return JSONResponse({"status": "ok", "count": len(results)})
@@ -1818,9 +1828,19 @@ async def refresh_internal_urls():
             snippet = body[:250]
             parts = url.replace("https://ritsin.com/", "").split("/")
             category = parts[0] if parts[0] else "uncategorized"
-            results.append({"url": url, "title": title, "snippet": snippet, "category": category})
+            entry = {"url": url, "title": title, "snippet": snippet, "category": category}
+            if url in existing_idx:
+                results[existing_idx[url]] = entry
+            else:
+                results.append(entry)
+                existing_idx[url] = len(results) - 1
         except:
-            results.append({"url": url, "title": url, "snippet": "", "category": ""})
+            entry = {"url": url, "title": url, "snippet": "", "category": ""}
+            if url in existing_idx:
+                results[existing_idx[url]] = entry
+            else:
+                results.append(entry)
+                existing_idx[url] = len(results) - 1
     with open(INTERNAL_URLS_FILE, "w") as f:
         json.dump(results, f, indent=2)
     return JSONResponse({"status": "ok", "count": len(results)})
