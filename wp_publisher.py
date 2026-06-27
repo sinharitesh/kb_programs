@@ -712,9 +712,24 @@ Return ONLY valid JSON:
             result.update({"status":"error","message":"Invalid LLM response"})
             return _save_improve_result(job_id, result)
         imp = _json_async.loads(m.group())
+        improved = imp.get("improved_content", plain)
+
+        # Enforce links: 2 internal (ritsin.com) + 1 external minimum
+        il_count = len(_re_imp.findall(r'\[.+?\]\(https?://ritsin\.com[^)]+\)', improved))
+        el_count = len(_re_imp.findall(r'\[.+?\]\(https?://(?:(?!ritsin\.com))[^)]+\)', improved))
+        added = []
+        if il_count < 2:
+            il_lines = [l for l in internal_links.split("\n") if l.strip().startswith("- [")][:2-il_count]
+            added.extend(il_lines)
+        if el_count < 1:
+            el_lines = [l for l in external_links.split("\n") if l.strip().startswith("- [")][:1-el_count]
+            added.extend(el_lines)
+        if added:
+            improved += "\n\n## Related Articles\n\n" + "\n".join(added)
+
         result.update({"status":"done","current_title":title,"current_content":plain[:3000],
             "improved_title":imp.get("improved_title",title),
-            "improved_content":imp.get("improved_content",plain),
+            "improved_content":improved,
             "meta_description":imp.get("meta_description",""),
             "focus_keyphrase":imp.get("focus_keyphrase",""),
             "seo_score":imp.get("seo_score",0),"slug":slug})
