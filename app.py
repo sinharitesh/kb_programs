@@ -1777,8 +1777,8 @@ def _do_refresh(job_id, limit=0):
                 else:
                     results.append(entry)
                     existing_idx[url] = len(results) - 1
-            except:
-                pass
+            except Exception as e:
+                logger.error(f"Scrape error {url}: {e}")
             _internal_refresh_jobs[job_id]["done"] = i + 1
 
         with open(INTERNAL_URLS_FILE, "w") as f:
