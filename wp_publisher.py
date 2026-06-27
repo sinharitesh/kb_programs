@@ -629,12 +629,16 @@ def _get_internal_links(text):
         f = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
         if not f.exists(): return ""
         data = _json_imp.loads(f.read_text())
-        words = set(text.lower().split())
+        stop = {'the','a','an','is','are','was','were','be','been','of','in','to','for',
+                'on','at','by','with','from','this','that','it','its','and','or','but','as',
+                'has','have','had','not','no','can','will','would','do','does','did','so',
+                'if','then','than','also','just','all','each','more','most','about','into'}
+        words = set(w for w in text.lower().split() if w not in stop and len(w) > 2)
         scored = []
         for u in data:
-            title_words = set(u["title"].lower().split()) | set(u.get("snippet","").lower().split())
+            title_words = set(w for w in (u["title"].lower() + " " + u.get("snippet","").lower()).split() if w not in stop and len(w) > 2)
             s = len(words & title_words)
-            if s > 0: scored.append((s, u))
+            if s >= 3: scored.append((s, u))
         scored.sort(key=lambda x: x[0], reverse=True)
         links = [f"- [{u['title']}]({u['url']})" for _,u in scored[:3]]
         return "\n".join(links)
