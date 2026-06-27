@@ -683,12 +683,10 @@ def _run_improve_job(job_id, wp_post_id, slug, instructions=""):
         il_section = "\n━━━ SUGGESTED INTERNAL LINKS (ritsin.com) ━━━\n" + internal_links if internal_links else ""
         external_links = _get_external_links(plain[:2000] + " " + title)
         el_section = "\n━━━ SUGGESTED EXTERNAL LINKS ━━━\n" + external_links if external_links else ""
-        external_links = _get_external_links(plain[:2000] + " " + title)
-        el_section = "\n━━━ SUGGESTED EXTERNAL LINKS ━━━\n" + external_links if external_links else ""
         instr_line = f"\nSPECIFIC INSTRUCTIONS: {instructions}" if instructions else ""
         prompt = f"""You are an expert SEO content improver. Improve this article.
 - Better hook, readability, paragraph flow
-- Add 2-3 reference links from KB context
+- You MUST include at least 2 internal links (from SUGGESTED INTERNAL LINKS) and 1 external link (from SUGGESTED EXTERNAL LINKS) as markdown [text](URL) in the improved content
 - Optimize title for SEO + CTR
 - Focus keyphrase 2-3x naturally
 - Passive voice < 10%, use active verbs
