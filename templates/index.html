@@ -4280,7 +4280,7 @@ async function fetchWPSyncPosts(page, force, fromCache) {
     var html = pager +
       '<div style="margin-bottom:8px;font-size:0.85em;color:#666;">' + data.total + ' total · ' + matched.length + ' matched · ' + unmatched.length + ' unmatched</div>' +
       '<div id="wpsync-status" style="display:none;padding:8px 12px;margin-bottom:8px;border-radius:6px;background:#e8f0fe;color:#1a73e8;font-size:0.85em;"></div>' +
-      '<table class="data-table" style="width:100%;"><thead><tr><th>WP ID</th><th>Title</th><th style="max-width:100px;">Slug</th><th>SEO</th><th>Status</th><th>Modified</th><th>Local</th><th>Actions</th></tr></thead><tbody>';
+      '<table class="data-table" style="width:100%;"><thead><tr><th>WP ID</th><th>Title</th><th style="max-width:100px;">Slug</th><th>SEO</th><th>Status</th><th>Modified</th><th>Actions</th></tr></thead><tbody>';
 
     data.posts.forEach(function(p) {
       var seoHtml = '<span style="color:#888;">—</span>';
@@ -4296,7 +4296,6 @@ async function fetchWPSyncPosts(page, force, fromCache) {
         '<td>' + seoHtml + '</td>' +
         '<td>' + statusBadge + '</td>' +
         '<td style="font-size:0.8em;">' + (p.modified ? new Date(p.modified).toLocaleDateString() : '') + '</td>' +
-        '<td style="font-size:0.8em;">' + (p.synced ? '✅ ' + (p.local_match||'') : '❓ Not matched') + '</td>' +
         '<td>' +
         '<button class="btn btn-grey" style="font-size:0.72em;padding:1px 5px;" onclick="viewWPArticle(' + p.id + ',\'' + (p.slug||'').replace(/'/g,"\\'") + '\')">👁</button> ' +
         (p.synced ?
