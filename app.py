@@ -1720,49 +1720,78 @@ async def api_save_article_with_prompt(req: SaveArticleWithPromptRequest):
 import xml.etree.ElementTree as ET
 
 INTERNAL_URLS_FILE = Path(r"C:\knowledge-base\sitemap-ritsin-com\internal_urls.json")
+_internal_refresh_jobs = {}
 
 @app.post("/internal-urls/refresh")
-async def refresh_internal_urls():
-    """Fetch sitemap, scrape each URL for title+snippet, save to JSON."""
-    INTERNAL_URLS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    r = httpx.get("https://ritsin.com/post-sitemap.xml", timeout=30)
-    root = ET.fromstring(r.text)
-    ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-    urls = [el.text for el in root.findall(".//ns:loc", ns)]
-    results = []
-    for url in urls:
-        try:
-            resp = httpx.get(url, timeout=15)
-            html = resp.text
-            title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.DOTALL | re.IGNORECASE)
-            if title_match:
-                title = re.sub(r"\s+", " ", title_match.group(1)).strip()
-            else:
-                slug = url.rstrip("/").split("/")[-1]
-                title = slug.replace("-", " ").title()
-            body = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
-            body = re.sub(r"<style.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
-            body = re.sub(r"<[^>]+>", " ", body)
-            body = re.sub(r"\s+", " ", body).strip()
-            snippet = body[:250]
-            parts = url.replace("https://ritsin.com/", "").split("/")
-            category = parts[0] if parts[0] else "uncategorized"
-            entry = {"url": url, "title": title, "snippet": snippet, "category": category}
-            if url in existing_idx:
-                results[existing_idx[url]] = entry
-            else:
-                results.append(entry)
-                existing_idx[url] = len(results) - 1
-        except:
-            entry = {"url": url, "title": url, "snippet": "", "category": ""}
-            if url in existing_idx:
-                results[existing_idx[url]] = entry
-            else:
-                results.append(entry)
-                existing_idx[url] = len(results) - 1
-    with open(INTERNAL_URLS_FILE, "w") as f:
-        json.dump(results, f, indent=2)
-    return JSONResponse({"status": "ok", "count": len(results)})
+async def refresh_internal_urls(background_tasks: BackgroundTasks, limit: int = 0):
+    """Start async sitemap refresh. Set limit=N for partial refresh (skips already-scraped)."""
+    import uuid
+    job_id = str(uuid.uuid4())[:8]
+    _internal_refresh_jobs[job_id] = {"status": "fetching", "done": 0, "total": 0, "limit": limit}
+    background_tasks.add_task(_do_refresh, job_id, limit)
+    return JSONResponse({"job_id": job_id, "status": "queued"})
+
+def _do_refresh(job_id, limit=0):
+    try:
+        _internal_refresh_jobs[job_id]["status"] = "fetching"
+        INTERNAL_URLS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        r = httpx.get("https://ritsin.com/post-sitemap.xml", timeout=30)
+        root = ET.fromstring(r.text)
+        ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        urls = [el.text for el in root.findall(".//ns:loc", ns)]
+
+        results = []
+        existing_idx = {}
+        if INTERNAL_URLS_FILE.exists():
+            results = json.loads(INTERNAL_URLS_FILE.read_text())
+            existing_idx = {u["url"]: i for i, u in enumerate(results)}
+
+        to_scrape = [u for u in urls if u not in existing_idx or results[existing_idx[u]]["title"] == u]
+        already_done = len(urls) - len(to_scrape)
+        if limit > 0:
+            to_scrape = to_scrape[:limit]
+
+        _internal_refresh_jobs[job_id].update({"total": len(to_scrape), "new_total": len(urls), "already_done": already_done})
+        _internal_refresh_jobs[job_id]["status"] = "scraping"
+
+        for i, url in enumerate(to_scrape):
+            try:
+                resp = httpx.get(url, timeout=15)
+                html = resp.text
+                title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.DOTALL | re.IGNORECASE)
+                if title_match:
+                    title = re.sub(r"\s+", " ", title_match.group(1)).strip()
+                else:
+                    slug = url.rstrip("/").split("/")[-1]
+                    title = slug.replace("-", " ").title()
+                body = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+                body = re.sub(r"<style.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
+                body = re.sub(r"<[^>]+>", " ", body)
+                body = re.sub(r"\s+", " ", body).strip()
+                snippet = body[:250]
+                parts = url.replace("https://ritsin.com/", "").split("/")
+                category = parts[0] if parts[0] else "uncategorized"
+                entry = {"url": url, "title": title, "snippet": snippet, "category": category}
+                if url in existing_idx:
+                    results[existing_idx[url]] = entry
+                else:
+                    results.append(entry)
+                    existing_idx[url] = len(results) - 1
+            except:
+                pass
+            _internal_refresh_jobs[job_id]["done"] = i + 1
+
+        with open(INTERNAL_URLS_FILE, "w") as f:
+            json.dump(results, f, indent=2)
+        _internal_refresh_jobs[job_id]["status"] = "done"
+        _internal_refresh_jobs[job_id]["count"] = len(results)
+    except Exception as e:
+        _internal_refresh_jobs[job_id] = {"status": "error", "message": str(e)}
+
+@app.get("/internal-urls/refresh-status/{job_id}")
+async def internal_urls_refresh_status(job_id: str):
+    return JSONResponse(_internal_refresh_jobs.get(job_id, {"status": "not_found"}))
+
 
 @app.get("/internal-urls")
 async def get_internal_urls(search: str = "", category: str = ""):
